@@ -1,0 +1,6 @@
+For windows
+
+1. Install VisualStudio Build tools and cmake 
+
+2. Run the build  with the camerasdk path as the first argument
+./WinBuild.bat <Path-to-camera-sdk-path>
