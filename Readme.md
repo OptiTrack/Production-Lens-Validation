@@ -20,6 +20,16 @@ Create an application that can take an image and identify and grade the relevant
 
 <img width="1920" height="1080" alt="Lens Tool - Full App - Zoom View" src="https://github.com/user-attachments/assets/28e3603f-9dba-4553-82b2-434cbec8813a" />
 
+<!-- OUR TEAM -->
+# Our Team
+Scrum Master:
+Daniel Green (greend5@oregonstate.edu)
+
+Nathan Puckett (puckette@oregonstate.edu)
+Bernardo Mendes (mendesb@oregonstate.edu)
+Jack Ollenbrook (ollenbrj@oregonstate.edu)
+Raed Kabir (kabirr@oregonstate.edu)
+
 <!-- GETTING STARTED -->
 # Getting Started
 
