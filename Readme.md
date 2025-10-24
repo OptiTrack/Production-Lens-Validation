@@ -3,6 +3,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#summary">Summary</a></li>
+    <li><a href="#our-team">Our Team</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
       <ul>
@@ -22,13 +23,11 @@ Create an application that can take an image and identify and grade the relevant
 
 <!-- OUR TEAM -->
 # Our Team
-Scrum Master:
-Daniel Green (greend5@oregonstate.edu)
-
-Nathan Puckett (puckette@oregonstate.edu)
-Bernardo Mendes (mendesb@oregonstate.edu)
-Jack Ollenbrook (ollenbrj@oregonstate.edu)
-Raed Kabir (kabirr@oregonstate.edu)
+Daniel Green (Scrum Master) --> greend5@oregonstate.edu
+<br>Nathan Puckett --> puckette@oregonstate.edu
+<br>Bernardo Mendes --> mendesb@oregonstate.edu
+<br>Jack Ollenbrook --> ollenbrj@oregonstate.edu
+<br>Raed Kabir --> kabirr@oregonstate.edu
 
 <!-- GETTING STARTED -->
 # Getting Started
