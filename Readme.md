@@ -3,6 +3,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#summary">Summary</a></li>
+    <li><a href="#our-team">Our Team</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
       <ul>
@@ -19,6 +20,14 @@
 Create an application that can take an image and identify and grade the relevant lens features by examining how circular a markers is or particular image features. Additionally it would be useful to automate the lens focusing process.
 
 <img width="1920" height="1080" alt="Lens Tool - Full App - Zoom View" src="https://github.com/user-attachments/assets/28e3603f-9dba-4553-82b2-434cbec8813a" />
+
+<!-- OUR TEAM -->
+# Our Team
+Daniel Green (Scrum Master) --> greend5@oregonstate.edu
+<br>Nathan Puckett --> puckette@oregonstate.edu
+<br>Bernardo Mendes --> mendesb@oregonstate.edu
+<br>Jack Ollenbrook --> ollenbrj@oregonstate.edu
+<br>Raed Kabir --> kabirr@oregonstate.edu
 
 <!-- GETTING STARTED -->
 # Getting Started
