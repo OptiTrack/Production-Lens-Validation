@@ -7,6 +7,7 @@
 #include <vector>
 #include <cstdlib>
 #include <future>
+#include <QFuture>
 #include <QApplication>
 #include <QMetaObject>
 #include <QtConcurrent/QtConcurrent>    
@@ -129,7 +130,7 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QtConcurrent::run([bmp_shared]() {
+                    QFuture<void> result = QtConcurrent::run([bmp_shared]() {
                         float score = EvaluateBitmapFocus(bmp_shared.get());
 						std::string str = std::to_string(score);
 						qDebug("Focus score: %.2f", score);
