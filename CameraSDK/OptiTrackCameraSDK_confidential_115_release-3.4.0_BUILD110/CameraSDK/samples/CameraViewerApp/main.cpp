@@ -6,9 +6,10 @@
 #include <memory>
 #include <vector>
 #include <cstdlib>
-
+#include <future>
 #include <QApplication>
 #include <QMetaObject>
+#include <QtConcurrent/QtConcurrent>    
 
 #include "QtCameraConnectionManager.h"
 #include "QtVideoWidget.h"
@@ -16,6 +17,7 @@
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
 #include "QtCameraControlPanel.h" 
+#include "FocusEval.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -77,6 +79,11 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
+    
+    std::atomic_bool focusToolEnabled(true); // changed by focus UI control
+    int frameCount = 0;
+    const int focusEvalFrameGap = 30;
+
     std::thread capture([&](){
         for (;;) {
             if (!running) break;
@@ -108,13 +115,31 @@ int main(int argc, char *argv[])
                 const int bytesPerPixel = int(outBpp / 8);
                 const int stride = w * bytesPerPixel;
 
-                auto* bmp = bmp_pool.acquire(w, h, int(outBpp), stride);
-                frame->Rasterize(*cam, bmp);
+                auto* raw_bmp = bmp_pool.acquire(w, h, int(outBpp), stride);
 
-                QMetaObject::invokeMethod(viewer->videoContainer(), [bmp, viewer, &bmp_pool](){
-                    viewer->videoWidget()->updateFrameFromBitmap(bmp);
-                    bmp_pool.release(bmp);
+                // bmp will be freed after last copy is out of scope
+                auto bmp_shared = std::shared_ptr<CameraLibrary::Bitmap>(
+                    raw_bmp,
+                    [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
+                );
+
+                frame->Rasterize(*cam, raw_bmp);
+
+                // if focus evaluation enabled, do so now
+                if (focusToolEnabled && frameCount == 0) {
+                    QtConcurrent::run([bmp_shared]() {
+                        float score = EvaluateBitmapFocus(bmp_shared.get());
+						std::string str = std::to_string(score);
+						qDebug("Focus score: %.2f", score);
+                        });
+                }
+
+                QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
+                    viewer->videoWidget()->updateFrameFromBitmap(raw_bmp);
                 }, Qt::QueuedConnection);
+
+                frameCount += 1;
+                frameCount = frameCount % focusEvalFrameGap;
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
