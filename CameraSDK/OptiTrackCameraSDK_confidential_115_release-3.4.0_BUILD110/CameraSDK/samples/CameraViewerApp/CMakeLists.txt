@@ -25,6 +25,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Sources
 set(APP_SOURCES
     main.cpp
+	FocusEval.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
     QtCameraPicker.cpp
@@ -41,6 +42,15 @@ endif()
 
 qt6_wrap_cpp(MOC_SOURCES QtCameraViewer.h QtCameraConnectionManager.h QtCameraPicker.h QtVideoWidget.h QtCameraControlPanel.h)
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
+
+# ------------------------------------------
+# OpenCV
+# ------------------------------------------
+set(OpenCV_DIR "C:/opencv/build")
+find_package(OpenCV REQUIRED)
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+include_directories(${OpenCV_INCLUDE_DIRS})
+target_link_libraries(CameraViewerApp PRIVATE ${OpenCV_LIBS})
 
 # Link basics
 target_link_libraries(CameraViewerApp PRIVATE Qt6::Core Qt6::Gui Qt6::OpenGLWidgets OpenGL::GL)
@@ -152,6 +162,36 @@ if(WIN32)
                 "$<TARGET_FILE_DIR:CameraViewerApp>"
         VERBATIM
     )
+	
+		set(QT_DLLS
+		Qt6Core.dll
+		Qt6Gui.dll
+		Qt6Widgets.dll
+		Qt6OpenGLWidgets.dll
+		Qt6OpenGL.dll
+	)
+
+	# Folder where Qt DLLs are located
+	set(QT_BIN_DIR "C:/Qt/6.10.0/msvc2022_64/bin")
+	
+	# Copy each QT DLL after build
+	foreach(_dll ${QT_DLLS})
+		add_custom_command(TARGET CameraViewerApp POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt DLL: ${_dll}"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${QT_BIN_DIR}/${_dll}"
+					"$<TARGET_FILE_DIR:CameraViewerApp>"
+		)
+	endforeach()
+	
+	# Copy OpenCV DLLs
+    file(GLOB OPENCV_DLLS "C:/opencv/build/x64/vc16/bin/*.dll")
+    foreach(_dll ${OPENCV_DLLS})
+        add_custom_command(TARGET CameraViewerApp POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_dll}" $<TARGET_FILE_DIR:CameraViewerApp>)
+    endforeach()
+
 elseif(UNIX)
     target_link_libraries(CameraViewerApp
         PRIVATE
