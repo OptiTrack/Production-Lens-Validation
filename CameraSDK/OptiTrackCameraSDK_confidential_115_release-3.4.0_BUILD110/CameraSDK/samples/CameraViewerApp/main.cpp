@@ -11,6 +11,8 @@
 #include <QMetaObject>
 #include <QtConcurrent/QtConcurrent>    
 
+#include <opencv2/opencv.hpp>
+
 #include "QtCameraConnectionManager.h"
 #include "QtVideoWidget.h"
 #include "QtCameraViewer.h"
