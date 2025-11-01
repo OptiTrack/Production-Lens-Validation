@@ -6,5 +6,7 @@ For windows
     a. Qt6_DIR=path\to\qt\install\<toolchain>
     b. QT_PLUGIN_PATH=path\to\qt\install\plugins
 
+- install openCV to c:\opencv\
+
 3. Run the build with the camerasdk path as the first argument 
 ./WinBuild.bat <Path-to-camera-sdk-path>
