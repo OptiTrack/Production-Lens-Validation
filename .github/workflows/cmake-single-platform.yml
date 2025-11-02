@@ -20,7 +20,8 @@ jobs:
     - name: Install basic tools
       run: |
         sudo apt update
-        sudo apt install -y build-essential cmake git curl unzip pkg-config
+        sudo apt install -y build-essential cmake git curl unzip pkg-config \
+                    autoconf automake libtool autoconf-archive
 
     # Install vcpkg
     - name: Install vcpkg
