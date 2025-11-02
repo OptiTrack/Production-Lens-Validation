@@ -132,7 +132,6 @@ int main(int argc, char *argv[])
                 if (focusToolEnabled && frameCount == 0) {
                     QFuture<void> result = QtConcurrent::run([bmp_shared]() {
                         float score = EvaluateBitmapFocus(bmp_shared.get());
-						std::string str = std::to_string(score);
 						qDebug("Focus score: %.2f", score);
                         });
                 }

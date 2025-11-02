@@ -45,6 +45,53 @@ namespace CameraLibrary {
 		return stddev[0] * stddev[0];
 	}
 
+	/// <summary>
+	/// Given a grayscale Mat, determine avg circularity of contours found
+	/// </summary>
+	/// <param name="gray"></param>
+	/// <returns></returns>
+	double AverageCircularityScore(const cv::Mat& gray) {
+		cv::Mat thresh;
+		cv::threshold(gray, thresh, 150, 255, cv::THRESH_BINARY);
+
+		std::vector<std::vector<cv::Point>> contours;
+		std::vector<cv::Vec4i> hierarchy;
+		cv::findContours(thresh, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+		double totalCircularity = 0.0;
+		int validContours = 0;
+
+		// todo: will it be necessary to know the number of anticipated markers?
+		const int expectedMarkers = 3;
+
+		for (const auto& contour : contours) {
+			double area = cv::contourArea(contour);
+			double perimeter = cv::arcLength(contour, true);
+
+			if (perimeter > 0 && area > 10.0) { 
+				double circularity = (4.0 * CV_PI * area) / (perimeter * perimeter);
+				totalCircularity += circularity;
+				validContours++;
+			}
+		}
+
+		// visualization
+		/*
+		cv::Mat image_copy;
+		cv::cvtColor(gray, image_copy, cv::COLOR_GRAY2BGR);
+		cv::drawContours(image_copy, contours, -1, cv::Scalar(0, 255, 0), 2);
+		cv::imshow("Contours", image_copy);
+		cv::waitKey(1000);
+		cv::destroyAllWindows();
+		*/
+
+		if (validContours == 0)
+			return 0.0;
+
+		return totalCircularity / expectedMarkers;
+	}
+
+
 	float EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
 
 		cv::Mat img = ConvertBitmapToMat(bmp);
@@ -61,6 +108,8 @@ namespace CameraLibrary {
 		}
 
 		//cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
+		double circScore = AverageCircularityScore(gray);
+		qDebug("Circularity score: %.2f", circScore);
 
 		double variance = VarianceOfLaplacian(gray);
 		return static_cast<float>(variance);
