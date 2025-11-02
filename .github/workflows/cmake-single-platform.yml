@@ -21,6 +21,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        source-dir: $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp
+        build-dir: $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
