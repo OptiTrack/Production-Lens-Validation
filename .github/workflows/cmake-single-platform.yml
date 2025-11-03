@@ -2,73 +2,79 @@ name: CMake with Qt6 & OpenCV 4.12.0
 
 on:
   push:
-    branches: [ "develop" ]
+    branches:
+      - develop
   pull_request:
-    branches: [ "develop" ]
+    branches:
+      - develop
   workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      # Checkout code
+      - uses: actions/checkout@v4
 
-    - name: Install basic tools
-      run: |
-        sudo apt update
-        sudo apt install -y \
-          build-essential cmake git curl unzip pkg-config \
-          autoconf automake autoconf-archive libtool libltdl-dev \
-          ninja-build \
-          xorg-dev libxkbcommon-dev libxkbcommon-x11-dev \
-          libgl1-mesa-dev libglu1-mesa-dev libglx-dev \
-          libxcb1-dev libxcb-util-dev libxcb-render0-dev \
-          libxcb-image0-dev libxcb-keysyms1-dev libxcb-icccm4-dev \
-          libxcb-shape0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
-          libxcb-sync-dev libxcb-randr0-dev libxcb-render-util0-dev \
-          libx11-xcb-dev libxext-dev libxi-dev libxtst-dev libxrender-dev \
-          libxfixes-dev libxxf86vm-dev libxinerama-dev libxcursor-dev \
-          libdbus-1-dev libfontconfig1-dev libfreetype6-dev \
-          libudev-dev libssl-dev zlib1g-dev \
-          libasound2-dev libpulse-dev pulseaudio-utils
+      # Install system dependencies
+      - name: Install basic tools
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential cmake git curl unzip pkg-config \
+            autoconf automake autoconf-archive libtool libltdl-dev \
+            ninja-build \
+            xorg-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libglx-dev \
+            libxcb1-dev libxcb-util-dev libxcb-render0-dev \
+            libxcb-image0-dev libxcb-keysyms1-dev libxcb-icccm4-dev \
+            libxcb-shape0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
+            libxcb-sync-dev libxcb-randr0-dev libxcb-render-util0-dev \
+            libx11-xcb-dev libxext-dev libxi-dev libxtst-dev libxrender-dev \
+            libxfixes-dev libxxf86vm-dev libxinerama-dev libxcursor-dev \
+            libdbus-1-dev libfontconfig1-dev libfreetype6-dev \
+            libudev-dev libssl-dev zlib1g-dev \
+            libasound2-dev libpulse-dev pulseaudio-utils
 
+      # Cache vcpkg repo and installed packages
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./vcpkg
+            ./vcpkg/installed
+            ./vcpkg/packages
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
 
-    - name: Cache vcpkg
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/vcpkg
-          ./vcpkg/buildtrees
-          ./vcpkg/downloads
-          ./vcpkg/packages
-          ./vcpkg/installed
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
-        restore-keys: |
-          ${{ runner.os }}-vcpkg-
+      # Install vcpkg only if missing
+      - name: Setup vcpkg
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          ./vcpkg/bootstrap-vcpkg.sh
+          ./vcpkg/vcpkg install qt5-base:x64-linux
+          ./vcpkg/vcpkg install opencv[core,highgui,videoio]:x64-linux
 
-    - name: Install vcpkg
-      run: |
-        git clone https://github.com/microsoft/vcpkg.git
-        ./vcpkg/bootstrap-vcpkg.sh
-
-    - name: Install dependencies via vcpkg
-      run: |
-        ./vcpkg/vcpkg install qt5-base:x64-linux
-        ./vcpkg/vcpkg install opencv[core,highgui,videoio]:x64-linux
-
-    - name: Configure CMake
-      run: cmake -B $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
-                -DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake \
+      # Configure CMake
+      - name: Configure CMake
+        run: |
+          cmake -B $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
+                -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
                 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-    - name: Build
-      run: cmake --build $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
+      # Build
+      - name: Build
+        run: |
+          cmake --build $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
                 --config ${{ env.BUILD_TYPE }}
 
-    - name: Test
-      working-directory: $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build
-      run: ctest -C ${{ env.BUILD_TYPE }}
+      # Run tests
+      - name: Test
+        working-directory: $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build
+        run: ctest -C ${{ env.BUILD_TYPE }}
