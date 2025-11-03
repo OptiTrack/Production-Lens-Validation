@@ -20,25 +20,14 @@ jobs:
       # Checkout code
       - uses: actions/checkout@v4
 
-      # Install system dependencies
-      - name: Install basic tools
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            build-essential cmake git curl unzip pkg-config \
-            autoconf automake autoconf-archive libtool libltdl-dev \
-            ninja-build \
-            xorg-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libgl1-mesa-dev libglu1-mesa-dev libglx-dev \
-            libxcb1-dev libxcb-util-dev libxcb-render0-dev \
-            libxcb-image0-dev libxcb-keysyms1-dev libxcb-icccm4-dev \
-            libxcb-shape0-dev libxcb-shm0-dev libxcb-xfixes0-dev \
-            libxcb-sync-dev libxcb-randr0-dev libxcb-render-util0-dev \
-            libx11-xcb-dev libxext-dev libxi-dev libxtst-dev libxrender-dev \
-            libxfixes-dev libxxf86vm-dev libxinerama-dev libxcursor-dev \
-            libdbus-1-dev libfontconfig1-dev libfreetype6-dev \
-            libudev-dev libssl-dev zlib1g-dev \
-            libasound2-dev libpulse-dev pulseaudio-utils
+    - name: Install system dependencies for Qt5 + OpenCV
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake git pkg-config python3 perl ninja-build \
+        libx11-dev libx11-xcb-dev libxcb1-dev libxcb-randr0-dev libxcb-keysyms1-dev libxcb-image0-dev \
+        libxrandr-dev libxrender-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libfontconfig1-dev \
+        libfreetype6-dev libharfbuzz-dev libjpeg-dev libpng-dev libtiff-dev zlib1g-dev \
+        libpcre2-dev libssl-dev libopencv-dev
 
       # Cache vcpkg repo and installed packages
       - name: Cache vcpkg
