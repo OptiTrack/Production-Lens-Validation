@@ -22,6 +22,11 @@ jobs:
       # Checkout code
       - uses: actions/checkout@v4
 
+      - name: List vcpkg Qt packages
+        run: |
+          cd ${{ env.VCPKG_ROOT }}
+          ./vcpkg search qt
+      
       # Install system dependencies for Qt + OpenCV
       - name: Install system dependencies
         run: |
