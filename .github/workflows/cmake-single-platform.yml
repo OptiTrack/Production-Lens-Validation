@@ -5,6 +5,7 @@ on:
     branches: [ "develop" ]
   pull_request:
     branches: [ "develop" ]
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
@@ -16,7 +17,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # Install basic build tools
     - name: Install basic tools
       run: |
         sudo apt update
@@ -29,30 +29,38 @@ jobs:
               libxcb-render-util0-dev libxkbcommon-dev libxkbcommon-x11-dev \
               libgl1-mesa-dev libglu1-mesa-dev
 
-    # Install vcpkg
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/vcpkg
+          ./vcpkg/buildtrees
+          ./vcpkg/downloads
+          ./vcpkg/packages
+          ./vcpkg/installed
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-
+
     - name: Install vcpkg
       run: |
         git clone https://github.com/microsoft/vcpkg.git
         ./vcpkg/bootstrap-vcpkg.sh
 
-    # Install Qt6 and OpenCV via vcpkg
     - name: Install dependencies via vcpkg
       run: |
         ./vcpkg/vcpkg install qt5-base:x64-linux
         ./vcpkg/vcpkg install opencv[core,highgui,videoio]:x64-linux
 
-    # Configure CMake with vcpkg toolchain
     - name: Configure CMake
       run: cmake -B $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
                 -DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake \
                 -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
-    # Build
     - name: Build
       run: cmake --build $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
                 --config ${{ env.BUILD_TYPE }}
 
-    # Run tests
     - name: Test
       working-directory: $CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build
       run: ctest -C ${{ env.BUILD_TYPE }}
