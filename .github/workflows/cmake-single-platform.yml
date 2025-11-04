@@ -1,0 +1,78 @@
+name: CMake with Qt6 & OpenCV 4.12.0
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  CameraSDK: ${{ github.workspace }}/CameraSDK  # Replace with actual path
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - uses: actions/checkout@v4
+
+      - name: List vcpkg Qt packages
+        run: |
+          cd ${{ env.VCPKG_ROOT }}
+          ./vcpkg search qt
+      
+      # Install system dependencies for Qt + OpenCV
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git pkg-config python3 perl ninja-build \
+          libx11-dev libx11-xcb-dev libxcb1-dev libxcb-randr0-dev libxcb-keysyms1-dev libxcb-image0-dev \
+          libxrandr-dev libxrender-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libfontconfig1-dev \
+          libfreetype6-dev libharfbuzz-dev libjpeg-dev libpng-dev libtiff-dev zlib1g-dev \
+          libpcre2-dev libssl-dev libopencv-dev
+
+      # Cache vcpkg repo and installed packages
+      - name: Cache vcpkg
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./vcpkg
+            ./vcpkg/installed
+            ./vcpkg/packages
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      # Install vcpkg only if missing
+      - name: Setup vcpkg
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          ./vcpkg/bootstrap-vcpkg.sh
+          ./vcpkg/vcpkg install qt6-base:x64-linux
+          ./vcpkg/vcpkg install opencv[core,highgui,videoio]:x64-linux
+
+      # Configure CMake
+      - name: Configure CMake
+        run: |
+          cmake -B ${{ env.CameraSDK }}/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
+                -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
+                -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      # Build
+      - name: Build
+        run: |
+          cmake --build ${{ env.CameraSDK }}/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build \
+                --config ${{ env.BUILD_TYPE }}
+
+      # Run tests
+      - name: Test
+        working-directory: ${{ env.CameraSDK }}/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/build
+        run: ctest -C ${{ env.BUILD_TYPE }}
