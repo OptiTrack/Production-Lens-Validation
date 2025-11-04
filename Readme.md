@@ -32,30 +32,21 @@ Daniel Green (Scrum Master) --> greend5@oregonstate.edu
 <!-- GETTING STARTED -->
 # Getting Started
 
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
-
 ### Prerequisites
 
-This is an example of how to list things you need to use the software and how to install them.
-* npm
-  ```sh
-  npm install npm@latest -g PLACEHOLDER
-  ```
+*  Qt 6.10.0
+* OpenCV 4.12.0
+* MSVC2022\_64 C++ compiler
 
 ### Installation
 
-_Below is an example of how you can instruct your audience on installing and setting up your app. This template doesn't rely on any external dependencies or services._
-
-1. Get a free API Key at [https://example.com](https://example.com)
-2. Clone the repo
-   ```sh
-   git clone https://github.com/github_username/repo_name.git PLACEHOLDER
-   ```
-3. Install NPM packages
-   ```sh
-   npm install PLACEHOLDER
-   ```
+1. Clone repository onto local system  
+2. Set environment variables  
+   1. Qt6\_DIR \= ..\\Qt\\6.10.0\\msvc2022\_64\\lib\\cmake\\Qt6  
+   2. QT\_PLUGIN\_PATH \= ..\\Qt\\6.10.0\\msvc2022\_64\\plugin  
+3. Run winBuild.bat at CameraSDK/OptiTrackCameraSDK\_confidential\_115\_ release-3.4.0\_BUILD110/CameraSDK/samples/CameraViewerApp  
+4. Run CameraViewerApp.exe inside \\build\\Releases  
+   1. If .dll errors, copy required .dll files from ..\\Qt\\6.10.0\\msvc2022\_64\\bin, ..\\opencv\\build\\bin\\ , and ..\\opencv\\build\\x64\\vc16\\bin\\ into exe folder
 
 
 <!-- LICENSE -->
