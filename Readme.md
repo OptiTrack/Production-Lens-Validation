@@ -34,27 +34,33 @@ Daniel Green (Scrum Master) --> greend5@oregonstate.edu
 
 ### Prerequisites
 
-*  Qt 6.10.0
+* Qt 6.10.0
 * OpenCV 4.12.0
 * MSVC2022\_64 C++ compiler
 
 ### Installation
+1. **Clone** this repository.
+2. **Set environment variables (configure-time only)**  
+   - `Qt6_DIR = ..\\Qt\\6.10.0\\msvc2022_64\\lib\\cmake\\Qt6`  
+   - (Avoid setting `QT_PLUGIN_PATH` globally; deployment handles plugins.)
+3. **Build** using the provided script:  
+   `CameraSDK/OptiTrackCameraSDK_confidential_115_release-3.4.0_BUILD110/CameraSDK/samples/CameraViewerApp/winBuild.bat`
+4. Your executable will be in `.\build\\Release\\CameraViewerApp.exe`.
 
-1. Clone repository onto local system  
-2. Set environment variables  
-   1. Qt6\_DIR \= ..\\Qt\\6.10.0\\msvc2022\_64\\lib\\cmake\\Qt6  
-   2. QT\_PLUGIN\_PATH \= ..\\Qt\\6.10.0\\msvc2022\_64\\plugin  
-3. Run winBuild.bat at CameraSDK/OptiTrackCameraSDK\_confidential\_115\_ release-3.4.0\_BUILD110/CameraSDK/samples/CameraViewerApp  
-4. Run CameraViewerApp.exe inside \\build\\Releases  
-   1. If .dll errors, copy required .dll files from ..\\Qt\\6.10.0\\msvc2022\_64\\bin, ..\\opencv\\build\\bin\\ , and ..\\opencv\\build\\x64\\vc16\\bin\\ into exe folder
+### Deploy (Qt DLLs)
+After a **Release** build, deploy the matching Qt runtime DLLs and plugins next to the executable. This is the current solution for now.
 
+**PowerShell:**
+```powershell
+& "C:\\Qt\\6.10.0\\msvc2022_64\\bin\\windeployqt.exe" --release --force --compiler-runtime `
+  <path to CameraViewerApp.exe> 
 
 <!-- LICENSE -->
 # License
 
 Distributed under the ___ License. 
 See `LICENSE.txt` in the "licenses" folder for more information.
-Third party licenses can also be found in the "licenses" folder named accordingly.
+Third-party licenses can also be found in the "licenses" folder, named accordingly.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
