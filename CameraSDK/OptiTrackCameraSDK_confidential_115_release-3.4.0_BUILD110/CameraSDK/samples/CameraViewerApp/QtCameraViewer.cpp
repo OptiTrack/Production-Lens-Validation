@@ -151,7 +151,7 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
     auto cams = camera_manager->GetCameras();
     for (auto& c : cams) {
         if (static_cast<qulonglong>(c->Serial()) == serial) {
-            c->SetTextOverlay(true);
+            c->SetTextOverlay(false);
             {
                 std::lock_guard<std::mutex> lk(camera_mutex);
                 current_camera = c;
