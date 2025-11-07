@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - natpuck
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
