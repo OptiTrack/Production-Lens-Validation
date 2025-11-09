@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - develop
-      - natpuck
   pull_request:
     branches:
       - develop
-      - natpuck
   workflow_dispatch:
 
 env:
