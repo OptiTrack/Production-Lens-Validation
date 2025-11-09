@@ -15,10 +15,20 @@
 #include <QMetaObject>
 
 #include "cameralibrary.h"
+#include "FocusEval.h"
 
-namespace CameraLibrary {
+using Bitmap = CameraLibrary::Bitmap;
+using frameScore = FocusEvaluator::frameScore;
 
-	cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap* bmp) {
+	std::deque<FocusEvaluator::frameScore> frameScoreSet;
+	size_t sampleCount = 60;				// store 1 minute of samples at 120 fps
+
+	/// <summary>
+	/// Converts a bitmap to an openCV mat
+	/// </summary>
+	/// <param name="bmp"></param>
+	/// <returns></returns>
+	cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap* bmp) {
 		int width = bmp->PixelWidth();
 		int height = bmp->PixelHeight();
 		int bpp = bmp->GetBitsPerPixel();
@@ -29,70 +39,16 @@ namespace CameraLibrary {
 		if (cvType == -1) {
 			throw std::runtime_error("Unsupported bitmap color depth");
 		}
-
 		cv::Mat mat(height, width, cvType, const_cast<unsigned char*>(bits));
-
 		return mat.clone(); // clone to ensure ownership
 	}
 
-	double VarianceOfLaplacian(const cv::Mat& gray)
-	{
-		cv::Mat lap;
-		cv::Laplacian(gray, lap, CV_64F); // CV_64F for numerical stability
-
-		cv::Scalar mean, stddev;
-		cv::meanStdDev(lap, mean, stddev);
-		return stddev[0] * stddev[0];
-	}
-
 	/// <summary>
-	/// Given a grayscale Mat, determine avg circularity of contours found
+	/// Given a grayscale Mat, determine avg circularity and area of contours found
 	/// </summary>
-	/// <param name="gray"></param>
-	/// <returns></returns>
-	double AverageCircularityScore(const cv::Mat& gray) {
-		cv::Mat thresh;
-		cv::threshold(gray, thresh, 150, 255, cv::THRESH_BINARY);
-
-		std::vector<std::vector<cv::Point>> contours;
-		std::vector<cv::Vec4i> hierarchy;
-		cv::findContours(thresh, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
-		double totalCircularity = 0.0;
-		int validContours = 0;
-
-		// todo: will it be necessary to know the number of anticipated markers?
-		const int expectedMarkers = 3;
-
-		for (const auto& contour : contours) {
-			double area = cv::contourArea(contour);
-			double perimeter = cv::arcLength(contour, true);
-
-			if (perimeter > 0 && area > 10.0) { 
-				double circularity = (4.0 * CV_PI * area) / (perimeter * perimeter);
-				totalCircularity += circularity;
-				validContours++;
-			}
-		}
-
-		// visualization
-		/*
-		cv::Mat image_copy;
-		cv::cvtColor(gray, image_copy, cv::COLOR_GRAY2BGR);
-		cv::drawContours(image_copy, contours, -1, cv::Scalar(0, 255, 0), 2);
-		cv::imshow("Contours", image_copy);
-		cv::waitKey(1000);
-		cv::destroyAllWindows();
-		*/
-
-		if (validContours == 0)
-			return 0.0;
-
-		return totalCircularity / expectedMarkers;
-	}
-
-
-	float EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
+	/// <param name="bmp">Incoming frame bitmap data</param>
+	/// <returns>frameScore struct with quantative focus data</returns>
+	frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap* bmp) {
 
 		cv::Mat img = ConvertBitmapToMat(bmp);
 
@@ -107,13 +63,114 @@ namespace CameraLibrary {
 			gray = img;
 		}
 
-		//cv::GaussianBlur(gray, gray, cv::Size(3, 3), 0);
-		double circScore = AverageCircularityScore(gray);
-		qDebug("Circularity score: %.2f", circScore);
+		cv::Mat edges;
 
-		double variance = VarianceOfLaplacian(gray);
-		return static_cast<float>(variance);
+		const int lowThreshold = 100;
+		const int ratio = 3;
+		const int kernel_size = 3;
+
+		cv::Mat smoothed;
+		cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
+		cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
+
+		
+		cv::imshow("Canny", edges);
+		cv::waitKey(500);
+		cv::destroyAllWindows();
+		
+
+		std::vector<std::vector<cv::Point>> contours;
+		std::vector<cv::Vec4i> hierarchy;
+		cv::findContours(edges, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+		double totalCircularity = 0.0;
+		double totalArea = 0.0;
+		int validContours = 0;
+
+		for (const auto& contour : contours) {
+			double area = cv::contourArea(contour);
+			double perimeter = cv::arcLength(contour, true);
+
+			// Filter out noise / tiny fragments
+			if (perimeter > 0 && area > 10.0) {
+				double circularity = (4.0 * CV_PI * area) / (perimeter * perimeter);
+				totalCircularity += circularity;
+				validContours++;
+				totalArea += area;
+			}
+		}
+
+		FocusEvaluator::frameScore fs{};
+		if (validContours > 0) {
+			fs.avgContourArea = totalArea / validContours;
+			fs.cirularity = totalCircularity / validContours;
+			fs.contourCount = validContours;
+		}
+
+		qDebug("\n");
+		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
+		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
+		qDebug("[dbg] Contours: %d", fs.contourCount);
+		qDebug("\n");
+
+		return fs;
 	}
 
-}
+	/// <summary>
+	/// Determines the best focus score in the current set
+	/// </summary>
+	/// <returns></returns>
+	double FocusEvaluator::bestLocalFocus() {
+		if (frameScoreSet.empty()) {
+			return 0.0;
+		}
+		double maxScore = 0.0;
 
+		for (const auto& fs : frameScoreSet) {
+			// highest circularity / area ratio preferred
+			double f = fs.cirularity / (fs.avgContourArea + 1e-6); {
+				if (f > maxScore) {
+					maxScore = f;
+				}
+			}
+		}
+		return maxScore;
+	}
+
+	/// <summary>
+	/// Compares the current frame score against the local optimal score
+	/// </summary>
+	/// <param name="fs">Focus score values to be compared against current optimal values</param>
+	/// <returns></returns>
+	double FocusEvaluator::relativeToOptimal(const frameScore& fs) {
+		double maxFocus = bestLocalFocus();
+		double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+
+		if (maxFocus < 1e-6) {
+			return 0.0;
+		}
+		return curr / maxFocus;
+	}
+
+	/// <summary>
+	/// Adds a new score to the set, and removes old items if required
+	/// </summary>
+	/// <param name="fs">Incoming focus score values</param>
+	void FocusEvaluator::addFrameScore(frameScore fs) {
+		frameScoreSet.push_back(fs);
+		if (frameScoreSet.size() > sampleCount) {
+			frameScoreSet.pop_front();
+			//qDebug("[dbg] Removed old focus score.");
+		}
+	}
+
+	/// <summary>
+	/// Receives incoming frame and grades it's focus against existing data.
+	/// </summary>
+	/// <param name="bmp">Incoming frame data from camera</param>
+	/// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal focus</returns>
+	double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
+		frameScore fs = gradeFrame(bmp);
+		addFrameScore(fs);
+		return relativeToOptimal(fs);
+	}
