@@ -21,6 +21,7 @@
 #include "BitmapPool.h"
 #include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
+#include "GradientDot.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -85,8 +86,15 @@ int main(int argc, char *argv[])
     std::atomic_bool focusToolEnabled(true); // changed by focus UI control
     
     FocusEvaluator fe;
-    const int focusEvalFrameGap = 120; // sampling occurs once each 
+    const int focusEvalFrameGap = 10;      // sampling occurs once each second
     int frameCount = 0;
+
+    GradientDot* dot = new GradientDot();
+    dot->resize(200, 200);
+    dot->move(viewer->videoContainer()->width() - 30, 10); // top-right corner
+    dot->setValue(0.3); // red
+    dot->show();
+    dot->raise();
 
     std::thread capture([&](){
         for (;;) {
@@ -131,9 +139,10 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, bmp_shared]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared]() {
                         double score = fe.EvaluateBitmapFocus(bmp_shared.get());
 						qDebug("[dbg] Focus score: %.2f", score);
+                        dot->setValue(score);
                         });
                 }
 

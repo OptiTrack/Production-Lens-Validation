@@ -21,7 +21,8 @@ using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
 
 	std::deque<FocusEvaluator::frameScore> frameScoreSet;
-	size_t sampleCount = 60;				// store 1 minute of samples at 120 fps
+	size_t sampleCount = 1024;				
+	double maxObserved = 0.0;
 
 	/// <summary>
 	/// Converts a bitmap to an openCV mat
@@ -73,11 +74,11 @@ using frameScore = FocusEvaluator::frameScore;
 		cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
 		cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
-		
+		/*
 		cv::imshow("Canny", edges);
 		cv::waitKey(500);
 		cv::destroyAllWindows();
-		
+		*/
 
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarchy;
@@ -93,7 +94,7 @@ using frameScore = FocusEvaluator::frameScore;
 
 			// Filter out noise / tiny fragments
 			if (perimeter > 0 && area > 10.0) {
-				double circularity = (4.0 * CV_PI * area) / (perimeter * perimeter);
+				double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
 				totalCircularity += circularity;
 				validContours++;
 				totalArea += area;
@@ -107,12 +108,6 @@ using frameScore = FocusEvaluator::frameScore;
 			fs.contourCount = validContours;
 		}
 
-		qDebug("\n");
-		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
-		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
-		qDebug("[dbg] Contours: %d", fs.contourCount);
-		qDebug("\n");
-
 		return fs;
 	}
 
@@ -121,17 +116,18 @@ using frameScore = FocusEvaluator::frameScore;
 	/// </summary>
 	/// <returns></returns>
 	double FocusEvaluator::bestLocalFocus() {
+
 		if (frameScoreSet.empty()) {
 			return 0.0;
 		}
+
 		double maxScore = 0.0;
 
 		for (const auto& fs : frameScoreSet) {
 			// highest circularity / area ratio preferred
-			double f = fs.cirularity / (fs.avgContourArea + 1e-6); {
-				if (f > maxScore) {
-					maxScore = f;
-				}
+			double f = fs.cirularity / (fs.avgContourArea + 1e-6);
+			if (f > maxScore) {
+				maxScore = f;
 			}
 		}
 		return maxScore;
@@ -145,7 +141,6 @@ using frameScore = FocusEvaluator::frameScore;
 	double FocusEvaluator::relativeToOptimal(const frameScore& fs) {
 		double maxFocus = bestLocalFocus();
 		double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
-
 		if (maxFocus < 1e-6) {
 			return 0.0;
 		}
@@ -170,7 +165,17 @@ using frameScore = FocusEvaluator::frameScore;
 	/// <param name="bmp">Incoming frame data from camera</param>
 	/// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal focus</returns>
 	double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
+		
 		frameScore fs = gradeFrame(bmp);
+
+		qDebug("\n");
+		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
+		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
+		qDebug("[dbg] Contours: %d", fs.contourCount);
+		qDebug("\n");
+
+		double score = relativeToOptimal(fs);
 		addFrameScore(fs);
-		return relativeToOptimal(fs);
+
+		return score;
 	}
