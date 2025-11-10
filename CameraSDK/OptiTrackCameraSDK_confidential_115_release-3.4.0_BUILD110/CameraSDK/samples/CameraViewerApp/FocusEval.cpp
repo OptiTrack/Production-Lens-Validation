@@ -21,8 +21,14 @@ using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
 
 	std::deque<FocusEvaluator::frameScore> frameScoreSet;
-	size_t sampleCount = 1024;				
-	double maxObserved = 0.0;
+	size_t sampleCount = 64;				
+	double maxInstanceScore = 0.0;
+
+	const double hiFocusThreshold = 0.95;
+	const double midFocusThreshold = 0.6;
+	const double loFocusThreshold = 0.3;
+
+	const double decayRate = 0.93; // per evaluation, forget old max val a little bit
 
 	/// <summary>
 	/// Converts a bitmap to an openCV mat
@@ -138,13 +144,56 @@ using frameScore = FocusEvaluator::frameScore;
 	/// </summary>
 	/// <param name="fs">Focus score values to be compared against current optimal values</param>
 	/// <returns></returns>
-	double FocusEvaluator::relativeToOptimal(const frameScore& fs) {
-		double maxFocus = bestLocalFocus();
-		double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+	double FocusEvaluator::compareScoreToMax(const frameScore& fs) {
+
+		// current frame's focus metric
+	    double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+
+		// Update global max if better focus achieved
+		if (curr > maxInstanceScore) {
+			maxInstanceScore = curr;
+		}
+
+		// compare best from dataset to global max
+		double maxFocus = std::max(bestLocalFocus(), maxInstanceScore);
+
+		// Avoid division by near-zero
 		if (maxFocus < 1e-6) {
 			return 0.0;
 		}
-		return curr / maxFocus;
+
+		double ratio = std::clamp(curr / maxFocus, 0.0, 1.0);
+
+		// --- Cold-start guard ---
+		// Don't report "optimal" if we haven't seen a strong enough absolute max yet.
+		bool confident = (maxFocus >= loFocusThreshold);
+
+		// return early if we've not seen enough data
+		if (!confident) {
+			qDebug("[dbg] Focus baseline not established (maxFocus=%.3f)", maxFocus);
+			return maxFocus;
+		}
+
+		// otherwise, classify quality
+		if (ratio >= hiFocusThreshold) {
+			qDebug("[dbg] Focus optimal!");
+		} 
+		else if (ratio >= midFocusThreshold) {
+			qDebug("[dbg] Focus close to optimal...");
+		} 
+		else if (ratio > loFocusThreshold) {
+			qDebug("[dbg] Focus improving...");
+		} 
+		else {
+			qDebug("[dbg] Focus poor.");
+		}
+
+		// decay max slowly in case we grabbed a transient peak
+		double oldMax = maxInstanceScore;
+		maxInstanceScore = std::max(curr, maxInstanceScore * decayRate);
+		qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
+
+		return ratio;
 	}
 
 	/// <summary>
@@ -174,7 +223,7 @@ using frameScore = FocusEvaluator::frameScore;
 		qDebug("[dbg] Contours: %d", fs.contourCount);
 		qDebug("\n");
 
-		double score = relativeToOptimal(fs);
+		double score = compareScoreToMax(fs);
 		addFrameScore(fs);
 
 		return score;

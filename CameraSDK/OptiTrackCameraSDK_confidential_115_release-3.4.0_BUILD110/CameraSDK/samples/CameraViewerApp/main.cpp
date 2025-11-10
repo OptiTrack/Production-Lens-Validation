@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     std::atomic_bool focusToolEnabled(true); // changed by focus UI control
     
     FocusEvaluator fe;
-    const int focusEvalFrameGap = 10;      // sampling occurs once each second
+    const int focusEvalFrameGap = 10;
     int frameCount = 0;
 
     GradientDot* dot = new GradientDot();

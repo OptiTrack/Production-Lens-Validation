@@ -16,7 +16,7 @@ private:
 	cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap* bmp);
 	frameScore gradeFrame(CameraLibrary::Bitmap* bmp);
 	void addFrameScore(frameScore fs);
-	double relativeToOptimal(const frameScore& fs);
+	double compareScoreToMax(const frameScore& fs);
 	double bestLocalFocus();
 };
 
