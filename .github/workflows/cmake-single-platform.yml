@@ -46,7 +46,7 @@ jobs:
         cmake -B build -G "${{ env.CMAKE_GENERATOR }}" -A x64 `
           -DOpenCV_DIR="${{ github.workspace }}\opencv\build" `
           -DCMAKE_PREFIX_PATH="${{ github.workspace }}\Qt\6.10.0\msvc2022_64"`
-          -DCAMERA_SDK-PATH="${{ github.workspace }}\CameraSDK"
+          -DCAMERA_SDK_PATH="${{ github.workspace }}\CameraSDK"
       shell: pwsh
 
     - name: Build
