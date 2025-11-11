@@ -7,6 +7,7 @@ on:
     branches: [ "develop", "mendesb-br" ]
   pull_request:
     branches: [ "develop" ]
+  workflow_dispatch:
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
