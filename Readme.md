@@ -55,6 +55,7 @@ After a **Release** build, deploy the matching Qt runtime DLLs and plugins next 
 & "C:\\Qt\\6.10.0\\msvc2022_64\\bin\\windeployqt.exe" --release --force --compiler-runtime `
   <path to CameraViewerApp.exe> 
 
+```
 <!-- LICENSE -->
 # License
 
