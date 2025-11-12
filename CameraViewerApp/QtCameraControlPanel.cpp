@@ -74,6 +74,8 @@ void CameraControlPanel::buildUi() {
     auto addModeBtn = [&](const char* text, Core::eVideoMode mode) {
         auto* b = new QPushButton(text, mode_bar);
         connect(b, &QPushButton::clicked, this, [this, mode]{ onSetVideoMode(int(mode)); });
+        // Clicking any regular mode should disable Edge Detect toggle if present
+        connect(b, &QPushButton::clicked, this, [this](){ if (edge_button && edge_button->isChecked()) { edge_button->setChecked(false); emit edgeDetectToggled(false); } });
         hm->addWidget(b);
     };
     addModeBtn("Segment",   Core::SegmentMode);
@@ -82,6 +84,19 @@ void CameraControlPanel::buildUi() {
     addModeBtn("Precision", Core::PrecisionMode);
     addModeBtn("MJPEG",     Core::MJPEGMode);
     addModeBtn("Duplex",    Core::DuplexMode);
+    // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
+    edge_button = new QPushButton("Edge Detect", mode_bar);
+    edge_button->setCheckable(true);
+    connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
+        // If enabling, force camera into Grayscale mode so frames are 8bpp
+        if (checked) {
+            if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }
+            // request grayscale video on camera
+            onSetVideoMode(static_cast<int>(Core::GrayscaleMode));
+        }
+        emit edgeDetectToggled(checked);
+    });
+    hm->addWidget(edge_button);
     root->addWidget(mode_bar);
 
     // Row: Color compression / gamma

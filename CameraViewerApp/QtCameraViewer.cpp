@@ -126,6 +126,12 @@ void QtCameraViewer::wireSignals()
     // Selection changes update shared state and control panel
     connect(camera_picker, &CameraPicker::serialChanged,
             this, &QtCameraViewer::handleSerialSelected);
+
+    // Forward Edge Detect toggle from control panel to the video widget
+    if (camera_controls) {
+        connect(camera_controls, &CameraControlPanel::edgeDetectToggled,
+                this, [this](bool enabled){ if (gl_viewer_window) gl_viewer_window->setEdgeDetectEnabled(enabled); });
+    }
 }
 
 void QtCameraViewer::setEmptyState(bool anyCamerasPresent)

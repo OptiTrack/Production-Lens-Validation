@@ -17,6 +17,8 @@ public:
 
 signals:
     void showWarning(const QString& title, const QString& message);
+    // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
+    void edgeDetectToggled(bool enabled);
 
 private:
     void buildUi();
@@ -43,6 +45,7 @@ private:
     QPushButton* gamma_button{nullptr};
 
     QWidget* mode_bar{nullptr};
+    QPushButton* edge_button{nullptr};
 
 private slots:
     void onSetExposure();
