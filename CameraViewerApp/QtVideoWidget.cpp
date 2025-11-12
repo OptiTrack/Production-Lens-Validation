@@ -1,6 +1,9 @@
 #include "QtVideoWidget.h"
 #include <algorithm>
 #include <cstring>
+// OpenCV for simple image processing (edge detection)
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 // Specialized GL Viewer for displaying bitmaps from a camera
 
@@ -200,10 +203,38 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
 
     byte_array_staging.resize(int(required));
     const int dstStride = srcStride;
-    for (int row = 0; row < h; ++row) {
-        const unsigned char* s = src + size_t(row) * size_t(srcStride);
-        unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
-        std::memcpy(d, s, size_t(dstStride));
+
+    // If this is an 8-bit grayscale frame, run a simple OpenCV Canny edge detector
+    // and display the edges instead of raw grayscale. For other formats we copy raw bytes.
+    if (bpp == 8) {
+        // Wrap the source as a cv::Mat (no copy) using the source stride/step
+        cv::Mat gray(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
+
+        // Smooth and detect edges
+        cv::Mat smoothed;
+        cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
+        cv::Mat edges;
+        const double lowThreshold = 50.0;
+        const double highThreshold = lowThreshold * 3.0;
+        const int kernel_size = 3;
+        cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+
+        // Copy the edges (single-channel) into the staging buffer preserving stride
+        for (int row = 0; row < h; ++row) {
+            const unsigned char* s = edges.ptr<unsigned char>(row);
+            unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
+            // edges.step may equal w, but to be safe copy min(w, dstStride)
+            const size_t toCopy = static_cast<size_t>(std::min<int>(w, dstStride));
+            std::memcpy(d, s, toCopy);
+            // If dstStride is larger than w, zero the remaining bytes on the row
+            if (dstStride > w) std::memset(d + toCopy, 0, size_t(dstStride - toCopy));
+        }
+    } else {
+        for (int row = 0; row < h; ++row) {
+            const unsigned char* s = src + size_t(row) * size_t(srcStride);
+            unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
+            std::memcpy(d, s, size_t(dstStride));
+        }
     }
 
     pending_width = w;
