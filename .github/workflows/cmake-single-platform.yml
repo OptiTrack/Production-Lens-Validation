@@ -35,9 +35,35 @@ jobs:
     
     - name: Install OpenCV
       run: |
-        $opencvUrl = "https://github.com/opencv/opencv/releases/download/4.12.0/opencv-4.12.0-windows.exe"
-        Invoke-WebRequest -Uri $opencvUrl -OutFile opencv.exe
-        Start-Process opencv.exe -ArgumentList "/S","/D=${{ github.workspace }}" -Wait
+        $opencvVersion = "4.12.0"
+        $opencvUrl = "https://github.com/opencv/opencv/releases/download/${opencvVersion}/opencv-${opencvVersion}-windows.exe"
+        $opencvExe = "${{ github.workspace }}\opencv-installer.exe"
+        
+        # Download OpenCV with progress tracking and timeout
+        Write-Host "Starting OpenCV download from: $opencvUrl"
+        $ProgressPreference = 'Continue'
+        try {
+          Invoke-WebRequest -Uri $opencvUrl -OutFile $opencvExe -Verbose -TimeoutSec 600
+          Write-Host "Download complete: $(Get-Item $opencvExe | Select-Object -ExpandProperty Length) bytes"
+        } catch {
+          Write-Host "Download failed, trying alternative mirror..."
+          $altUrl = "https://sourceforge.net/projects/opencvlibrary/files/opencv-win/4.12.0/opencv-4.12.0-windows.exe/download"
+          Invoke-WebRequest -Uri $altUrl -OutFile $opencvExe -Verbose -TimeoutSec 600
+          Write-Host "Download complete from alternative source: $(Get-Item $opencvExe | Select-Object -ExpandProperty Length) bytes"
+        }
+        
+        # Extract OpenCV (the installer is a self-extracting archive)
+        Write-Host "Extracting OpenCV installer..."
+        & $opencvExe -o"${{ github.workspace }}" -y
+        Write-Host "Extraction complete"
+        
+        # Rename to standard location
+        if (Test-Path "${{ github.workspace }}\opencv-$opencvVersion") {
+          Write-Host "Renaming opencv-$opencvVersion to opencv"
+          Rename-Item -Path "${{ github.workspace }}\opencv-$opencvVersion" -NewName "opencv"
+          Write-Host "Rename complete"
+        }
+        Write-Host "OpenCV installation complete"
       shell: pwsh
 
     - name: Configure CMake
