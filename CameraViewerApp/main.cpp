@@ -22,6 +22,7 @@
 #include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
 #include "GradientDot.h"
+#include "FocusResultText.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -96,6 +97,13 @@ int main(int argc, char *argv[])
     dot->show();
     dot->raise();
 
+    DisplayResults* results = new DisplayResults("Disabled");
+    results->setTextColor(Qt::gray);
+    QFont labelFont("Arial", 20, QFont::Bold);
+    results->setFont(labelFont);
+    results->show();
+    results->raise();
+
     std::thread capture([&](){
         for (;;) {
             if (!running) break;
@@ -137,13 +145,26 @@ int main(int argc, char *argv[])
 
                 frame->Rasterize(*cam, raw_bmp);
 
+                double score = 0;
+
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared]() {
-                        double score = fe.EvaluateBitmapFocus(bmp_shared.get());
+                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared, &score]() {
+                        score = fe.EvaluateBitmapFocus(bmp_shared.get());
 						qDebug("[dbg] Focus score: %.2f", score);
                         dot->setValue(score);
-                        });
+                        }
+                    );
+                    // change color and text of result depending on success rate
+                    if ((0 < score) && (score <= .5)) {
+                        results->setTextColor(Qt::red);
+                    }
+                    else if ((.8 < score) && (score <= 10)) {
+                        results->setTextColor(Qt::green);
+                    }
+                    else {
+                        results->setTextColor(Qt::yellow);
+                    }
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
