@@ -203,10 +203,7 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
 
     byte_array_staging.resize(int(required));
     const int dstStride = srcStride;
-
-    // If this is an 8-bit grayscale frame, run a simple OpenCV Canny edge detector
-    // and display the edges instead of raw grayscale. For other formats we copy raw bytes.
-    if (bpp == 8) {
+    if (bpp == 8 && edge_detect_enabled.load(std::memory_order_acquire)) {
         // Wrap the source as a cv::Mat (no copy) using the source stride/step
         cv::Mat gray(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
 

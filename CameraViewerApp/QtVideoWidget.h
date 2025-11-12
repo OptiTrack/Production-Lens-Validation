@@ -47,6 +47,7 @@ private:
     int pending_bpp = 0;
     int pending_stride = 0;
     std::atomic<bool> has_pending{false};
+    std::atomic<bool> edge_detect_enabled{false};
 
     // Swizzle cache to avoid re-setting every frame
     enum class SwizzleMode { DefaultRGBA, RedToRGB };
@@ -61,6 +62,8 @@ private:
     void ensureVaoVbo();
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
+public slots:
+    void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
 };
 
 #endif // VIDEOWIDGET_H
