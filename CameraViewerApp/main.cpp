@@ -72,12 +72,17 @@ int main(int argc, char *argv[])
 
     // ------------------------------------DEBUG TEXT CHANGE FOR RESULT TEXT -------------------------------------------------------------------
     QString new_result_text = "testing";
+    DisplayResults* test = new DisplayResults("this is a test DisplayResults object");
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, new_result_text, nullptr);
+                                      fps_calculator, test, nullptr);
     viewer->resize(1100, 600);
     viewer->show();
+
+    // ------------------------------------ DEBUG TEXT CHANGE FOR RESULT TEXT *AFTER* VIEW IS MADE --------------------------------------------
+    new_result_text = "this just changed!!";
+    test->setText(new_result_text);
 
     // Bitmap resource
     BitmapPool bmp_pool([](int w, int h, int bpp, int stride) -> Bitmap* {

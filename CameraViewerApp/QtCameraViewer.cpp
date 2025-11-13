@@ -49,7 +49,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
                                std::atomic<uint64_t>& switchEpoch,
                                std::atomic<unsigned>&  activeSerial,
                                CameraHelper::FrameRateCalculator& fpsCalc,
-                               QString& newText,
+                               DisplayResults* newText,
                                QWidget* parent)
     : QWidget(parent)
     , camera_manager(mgr)
@@ -92,11 +92,10 @@ void QtCameraViewer::buildUi()
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
     connect(fpsTimer, &QTimer::timeout, this, [this](){
+        focus_result->setText(new_result_text->text());
         fps_label->setText(QString("FPS: %1").arg(fps_calculator.current(), 0, 'f', 1));
     });
     fpsTimer->start();
-
-    focus_result->setText(new_result_text);
 
     // Center stacked layout
     center_widget = new QWidget(this);

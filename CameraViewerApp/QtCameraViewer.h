@@ -33,7 +33,7 @@ public:
                    std::atomic<uint64_t>& switchEpoch,
                    std::atomic<unsigned>&  activeSerial,
                    CameraHelper::FrameRateCalculator& fpsCalc,
-                   QString& new_result_text,
+                   DisplayResults* new_result_text,
                    QWidget* parent = nullptr);
 
     static void ApplyAppStyle();
@@ -59,7 +59,7 @@ private:
     std::atomic<uint64_t>&   switch_epoch;
     std::atomic<unsigned>&   active_serial;
     CameraHelper::FrameRateCalculator& fps_calculator;
-    QString new_result_text;
+    DisplayResults* new_result_text;
 
     void buildUi();
     void wireSignals();
