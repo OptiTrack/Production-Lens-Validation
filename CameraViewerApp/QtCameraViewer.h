@@ -1,10 +1,13 @@
 #pragma once
 
 #include <QWidget>
+#include <QString>
 #include <memory>
 #include <optional>
 #include <atomic>
 #include <mutex>
+
+#include "FocusResultText.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -30,6 +33,7 @@ public:
                    std::atomic<uint64_t>& switchEpoch,
                    std::atomic<unsigned>&  activeSerial,
                    CameraHelper::FrameRateCalculator& fpsCalc,
+                   QString& new_result_text,
                    QWidget* parent = nullptr);
 
     static void ApplyAppStyle();
@@ -47,6 +51,7 @@ private:
     QWidget*          empty_pane{nullptr};
     QWidget*          viewer_container{nullptr};
     VideoWidget*      gl_viewer_window{nullptr};
+    DisplayResults* focus_result{nullptr};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
@@ -54,6 +59,7 @@ private:
     std::atomic<uint64_t>&   switch_epoch;
     std::atomic<unsigned>&   active_serial;
     CameraHelper::FrameRateCalculator& fps_calculator;
+    QString new_result_text;
 
     void buildUi();
     void wireSignals();

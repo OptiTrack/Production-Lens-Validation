@@ -10,7 +10,8 @@
 #include <QFuture>
 #include <QApplication>
 #include <QMetaObject>
-#include <QtConcurrent/QtConcurrent>    
+#include <QtConcurrent/QtConcurrent>
+#include <QLabel>
 
 #include <opencv2/opencv.hpp>
 
@@ -68,8 +69,13 @@ int main(int argc, char *argv[])
     std::atomic<unsigned>  active_serial{0};
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
+
+    // ------------------------------------DEBUG TEXT CHANGE FOR RESULT TEXT -------------------------------------------------------------------
+    QString new_result_text = "testing";
+
+    // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, nullptr);
+                                      fps_calculator, new_result_text, nullptr);
     viewer->resize(1100, 600);
     viewer->show();
 
@@ -97,12 +103,12 @@ int main(int argc, char *argv[])
     dot->show();
     dot->raise();
 
-    DisplayResults* results = new DisplayResults("Disabled");
-    results->setTextColor(Qt::gray);
-    QFont labelFont("Arial", 20, QFont::Bold);
-    results->setFont(labelFont);
-    results->show();
-    results->raise();
+    // DisplayResults* results = new DisplayResults("Disabled");
+    // results->setTextColor(Qt::gray);
+    // QFont labelFont("Arial", 20, QFont::Bold);
+    // results->setFont(labelFont);
+    // results->show();
+    // results->raise();
 
     std::thread capture([&](){
         for (;;) {
@@ -155,16 +161,16 @@ int main(int argc, char *argv[])
                         dot->setValue(score);
                         }
                     );
-                    // change color and text of result depending on success rate
-                    if ((0 < score) && (score <= .5)) {
-                        results->setTextColor(Qt::red);
-                    }
-                    else if ((.8 < score) && (score <= 10)) {
-                        results->setTextColor(Qt::green);
-                    }
-                    else {
-                        results->setTextColor(Qt::yellow);
-                    }
+                    // // change color and text of result depending on success rate
+                    // if ((0 < score) && (score <= .5)) {
+                    //     results->setTextColor(Qt::red);
+                    // }
+                    // else if ((.8 < score) && (score <= 10)) {
+                    //     results->setTextColor(Qt::green);
+                    // }
+                    // else {
+                    //     results->setTextColor(Qt::yellow);
+                    // }
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){

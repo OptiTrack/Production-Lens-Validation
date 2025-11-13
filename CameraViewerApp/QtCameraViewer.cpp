@@ -49,6 +49,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
                                std::atomic<uint64_t>& switchEpoch,
                                std::atomic<unsigned>&  activeSerial,
                                CameraHelper::FrameRateCalculator& fpsCalc,
+                               QString& newText,
                                QWidget* parent)
     : QWidget(parent)
     , camera_manager(mgr)
@@ -57,6 +58,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
     , switch_epoch(switchEpoch)
     , active_serial(activeSerial)
     , fps_calculator(fpsCalc)
+    , new_result_text(newText)
 {
     buildUi();
     wireSignals();
@@ -74,13 +76,16 @@ void QtCameraViewer::buildUi()
     camera_controls = new CameraControlPanel(camera_manager, this);
     v->addWidget(camera_controls);
 
-    // Row 3: Status bar with FPS
+    // Row 3: Status bar with FPS and result from focus eval
     status_bar = new QWidget(this);
     auto* sh = new QHBoxLayout(status_bar);
     sh->setContentsMargins(6,0,6,0);
     fps_label = new QLabel("FPS: —", status_bar);
     fps_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_result = new DisplayResults("Disabled");
+    focus_result->setStyleSheet("color:#5f9ea0; font-weight:600;");
     sh->addWidget(fps_label);
+    sh->addWidget(focus_result);
     sh->addStretch(1);
     v->addWidget(status_bar);
 
@@ -90,6 +95,8 @@ void QtCameraViewer::buildUi()
         fps_label->setText(QString("FPS: %1").arg(fps_calculator.current(), 0, 'f', 1));
     });
     fpsTimer->start();
+
+    focus_result->setText(new_result_text);
 
     // Center stacked layout
     center_widget = new QWidget(this);
