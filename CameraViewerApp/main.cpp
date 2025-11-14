@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
-    QLabel* focus_result = new QLabel("Disabled");
+    DisplayResults* focus_result = new DisplayResults("Disabled");
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
@@ -146,29 +146,13 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared, &score]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared, &score, &focus_result]() {
                         score = fe.EvaluateBitmapFocus(bmp_shared.get());
 						qDebug("[dbg] Focus score: %.2f", score);
                         dot->setValue(score);
+                        focus_result->updateTextandColor(score);
                         }
                     );
-                    // change color and text of result depending on success rate
-                    if ((0 < score) && (score < .65)) {
-                        focus_result->setText("Failure");
-                        focus_result->setStyleSheet("color:FireBrick; font-weight:600;");
-                    }
-                    else if ((.65 <= score) && (score < .75)) {
-                        focus_result->setText("Success (Wide Angle Lens)");
-                        focus_result->setStyleSheet("color:#668b0b; font-weight:600;");
-                    }
-                    else if ((.75 <= score) && (score <= 10)) {
-                        focus_result->setText("Success (All lenses)");
-                        focus_result->setStyleSheet("color:ForestGreen; font-weight:600;");
-                    }
-                    else {
-                        focus_result->setText("Inconclusive");
-                        focus_result->setStyleSheet("color:Gold; font-weight:600;");
-                    }
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
@@ -182,10 +166,6 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
-
-    // ------------------- DEBUG FOCUS RESULTS DISPLAY -----------------------
-    // focus_result->setText("Testing this here");
-    // focus_result->setStyleSheet("color:#00BFFF; font-weight:600;");
 
     // Ensure Camera Library Shutdown on program exit
     guard.captureThread = &capture;
