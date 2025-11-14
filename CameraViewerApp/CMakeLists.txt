@@ -34,6 +34,11 @@ set(APP_SOURCES
     QtCameraControlPanel.cpp
 )
 
+# CSS
+file(GLOB CSS_file RELATIVE "Designs" "*.css")
+file(GLOB small_icons RELATIVE "Small" "*.svg")
+file(GLOB large_icons RELATIVE "Large" "*.svg")
+
 # Only compile the decoder if FFmpeg is enabled
 if(ENABLE_FFMPEG)
     list(APPEND APP_SOURCES videodecoder.cpp)
@@ -41,7 +46,8 @@ if(ENABLE_FFMPEG)
 endif()
 
 qt6_wrap_cpp(MOC_SOURCES QtCameraViewer.h QtCameraConnectionManager.h QtCameraPicker.h QtVideoWidget.h QtCameraControlPanel.h)
-add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
+add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES} ${CSS_file} ${small_icons} ${large_icons})
+
 
 # ------------------------------------------
 # OpenCV
