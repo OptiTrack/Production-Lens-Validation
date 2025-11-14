@@ -49,7 +49,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
                                std::atomic<uint64_t>& switchEpoch,
                                std::atomic<unsigned>&  activeSerial,
                                CameraHelper::FrameRateCalculator& fpsCalc,
-                               DisplayResults* newText,
+                               QLabel* newText,
                                QWidget* parent)
     : QWidget(parent)
     , camera_manager(mgr)
@@ -58,7 +58,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
     , switch_epoch(switchEpoch)
     , active_serial(activeSerial)
     , fps_calculator(fpsCalc)
-    , new_result_text(newText)
+    , focus_result(newText)
 {
     buildUi();
     wireSignals();
@@ -76,23 +76,34 @@ void QtCameraViewer::buildUi()
     camera_controls = new CameraControlPanel(camera_manager, this);
     v->addWidget(camera_controls);
 
-    // Row 3: Status bar with FPS and result from focus eval
+    // Row 3: Status bar with FPS
     status_bar = new QWidget(this);
     auto* sh = new QHBoxLayout(status_bar);
     sh->setContentsMargins(6,0,6,0);
     fps_label = new QLabel("FPS: —", status_bar);
     fps_label->setStyleSheet("color:#ddd; font-weight:600;");
-    focus_result = new DisplayResults("Disabled");
-    focus_result->setStyleSheet("color:#5f9ea0; font-weight:600;");
     sh->addWidget(fps_label);
-    sh->addWidget(focus_result);
     sh->addStretch(1);
+
     v->addWidget(status_bar);
+
+    // Row 4: Another status bar, this time with focus eval results
+    second_status_bar = new QWidget(this);
+    auto* second_box = new QHBoxLayout(second_status_bar);
+    second_box->setContentsMargins(6,0,6,0);
+    focus_result_label = new QLabel("Focus Result:", second_status_bar);
+    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+    second_box->addWidget(focus_result_label);
+    second_box->addWidget(focus_result);
+    second_box->addStretch(1);
+
+    v->addWidget(second_status_bar);
 
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
     connect(fpsTimer, &QTimer::timeout, this, [this](){
-        focus_result->setText(new_result_text->text());
+        focus_result->update();
         fps_label->setText(QString("FPS: %1").arg(fps_calculator.current(), 0, 'f', 1));
     });
     fpsTimer->start();

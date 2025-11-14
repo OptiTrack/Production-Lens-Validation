@@ -7,8 +7,6 @@
 #include <atomic>
 #include <mutex>
 
-#include "FocusResultText.h"
-
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
 #endif
@@ -33,7 +31,7 @@ public:
                    std::atomic<uint64_t>& switchEpoch,
                    std::atomic<unsigned>&  activeSerial,
                    CameraHelper::FrameRateCalculator& fpsCalc,
-                   DisplayResults* new_result_text,
+                   QLabel* focus_result,
                    QWidget* parent = nullptr);
 
     static void ApplyAppStyle();
@@ -45,13 +43,14 @@ private:
     CameraPicker*   camera_picker{nullptr};
     CameraControlPanel* camera_controls{nullptr};
     QWidget*          status_bar{nullptr};
+    QWidget*          second_status_bar{nullptr};
     QLabel*           fps_label{nullptr};
     QWidget*          center_widget{nullptr};
     QStackedLayout*   stacked_layout{nullptr};
     QWidget*          empty_pane{nullptr};
     QWidget*          viewer_container{nullptr};
     VideoWidget*      gl_viewer_window{nullptr};
-    DisplayResults* focus_result{nullptr};
+    QLabel*           focus_result_label{nullptr};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
@@ -59,7 +58,7 @@ private:
     std::atomic<uint64_t>&   switch_epoch;
     std::atomic<unsigned>&   active_serial;
     CameraHelper::FrameRateCalculator& fps_calculator;
-    DisplayResults* new_result_text;
+    QLabel* focus_result;
 
     void buildUi();
     void wireSignals();

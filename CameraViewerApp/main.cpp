@@ -23,7 +23,6 @@
 #include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
 #include "GradientDot.h"
-#include "FocusResultText.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -70,19 +69,13 @@ int main(int argc, char *argv[])
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
-    // ------------------------------------DEBUG TEXT CHANGE FOR RESULT TEXT -------------------------------------------------------------------
-    QString new_result_text = "testing";
-    DisplayResults* test = new DisplayResults("this is a test DisplayResults object");
+    QLabel* focus_result = new QLabel("Disabled");
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, test, nullptr);
+                                      fps_calculator, focus_result, nullptr);
     viewer->resize(1100, 600);
     viewer->show();
-
-    // ------------------------------------ DEBUG TEXT CHANGE FOR RESULT TEXT *AFTER* VIEW IS MADE --------------------------------------------
-    new_result_text = "this just changed!!";
-    test->setText(new_result_text);
 
     // Bitmap resource
     BitmapPool bmp_pool([](int w, int h, int bpp, int stride) -> Bitmap* {
@@ -107,13 +100,6 @@ int main(int argc, char *argv[])
     dot->setValue(0.3); // red
     dot->show();
     dot->raise();
-
-    // DisplayResults* results = new DisplayResults("Disabled");
-    // results->setTextColor(Qt::gray);
-    // QFont labelFont("Arial", 20, QFont::Bold);
-    // results->setFont(labelFont);
-    // results->show();
-    // results->raise();
 
     std::thread capture([&](){
         for (;;) {
@@ -166,16 +152,23 @@ int main(int argc, char *argv[])
                         dot->setValue(score);
                         }
                     );
-                    // // change color and text of result depending on success rate
-                    // if ((0 < score) && (score <= .5)) {
-                    //     results->setTextColor(Qt::red);
-                    // }
-                    // else if ((.8 < score) && (score <= 10)) {
-                    //     results->setTextColor(Qt::green);
-                    // }
-                    // else {
-                    //     results->setTextColor(Qt::yellow);
-                    // }
+                    // change color and text of result depending on success rate
+                    if ((0 < score) && (score < .65)) {
+                        focus_result->setText("Failure");
+                        focus_result->setStyleSheet("color:FireBrick; font-weight:600;");
+                    }
+                    else if ((.65 <= score) && (score < .75)) {
+                        focus_result->setText("Success (Wide Angle Lens)");
+                        focus_result->setStyleSheet("color:#668b0b; font-weight:600;");
+                    }
+                    else if ((.75 <= score) && (score <= 10)) {
+                        focus_result->setText("Success (All lenses)");
+                        focus_result->setStyleSheet("color:ForestGreen; font-weight:600;");
+                    }
+                    else {
+                        focus_result->setText("Inconclusive");
+                        focus_result->setStyleSheet("color:Gold; font-weight:600;");
+                    }
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
@@ -189,6 +182,10 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
+
+    // ------------------- DEBUG FOCUS RESULTS DISPLAY -----------------------
+    // focus_result->setText("Testing this here");
+    // focus_result->setStyleSheet("color:#00BFFF; font-weight:600;");
 
     // Ensure Camera Library Shutdown on program exit
     guard.captureThread = &capture;
