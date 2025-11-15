@@ -2,15 +2,10 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
-#include <optional>
 #include <memory>
-#include <vector>
 #include <cstdlib>
-#include <future>
 #include <QFuture>
 #include <QApplication>
-#include <QMetaObject>
-#include <QtConcurrent/QtConcurrent>
 #include <QLabel>
 
 #include <opencv2/opencv.hpp>
@@ -27,6 +22,11 @@
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
 #endif
+
+#include <qfuture.h>
+#include <qlogging.h>
+#include <QtConcurrent/qtconcurrentrun.h>
+#include <qobjectdefs.h>
 
 using namespace CameraLibrary;
 
@@ -146,13 +146,21 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared, &score, &focus_result]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, &dot, bmp_shared, &score]() {
                         score = fe.EvaluateBitmapFocus(bmp_shared.get());
-						qDebug("[dbg] Focus score: %.2f", score);
-                        dot->setValue(score);
-                        focus_result->updateTextandColor(score);
-                        }
-                    );
+                        qDebug("[dbg] Focus score: %.2f", score);
+
+                        QMetaObject::invokeMethod(
+                            qApp,
+                            [focus_result, dot, score]() {
+
+								dot->setValue(score);
+                                
+                                focus_result->updateTextandColor(score);
+                            },
+                            Qt::QueuedConnection
+                        );
+                    });
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
