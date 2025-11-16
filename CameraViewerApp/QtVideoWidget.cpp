@@ -219,8 +219,9 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
         // Overlay edges on the original gray image
         // Make a copy of the original to preserve it
         cv::Mat result = gray.clone();
-        // Set edge pixels to bright neon blue (255) on the result
-        result.setTo(cv::Scalar(255), edges);
+        // Set edge pixels to white (255) on the result
+        cv::Scalar edgeColor(31, 81, 255);
+        result.setTo(edgeColor, edges);
 
         // Copy the result (original + edges) into the staging buffer preserving stride
         for (int row = 0; row < h; ++row) {
