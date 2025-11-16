@@ -216,11 +216,17 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
         const int kernel_size = 3;
         cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
 
-        // Copy the edges (single-channel) into the staging buffer preserving stride
+        // Overlay edges on the original gray image
+        // Make a copy of the original to preserve it
+        cv::Mat result = gray.clone();
+        // Set edge pixels to bright neon blue (255) on the result
+        result.setTo(cv::Scalar(255), edges);
+
+        // Copy the result (original + edges) into the staging buffer preserving stride
         for (int row = 0; row < h; ++row) {
-            const unsigned char* s = edges.ptr<unsigned char>(row);
+            const unsigned char* s = result.ptr<unsigned char>(row);
             unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
-            // edges.step may equal w, but to be safe copy min(w, dstStride)
+            // result.step may equal w, but to be safe copy min(w, dstStride)
             const size_t toCopy = static_cast<size_t>(std::min<int>(w, dstStride));
             std::memcpy(d, s, toCopy);
             // If dstStride is larger than w, zero the remaining bytes on the row
