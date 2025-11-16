@@ -49,6 +49,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
                                std::atomic<uint64_t>& switchEpoch,
                                std::atomic<unsigned>&  activeSerial,
                                CameraHelper::FrameRateCalculator& fpsCalc,
+                               QLabel* newText,
                                QWidget* parent)
     : QWidget(parent)
     , camera_manager(mgr)
@@ -57,6 +58,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
     , switch_epoch(switchEpoch)
     , active_serial(activeSerial)
     , fps_calculator(fpsCalc)
+    , focus_result(newText)
 {
     buildUi();
     wireSignals();
@@ -82,11 +84,26 @@ void QtCameraViewer::buildUi()
     fps_label->setStyleSheet("color:#ddd; font-weight:600;");
     sh->addWidget(fps_label);
     sh->addStretch(1);
+
     v->addWidget(status_bar);
+
+    // Row 4: Another status bar, this time with focus eval results
+    second_status_bar = new QWidget(this);
+    auto* second_box = new QHBoxLayout(second_status_bar);
+    second_box->setContentsMargins(6,0,6,0);
+    focus_result_label = new QLabel("Focus Result:", second_status_bar);
+    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+    second_box->addWidget(focus_result_label);
+    second_box->addWidget(focus_result);
+    second_box->addStretch(1);
+
+    v->addWidget(second_status_bar);
 
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
     connect(fpsTimer, &QTimer::timeout, this, [this](){
+        focus_result->update();
         fps_label->setText(QString("FPS: %1").arg(fps_calculator.current(), 0, 'f', 1));
     });
     fpsTimer->start();

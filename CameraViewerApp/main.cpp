@@ -2,15 +2,11 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
-#include <optional>
 #include <memory>
-#include <vector>
 #include <cstdlib>
-#include <future>
 #include <QFuture>
 #include <QApplication>
-#include <QMetaObject>
-#include <QtConcurrent/QtConcurrent>    
+#include <QLabel>
 
 #include <opencv2/opencv.hpp>
 
@@ -26,6 +22,11 @@
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
 #endif
+
+#include <qfuture.h>
+#include <qlogging.h>
+#include <QtConcurrent/qtconcurrentrun.h>
+#include <qobjectdefs.h>
 
 using namespace CameraLibrary;
 
@@ -67,8 +68,12 @@ int main(int argc, char *argv[])
     std::atomic<unsigned>  active_serial{0};
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
+
+    QLabel* focus_result = new QLabel("Disabled");
+
+    // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, nullptr);
+                                      fps_calculator, focus_result, nullptr);
     viewer->resize(1100, 600);
     viewer->show();
 
@@ -137,13 +142,41 @@ int main(int argc, char *argv[])
 
                 frame->Rasterize(*cam, raw_bmp);
 
+                double score = 0;
+
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &dot, bmp_shared]() {
-                        double score = fe.EvaluateBitmapFocus(bmp_shared.get());
-						qDebug("[dbg] Focus score: %.2f", score);
-                        dot->setValue(score);
-                        });
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, &dot, bmp_shared, &score]() {
+                        score = fe.EvaluateBitmapFocus(bmp_shared.get());
+                        qDebug("[dbg] Focus score: %.2f", score);
+
+                        QMetaObject::invokeMethod(
+                            qApp,
+                            [focus_result, dot, score]() {
+
+								dot->setValue(score);
+
+                                // change color and text of result depending on success rate
+                                if ((0 < score) && (score < .65)) {
+                                    focus_result->setText("Failure");
+                                    focus_result->setStyleSheet("color:FireBrick; font-weight:600;");
+                                }
+                                else if ((.65 <= score) && (score < .75)) {
+                                    focus_result->setText("Success (Wide Angle Lens)");
+                                    focus_result->setStyleSheet("color:#668b0b; font-weight:600;");
+                                }
+                                else if ((.75 <= score) && (score <= 1.0)) {
+                                    focus_result->setText("Success (All lenses)");
+                                    focus_result->setStyleSheet("color:ForestGreen; font-weight:600;");
+                                }
+                                else {
+                                    focus_result->setText("Inconclusive");
+                                    focus_result->setStyleSheet("color:Gold; font-weight:600;");
+                                }
+                            },
+                            Qt::QueuedConnection
+                        );
+                    });
                 }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
@@ -157,6 +190,10 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
+
+    // ------------------- DEBUG FOCUS RESULTS DISPLAY -----------------------
+    // focus_result->setText("Testing this here");
+    // focus_result->setStyleSheet("color:#00BFFF; font-weight:600;");
 
     // Ensure Camera Library Shutdown on program exit
     guard.captureThread = &capture;
