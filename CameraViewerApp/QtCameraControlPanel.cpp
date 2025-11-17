@@ -45,12 +45,12 @@ void CameraControlPanel::buildUi() {
     auto* camGroup = new QGroupBox("Camera Controls", row1);
     auto* camLayout = new QHBoxLayout(camGroup); camLayout->setContentsMargins(6,6,6,6);
     
-    // Exposure: slider from 1 to 10000
+    // Exposure: slider from 1 to 200
     exposure_slider = new QSlider(Qt::Horizontal, camGroup);
-    exposure_slider->setRange(1, 10000);
-    exposure_slider->setValue(500);
+    exposure_slider->setRange(1, 200);
+    exposure_slider->setValue(50);
     exposure_slider->setMaximumWidth(150);
-    exposure_label = new QLabel("500", camGroup);
+    exposure_label = new QLabel("50", camGroup);
     exposure_label->setMaximumWidth(50);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         exposure_label->setText(QString::number(val));
