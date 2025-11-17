@@ -198,8 +198,8 @@ void CameraControlPanel::buildUi() {
 
     // Bitrate slider (0 - 10000 Mbps)
     bitrate_slider = new QSlider(Qt::Horizontal, compGroup);
-    bitrate_slider->setRange(0, 10000);
-    bitrate_slider->setValue(5000);
+    bitrate_slider->setRange(0, 200);
+    bitrate_slider->setValue(50);
     bitrate_slider->setMaximumWidth(120);
     bitrate_label = new QLabel("50.00", compGroup);
     bitrate_label->setMaximumWidth(50);
