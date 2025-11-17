@@ -6,6 +6,7 @@ class QLineEdit;
 class QComboBox;
 class QPushButton;
 class QLabel;
+class QSlider;
 
 class CameraConnectionManager;
 
@@ -28,23 +29,36 @@ private:
     unsigned selected_serial{0};
 
     QLineEdit* exposure_edit{nullptr};
+    QSlider* exposure_slider{nullptr};
+    QLabel* exposure_label{nullptr};
     QPushButton* exposure_button{nullptr};
 
     QLineEdit* fps_edit{nullptr};
+    QSlider* fps_slider{nullptr};
+    QLabel* fps_label{nullptr};
     QPushButton* fps_button{nullptr};
 
     QLineEdit* gain_edit{nullptr};
+    QSlider* gain_slider{nullptr};
+    QLabel* gain_label{nullptr};
     QPushButton* gain_button{nullptr};
 
     QLineEdit* quality_edit{nullptr};
+    QSlider* quality_slider{nullptr};
+    QLabel* quality_label{nullptr};
     QLineEdit* bitrate_edit{nullptr};
+    QSlider* bitrate_slider{nullptr};
+    QLabel* bitrate_label{nullptr};
     QComboBox* mode_combo{nullptr};
     QPushButton* set_compression_button{nullptr};
 
     QLineEdit* gamma_edit{nullptr};
+    QSlider* gamma_slider{nullptr};
+    QLabel* gamma_label{nullptr};
     QPushButton* gamma_button{nullptr};
 
-    QWidget* mode_bar{nullptr};
+    // Droplist for selecting the video mode (replaces multiple mode buttons)
+    QComboBox* video_mode_combo{nullptr};
     QPushButton* edge_button{nullptr};
 
 private slots:
@@ -55,3 +69,4 @@ private slots:
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
 };
+
