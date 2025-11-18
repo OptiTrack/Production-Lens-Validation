@@ -4,6 +4,9 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QSlider>
+#include <QGroupBox>
+#include <QFormLayout>
 #include <QMessageBox>
 #include <QIntValidator>
 #include <QDoubleValidator>
@@ -38,54 +41,123 @@ void CameraControlPanel::buildUi() {
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
-    auto* camLbl = new QLabel("Controls:", row1);
-    exposure_edit = new QLineEdit(row1);
-    exposure_edit->setPlaceholderText("Exposure");
-    exposure_edit->setValidator(new QIntValidator(1, 10000, exposure_edit));
-    exposure_button = new QPushButton("Set Exposure", row1);
-    connect(exposure_button, &QPushButton::clicked, this, &CameraControlPanel::onSetExposure);
+    // Group: Camera Controls (exposure, fps, gain)
+    auto* camGroup = new QGroupBox("Camera Controls", row1);
+    auto* camLayout = new QHBoxLayout(camGroup); camLayout->setContentsMargins(6,6,6,6);
+    
+    // Exposure: slider from 1 to 200
+    exposure_slider = new QSlider(Qt::Horizontal, camGroup);
+    exposure_slider->setRange(1, 200);
+    exposure_slider->setValue(50);
+    exposure_slider->setMaximumWidth(150);
+    exposure_label = new QLabel("50", camGroup);
+    exposure_label->setMaximumWidth(50);
+    connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        exposure_label->setText(QString::number(val));
+    });
+    exposure_button = new QPushButton("Apply", camGroup);
+    connect(exposure_button, &QPushButton::clicked, this, [this](){
+        onSetExposure();
+    });
 
-    fps_edit = new QLineEdit(row1);
-    fps_edit->setPlaceholderText("Frame Rate");
-    fps_edit->setValidator(new QIntValidator(1, 1000, fps_edit));
-    fps_button  = new QPushButton("Set Frame Rate", row1);
-    connect(fps_button, &QPushButton::clicked, this, &CameraControlPanel::onSetFps);
+    // Frame Rate: slider from 1 to 1000
+    fps_slider = new QSlider(Qt::Horizontal, camGroup);
+    fps_slider->setRange(1, 1000);
+    fps_slider->setValue(30);
+    fps_slider->setMaximumWidth(150);
+    fps_label = new QLabel("30", camGroup);
+    fps_label->setMaximumWidth(50);
+    connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        fps_label->setText(QString::number(val));
+    });
+    fps_button  = new QPushButton("Apply", camGroup);
+    connect(fps_button, &QPushButton::clicked, this, [this](){
+        onSetFps();
+    });
 
-    gain_edit = new QLineEdit(row1);
-    gain_edit->setPlaceholderText("Gain");
-    gain_edit->setValidator(new QIntValidator(0, 7, gain_edit));
-    gain_button  = new QPushButton("Set Gain", row1);
-    connect(gain_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGain);
+    // Gain: slider from 0 to 7
+    gain_slider = new QSlider(Qt::Horizontal, camGroup);
+    gain_slider->setRange(0, 7);
+    gain_slider->setValue(0);
+    gain_slider->setMaximumWidth(100);
+    gain_label = new QLabel("0", camGroup);
+    gain_label->setMaximumWidth(30);
+    connect(gain_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        gain_label->setText(QString::number(val));
+    });
+    gain_button  = new QPushButton("Apply", camGroup);
+    connect(gain_button, &QPushButton::clicked, this, [this](){
+        onSetGain();
+    });
 
-    h1->addWidget(camLbl);
-    h1->addWidget(exposure_edit);
-    h1->addWidget(exposure_button);
-    h1->addSpacing(8);
-    h1->addWidget(fps_edit);
-    h1->addWidget(fps_button);
-    h1->addWidget(gain_edit);
-    h1->addWidget(gain_button);
+    // Build compact horizontal widgets for each camera control
+    auto* exposureWidget = new QWidget(camGroup);
+    auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(4);
+    auto* expLabel = new QLabel("Exposure:", exposureWidget);
+    expLayout->addWidget(expLabel, 0, Qt::AlignRight);
+    expLayout->addWidget(exposure_slider);
+    expLayout->addWidget(exposure_label, 0, Qt::AlignRight);
+    expLayout->addWidget(exposure_button);
+
+    auto* fpsWidget = new QWidget(camGroup);
+    auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(4);
+    auto* fpsLbl = new QLabel("FPS:", fpsWidget);
+    fpsLayoutW->addWidget(fpsLbl, 0, Qt::AlignRight);
+    fpsLayoutW->addWidget(fps_slider);
+    fpsLayoutW->addWidget(fps_label, 0, Qt::AlignRight);
+    fpsLayoutW->addWidget(fps_button);
+
+    auto* gainWidget = new QWidget(camGroup);
+    auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(4);
+    auto* gainLbl = new QLabel("Gain:", gainWidget);
+    gainLayoutW->addWidget(gainLbl, 0, Qt::AlignRight);
+    gainLayoutW->addWidget(gain_slider);
+    gainLayoutW->addWidget(gain_label, 0, Qt::AlignRight);
+    gainLayoutW->addWidget(gain_button);
+
+    camLayout->addWidget(exposureWidget);
+    camLayout->addSpacing(8);
+    camLayout->addWidget(fpsWidget);
+    camLayout->addWidget(gainWidget);
+    h1->addWidget(camGroup);
+    
     root->addWidget(row1);
 
-    // Row: Video modes
-    mode_bar = new QWidget(this);
-    auto* hm  = new QHBoxLayout(mode_bar); hm->setContentsMargins(0,0,0,0); hm->setSpacing(6);
+    root->addWidget(row1);
 
-    auto addModeBtn = [&](const char* text, Core::eVideoMode mode) {
-        auto* b = new QPushButton(text, mode_bar);
-        connect(b, &QPushButton::clicked, this, [this, mode]{ onSetVideoMode(int(mode)); });
-        // Clicking any regular mode should disable Edge Detect toggle if present
-        connect(b, &QPushButton::clicked, this, [this](){ if (edge_button && edge_button->isChecked()) { edge_button->setChecked(false); emit edgeDetectToggled(false); } });
-        hm->addWidget(b);
-    };
-    addModeBtn("Segment",   Core::SegmentMode);
-    addModeBtn("Grayscale", Core::GrayscaleMode);
-    addModeBtn("Object",    Core::ObjectMode);
-    addModeBtn("Precision", Core::PrecisionMode);
-    addModeBtn("MJPEG",     Core::MJPEGMode);
-    addModeBtn("Duplex",    Core::DuplexMode);
+    // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
     // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
-    edge_button = new QPushButton("Edge Detect", mode_bar);
+    // Add a Video Mode dropdown next to existing controls so modes appear with other controls
+    auto* modeLbl = new QLabel("Video Mode:", row1);
+    video_mode_combo = new QComboBox(row1);
+    video_mode_combo->addItem("Segment", QVariant(static_cast<int>(Core::SegmentMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "5-segment view (center+corners)", Qt::ToolTipRole);
+    video_mode_combo->addItem("Grayscale", QVariant(static_cast<int>(Core::GrayscaleMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "8bpp camera preview", Qt::ToolTipRole);
+    video_mode_combo->addItem("Object", QVariant(static_cast<int>(Core::ObjectMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "Object mode: runs detection pipeline", Qt::ToolTipRole);
+    video_mode_combo->addItem("Precision", QVariant(static_cast<int>(Core::PrecisionMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "Precision view: tighter quality metrics", Qt::ToolTipRole);
+    video_mode_combo->addItem("MJPEG", QVariant(static_cast<int>(Core::MJPEGMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "MJPEG streaming mode", Qt::ToolTipRole);
+    video_mode_combo->addItem("Duplex", QVariant(static_cast<int>(Core::DuplexMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "Duplex: two-stream capture", Qt::ToolTipRole);
+
+    // Selecting any regular mode should disable Edge Detect if it was enabled
+    connect(video_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
+        if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
+        // find mode value from current data and request it
+        const int mode = video_mode_combo->itemData(idx).toInt();
+        onSetVideoMode(mode);
+        if (edge_button && edge_button->isChecked()) { edge_button->setChecked(false); emit edgeDetectToggled(false); }
+    });
+
+    // Group: Video Modes (dropdown + Edge Detect toggle)
+    auto* videoGroup = new QGroupBox("Video Mode", row1);
+    auto* videoLayout = new QHBoxLayout(videoGroup); videoLayout->setContentsMargins(6,6,6,6);
+    videoLayout->addWidget(modeLbl);
+    videoLayout->addWidget(video_mode_combo);
+    edge_button = new QPushButton("Edge Detect", videoGroup);
     edge_button->setCheckable(true);
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
         // If enabling, force camera into Grayscale mode so frames are 8bpp
@@ -93,57 +165,103 @@ void CameraControlPanel::buildUi() {
             if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }
             // request grayscale video on camera
             onSetVideoMode(static_cast<int>(Core::GrayscaleMode));
+            // Update dropdown so it reflects the camera's requested grayscale mode
+            if (video_mode_combo) {
+                const int gi = video_mode_combo->findData(QVariant(static_cast<int>(Core::GrayscaleMode)));
+                if (gi >= 0) video_mode_combo->setCurrentIndex(gi);
+            }
         }
         emit edgeDetectToggled(checked);
     });
-    hm->addWidget(edge_button);
-    root->addWidget(mode_bar);
+    edge_button->setToolTip("Enable edge overlay in viewer (forces Grayscale video mode)");
+    videoLayout->addWidget(edge_button);
+    h1->addWidget(videoGroup);
 
     // Row: Color compression / gamma
     auto* row2 = new QWidget(this);
     auto* h2   = new QHBoxLayout(row2); h2->setContentsMargins(0,0,0,0); h2->setSpacing(6);
 
-    auto* compLbl = new QLabel("Color Compression:", row2);
+    // Group: Color Compression (quality, bitrate, mode dropdown)
+    auto* compGroup = new QGroupBox("Color Compression", row2);
+    auto* compLayout = new QHBoxLayout(compGroup); compLayout->setContentsMargins(6,6,6,6);
 
-    quality_edit = new QLineEdit(row2);
-    quality_edit->setPlaceholderText("Quality (0.0–1.0)");
-    auto* qv = new QDoubleValidator(0.0, 1.0, 3, quality_edit);
-    qv->setNotation(QDoubleValidator::StandardNotation);
-    quality_edit->setValidator(qv);
+    // Quality slider (0.0 - 1.0, scaled to 0-100 for slider)
+    quality_slider = new QSlider(Qt::Horizontal, compGroup);
+    quality_slider->setRange(0, 100);
+    quality_slider->setValue(75);
+    quality_slider->setMaximumWidth(120);
+    quality_label = new QLabel("0.75", compGroup);
+    quality_label->setMaximumWidth(50);
+    connect(quality_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        quality_label->setText(QString::number(val / 100.0, 'f', 2));
+    });
 
-    bitrate_edit = new QLineEdit(row2);
-    bitrate_edit->setPlaceholderText("Bitrate (Mbps)");
-    auto* bv = new QDoubleValidator(0.0, 10000.0, 2, bitrate_edit);
-    bv->setNotation(QDoubleValidator::StandardNotation);
-    bitrate_edit->setValidator(bv);
+    // Bitrate slider (0 - 10000 Mbps)
+    bitrate_slider = new QSlider(Qt::Horizontal, compGroup);
+    bitrate_slider->setRange(0, 200);
+    bitrate_slider->setValue(50);
+    bitrate_slider->setMaximumWidth(120);
+    bitrate_label = new QLabel("50.00", compGroup);
+    bitrate_label->setMaximumWidth(50);
+    connect(bitrate_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        bitrate_label->setText(QString::number(val / 100.0, 'f', 2));
+    });
 
-    mode_combo = new QComboBox(row2);
+    mode_combo = new QComboBox(compGroup);
     mode_combo->addItem("Variable Bitrate", QVariant(0));
     mode_combo->addItem("Constant Bitrate", QVariant(1));
 
-    set_compression_button = new QPushButton("Set Color Compression", row2);
+    set_compression_button = new QPushButton("Apply", compGroup);
     connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
-    gamma_edit = new QLineEdit(row2);
-    gamma_edit->setPlaceholderText("Gamma (0.0–1.0)");
-    gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 3, gamma_edit));
-    gamma_button = new QPushButton("Set Gamma", row2);
+    // Gamma slider (0.1 - 1.0)
+    gamma_slider = new QSlider(Qt::Horizontal, compGroup);
+    gamma_slider->setRange(1, 10);
+    gamma_slider->setValue(10);
+    gamma_slider->setMaximumWidth(100);
+    gamma_label = new QLabel("1.0", compGroup);
+    gamma_label->setMaximumWidth(40);
+    connect(gamma_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
+        gamma_label->setText(QString::number(val / 10.0, 'f', 1));
+    });
+
+    gamma_button = new QPushButton("Apply", compGroup);
     connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
-    h2->addWidget(compLbl);
-    h2->addWidget(quality_edit);
-    h2->addWidget(bitrate_edit);
-    h2->addWidget(mode_combo);
-    h2->addWidget(set_compression_button);
-    h2->addWidget(gamma_edit);
-    h2->addWidget(gamma_button);
+    // Build compression controls widget
+    auto* compressionCtrlsWidget = new QWidget(compGroup);
+    auto* compressionCtrlsLayout = new QHBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(4);
+    auto* qualityLbl = new QLabel("Quality:", compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(qualityLbl, 0, Qt::AlignRight);
+    compressionCtrlsLayout->addWidget(quality_slider);
+    compressionCtrlsLayout->addWidget(quality_label, 0, Qt::AlignRight);
+
+    auto* bitrateLbl = new QLabel("Bitrate:", compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(bitrateLbl, 0, Qt::AlignRight);
+    compressionCtrlsLayout->addWidget(bitrate_slider);
+    compressionCtrlsLayout->addWidget(bitrate_label, 0, Qt::AlignRight);
+
+    compressionCtrlsLayout->addWidget(mode_combo);
+    compressionCtrlsLayout->addWidget(set_compression_button);
+
+    auto* gammaCtrlsWidget = new QWidget(compGroup);
+    auto* gammaCtrlsLayout = new QHBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(4);
+    auto* gammaLbl = new QLabel("Gamma:", gammaCtrlsWidget);
+    gammaCtrlsLayout->addWidget(gammaLbl, 0, Qt::AlignRight);
+    gammaCtrlsLayout->addWidget(gamma_slider);
+    gammaCtrlsLayout->addWidget(gamma_label, 0, Qt::AlignRight);
+    gammaCtrlsLayout->addWidget(gamma_button);
+
+    compLayout->addWidget(compressionCtrlsWidget);
+    compLayout->addWidget(gammaCtrlsWidget);
+
+    h2->addWidget(compGroup);
     root->addWidget(row2);
 }
 
 void CameraControlPanel::onSetExposure() {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    bool ok=false; const int v = exposure_edit->text().toInt(&ok);
-    if (!ok) { emit showWarning("Invalid Value","Enter a valid integer for Exposure."); return; }
+    const int v = exposure_slider->value();
     if (!camera_manager->SetExposure(selected_serial, v)) {
         emit showWarning("Failed", "Could not set exposure on the selected camera.");
     }
@@ -151,8 +269,7 @@ void CameraControlPanel::onSetExposure() {
 
 void CameraControlPanel::onSetFps() {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    bool ok=false; const int v = fps_edit->text().toInt(&ok);
-    if (!ok) { emit showWarning("Invalid Value","Enter a valid integer for Frame Rate."); return; }
+    const int v = fps_slider->value();
     if (!camera_manager->SetFrameRate(selected_serial, v)) {
         emit showWarning("Failed", "Could not set frame rate on the selected camera.");
     }
@@ -160,8 +277,7 @@ void CameraControlPanel::onSetFps() {
 
 void CameraControlPanel::onSetGain() {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    bool ok=false; const int v = gain_edit->text().toInt(&ok);
-    if (!ok) { emit showWarning("Invalid Value","Enter a valid integer for Gain."); return; }
+    const int v = gain_slider->value();
     if (!camera_manager->SetImagerGain(selected_serial, v)) {
         emit showWarning("Failed", "Could not set imager gain on the selected camera.");
     }
@@ -169,8 +285,7 @@ void CameraControlPanel::onSetGain() {
 
 void CameraControlPanel::onSetGamma() {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    bool ok=false; const float g = gamma_edit->text().toFloat(&ok);
-    if (!ok) { emit showWarning("Invalid Value","Enter a number 0.1–1.0 for Gamma."); return; }
+    const float g = gamma_slider->value() / 10.0f;
     if (!camera_manager->SetColorGamma(selected_serial, g)) {
         emit showWarning("Unsupported Camera", "Color gamma is only supported on Prime Color cameras.");
     }
@@ -178,16 +293,10 @@ void CameraControlPanel::onSetGamma() {
 
 void CameraControlPanel::onSetCompression() {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    bool okQ=false, okB=false;
-    const float quality = quality_edit->text().toFloat(&okQ);
-    const double mbps   = bitrate_edit->text().toDouble(&okB);
-    if (!okQ || quality < 0.0f || quality > 1.0f) {
-        emit showWarning("Invalid Quality", "Quality must be 0.0–1.0."); return;
-    }
-    if (!okB || mbps < 0.0) {
-        emit showWarning("Invalid Bitrate", "Bitrate (Mbps) must be ≥ 0."); return;
-    }
-    const float bitrateScaled = CameraHelper::MbpsToNormalized(float(mbps));
+    const float quality = quality_slider->value() / 100.0f;
+    const float mbps = bitrate_slider->value() / 100.0f;
+    
+    const float bitrateScaled = CameraHelper::MbpsToNormalized(mbps);
     const int mode = mode_combo->currentData().toInt();
     if (!camera_manager->SetColorCompression(selected_serial, mode, quality, bitrateScaled)) {
         emit showWarning("Unsupported Camera", "Color compression is only supported on Prime Color cameras.");
