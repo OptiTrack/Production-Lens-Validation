@@ -14,7 +14,7 @@ public:
         setAutoFillBackground(true);
     }
 
-    void updateTextandColor(double &score) {
+    void updateTextandColor(double score) {
         // change color and text of result depending on success rate
         if ((0 < score) && (score < .65)) {
             this->setText("Failure");
