@@ -1,6 +1,7 @@
 #pragma once
 #include <QWidget>
 #include <QPointer>
+#include <QTabWidget>
 
 class QLineEdit;
 class QComboBox;
@@ -25,6 +26,8 @@ private:
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
 
+    QTabWidget* leftTabWidget{nullptr};
+
     QLineEdit* exposure_edit{nullptr};
     QPushButton* exposure_button{nullptr};
 
@@ -43,6 +46,11 @@ private:
     QPushButton* gamma_button{nullptr};
 
     QWidget* mode_bar{nullptr};
+
+public slots:
+    void onSetTab0Visibility();
+    void onSetTab1Visibility();
+    void onSetTab2Visibility();
 
 private slots:
     void onSetExposure();

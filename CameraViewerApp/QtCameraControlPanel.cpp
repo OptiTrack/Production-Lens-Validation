@@ -7,7 +7,6 @@
 #include <QMessageBox>
 #include <QIntValidator>
 #include <QDoubleValidator>
-#include <QTabWidget>
 
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
@@ -44,7 +43,7 @@ void CameraControlPanel::buildUi() {
     auto* pageOne = new QWidget(this);
     auto* controlsBox = new QVBoxLayout(this);
     auto* v1 = new QVBoxLayout(pageOne);
-    auto* leftTabWidget = new QTabWidget(this);
+    leftTabWidget = new QTabWidget(this);
 
     auto* camLbl = new QLabel("General Controls:", row1);
     camLbl->setAlignment(Qt::AlignTop);
@@ -72,6 +71,7 @@ void CameraControlPanel::buildUi() {
 
     leftTabWidget->addTab(pageOne, QString("Controls"));
 
+    // controlsBox->addWidget(tab_visibility_button);
     controlsBox->addWidget(camLbl);
     controlsBox->addWidget(exposure_edit);
     controlsBox->addWidget(exposure_button);
@@ -115,6 +115,8 @@ void CameraControlPanel::buildUi() {
     auto* v2 = new QVBoxLayout(pageTwo);
 
     auto* compLbl = new QLabel("Color Compression:", row2);
+    compLbl->setAlignment(Qt::AlignTop);
+    compLbl->setMaximumSize(16777215, 50);
 
     quality_edit = new QLineEdit(row2);
     quality_edit->setPlaceholderText("Quality (0.0–1.0)");
@@ -135,6 +137,10 @@ void CameraControlPanel::buildUi() {
     set_compression_button = new QPushButton("Set Color Compression", row2);
     connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
+    auto* gammLbl = new QLabel("Gamma:", row2);
+    gammLbl->setAlignment(Qt::AlignTop);
+    gammLbl->setMaximumSize(16777215, 50);
+
     gamma_edit = new QLineEdit(row2);
     gamma_edit->setPlaceholderText("Gamma (0.0–1.0)");
     gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 3, gamma_edit));
@@ -148,6 +154,7 @@ void CameraControlPanel::buildUi() {
     v2->addWidget(bitrate_edit);
     v2->addWidget(mode_combo);
     v2->addWidget(set_compression_button);
+    v2->addWidget(gammLbl);
     v2->addWidget(gamma_edit);
     v2->addWidget(gamma_button);
     root->addWidget(row2);
@@ -212,5 +219,35 @@ void CameraControlPanel::onSetVideoMode(int modeEnum) {
     QString err;
     if (!camera_manager->SetVideoType(selected_serial, static_cast<Core::eVideoMode>(modeEnum), &err)) {
         if (!err.isEmpty()) emit showWarning("Unsupported Mode", err);
+    }
+}
+
+void CameraControlPanel::onSetTab0Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(0)) {
+        this->leftTabWidget->setTabVisible(0, false);
+    }
+    else {
+        this->leftTabWidget->setTabVisible(0, true);
+    }
+}
+
+void CameraControlPanel::onSetTab1Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(1)) {
+        this->leftTabWidget->setTabVisible(1, false);
+    }
+    else {
+        this->leftTabWidget->setTabVisible(1, true);
+    }
+}
+
+void CameraControlPanel::onSetTab2Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(2)) {
+        this->leftTabWidget->setTabVisible(2, false);
+    }
+    else {
+        this->leftTabWidget->setTabVisible(2, true);
     }
 }
