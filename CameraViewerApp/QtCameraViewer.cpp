@@ -66,15 +66,17 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 
 void QtCameraViewer::buildUi()
 {
-    auto* v = new QVBoxLayout(this);
+    auto* mainLayout = new QVBoxLayout(this);
+    auto* h1 = new QVBoxLayout(this);
+    auto* h2 = new QHBoxLayout(this);
 
     // Row 1: Camera picker
     camera_picker = new CameraPicker(camera_manager, this);
-    v->addWidget(camera_picker);
+    h1->addWidget(camera_picker);
 
     // Row 2: Controls panel
     camera_controls = new CameraControlPanel(camera_manager, this);
-    v->addWidget(camera_controls);
+    h2->addWidget(camera_controls);
 
     // Row 3: Status bar with FPS
     status_bar = new QWidget(this);
@@ -85,7 +87,7 @@ void QtCameraViewer::buildUi()
     sh->addWidget(fps_label);
     sh->addStretch(1);
 
-    v->addWidget(status_bar);
+    h1->addWidget(status_bar);
 
     // Row 4: Another status bar, this time with focus eval results
     second_status_bar = new QWidget(this);
@@ -98,7 +100,7 @@ void QtCameraViewer::buildUi()
     second_box->addWidget(focus_result);
     second_box->addStretch(1);
 
-    v->addWidget(second_status_bar);
+    h1->addWidget(second_status_bar);
 
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
@@ -130,7 +132,9 @@ void QtCameraViewer::buildUi()
     stacked_layout->addWidget(viewer_container);
     setEmptyState(camera_picker->combo() && camera_picker->combo()->count() > 0);
 
-    v->addWidget(center_widget, 1);
+    h2->addWidget(center_widget, 1);
+    mainLayout->addLayout(h1);
+    mainLayout->addLayout(h2);
 }
 
 void QtCameraViewer::wireSignals()

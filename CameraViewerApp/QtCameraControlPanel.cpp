@@ -7,6 +7,7 @@
 #include <QMessageBox>
 #include <QIntValidator>
 #include <QDoubleValidator>
+#include <QTabWidget>
 
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
@@ -30,15 +31,24 @@ bool CameraControlPanel::currentSerialValid() const {
 }
 
 void CameraControlPanel::buildUi() {
-    auto* root = new QVBoxLayout(this);
+    // auto* root = new QVBoxLayout(this);
+    auto* root = new QHBoxLayout(this);
     root->setContentsMargins(0,0,0,0);
     root->setSpacing(6);
+
 
     // Row: Exposure / FPS / Gain
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
-    auto* camLbl = new QLabel("Controls:", row1);
+    auto* pageOne = new QWidget(this);
+    auto* controlsBox = new QVBoxLayout(this);
+    auto* v1 = new QVBoxLayout(pageOne);
+    auto* leftTabWidget = new QTabWidget(this);
+
+    auto* camLbl = new QLabel("General Controls:", row1);
+    camLbl->setAlignment(Qt::AlignTop);
+    camLbl->setMaximumSize(16777215, 50);
     exposure_edit = new QLineEdit(row1);
     exposure_edit->setPlaceholderText("Exposure");
     exposure_edit->setValidator(new QIntValidator(1, 10000, exposure_edit));
@@ -57,24 +67,36 @@ void CameraControlPanel::buildUi() {
     gain_button  = new QPushButton("Set Gain", row1);
     connect(gain_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGain);
 
-    h1->addWidget(camLbl);
-    h1->addWidget(exposure_edit);
-    h1->addWidget(exposure_button);
-    h1->addSpacing(8);
-    h1->addWidget(fps_edit);
-    h1->addWidget(fps_button);
-    h1->addWidget(gain_edit);
-    h1->addWidget(gain_button);
+    auto* focusEvalBox = new QVBoxLayout(this);
+    auto* evaLbl = new QLabel("Focus Evaluation:", row1);
+
+    leftTabWidget->addTab(pageOne, QString("Controls"));
+
+    controlsBox->addWidget(camLbl);
+    controlsBox->addWidget(exposure_edit);
+    controlsBox->addWidget(exposure_button);
+    // controlsBox->addSpacing(8);
+    controlsBox->addWidget(fps_edit);
+    controlsBox->addWidget(fps_button);
+    controlsBox->addWidget(gain_edit);
+    controlsBox->addWidget(gain_button);
+    v1->addLayout(controlsBox);
+    focusEvalBox->addWidget(evaLbl);
+    v1->addLayout(focusEvalBox);
+    h1->addWidget(leftTabWidget);
     root->addWidget(row1);
 
     // Row: Video modes
     mode_bar = new QWidget(this);
-    auto* hm  = new QHBoxLayout(mode_bar); hm->setContentsMargins(0,0,0,0); hm->setSpacing(6);
+    // auto* hm  = new QHBoxLayout(mode_bar); hm->setContentsMargins(0,0,0,0); hm->setSpacing(6);
+
+    auto* modePage = new QWidget(this);
+    auto* vm = new QVBoxLayout(modePage);
 
     auto addModeBtn = [&](const char* text, Core::eVideoMode mode) {
         auto* b = new QPushButton(text, mode_bar);
         connect(b, &QPushButton::clicked, this, [this, mode]{ onSetVideoMode(int(mode)); });
-        hm->addWidget(b);
+        vm->addWidget(b);
     };
     addModeBtn("Segment",   Core::SegmentMode);
     addModeBtn("Grayscale", Core::GrayscaleMode);
@@ -82,11 +104,15 @@ void CameraControlPanel::buildUi() {
     addModeBtn("Precision", Core::PrecisionMode);
     addModeBtn("MJPEG",     Core::MJPEGMode);
     addModeBtn("Duplex",    Core::DuplexMode);
+    leftTabWidget->addTab(modePage, QString("Video Modes"));
     root->addWidget(mode_bar);
 
     // Row: Color compression / gamma
     auto* row2 = new QWidget(this);
-    auto* h2   = new QHBoxLayout(row2); h2->setContentsMargins(0,0,0,0); h2->setSpacing(6);
+    // auto* h2   = new QHBoxLayout(row2); h2->setContentsMargins(0,0,0,0); h2->setSpacing(6); ------------------------ TESTING
+
+    auto* pageTwo = new QWidget(this);
+    auto* v2 = new QVBoxLayout(pageTwo);
 
     auto* compLbl = new QLabel("Color Compression:", row2);
 
@@ -115,13 +141,15 @@ void CameraControlPanel::buildUi() {
     gamma_button = new QPushButton("Set Gamma", row2);
     connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
-    h2->addWidget(compLbl);
-    h2->addWidget(quality_edit);
-    h2->addWidget(bitrate_edit);
-    h2->addWidget(mode_combo);
-    h2->addWidget(set_compression_button);
-    h2->addWidget(gamma_edit);
-    h2->addWidget(gamma_button);
+    leftTabWidget->addTab(pageTwo, QString("Color Compression/Gamma"));
+
+    v2->addWidget(compLbl);
+    v2->addWidget(quality_edit);
+    v2->addWidget(bitrate_edit);
+    v2->addWidget(mode_combo);
+    v2->addWidget(set_compression_button);
+    v2->addWidget(gamma_edit);
+    v2->addWidget(gamma_button);
     root->addWidget(row2);
 }
 
