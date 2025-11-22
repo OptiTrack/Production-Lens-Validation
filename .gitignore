@@ -9,4 +9,4 @@
 /.vscode
 /CameraViewerApp/BuildCameraApp.bat
 /CameraViewerApp/buildLog.txt
-/CameraViewerApp/CMakeLists.txt
+/CameraViewerApp/out
