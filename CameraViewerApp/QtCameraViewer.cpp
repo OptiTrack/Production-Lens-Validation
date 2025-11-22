@@ -119,7 +119,7 @@ void QtCameraViewer::buildUi()
     connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
     auto* tab1_visibility_button = new QPushButton("Video Modes Tab", third_status_bar);
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-    auto* tab2_visibility_button = new QPushButton("Color Compr./Gamma Tab", third_status_bar);
+    auto* tab2_visibility_button = new QPushButton("Color Tab", third_status_bar);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
 
     third_box->addWidget(toggle_label);
