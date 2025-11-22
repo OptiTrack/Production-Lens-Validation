@@ -203,35 +203,40 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
 
     byte_array_staging.resize(int(required));
     const int dstStride = srcStride;
-    if (bpp == 8 && edge_detect_enabled.load(std::memory_order_acquire)) {
-        // Wrap the source as a cv::Mat (no copy) using the source stride/step
-        cv::Mat gray(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
 
-        // Smooth and detect edges
-        cv::Mat smoothed;
-        cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
-        cv::Mat edges;
-        const double lowThreshold = 50.0;
-        const double highThreshold = lowThreshold * 3.0;
-        const int kernel_size = 3;
-        cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+    // Relaxed is sufficient because this flag is not used for synchronization
+    if (edge_detect_enabled.load(std::memory_order_relaxed)) {
+        // Convert source to appropriate cv::Mat based on bpp
+        cv::Mat sourceMat;
+        // Wrap source buffer in a cv::Mat. Treating it as read-only; OpenCV never writes to this buffer.
+        if (bpp == 8) {
+            sourceMat = cv::Mat(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 16) {
+            sourceMat = cv::Mat(h, w, CV_16UC1, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 24) {
+            sourceMat = cv::Mat(h, w, CV_8UC3, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 32) {
+            sourceMat = cv::Mat(h, w, CV_8UC4, const_cast<unsigned char*>(src), srcStride);
+        }
 
-        // Overlay edges on the original gray image
-        // Make a copy of the original to preserve it
-        cv::Mat result = gray.clone();
-        // Set edge pixels to white (255) on the result
-        cv::Scalar edgeColor(31, 81, 255);
-        result.setTo(edgeColor, edges);
+        // Convert to grayscale if needed
+        cv::Mat gray;
+        if (sourceMat.channels() == 1) {
+            if (sourceMat.depth() == CV_16U) {
+                // Convert 16-bit to 8-bit, ensuring contiguous memory
+                sourceMat.convertTo(gray, CV_8U, 1.0 / 256.0);
+                gray = gray.clone();
+            } else {
+                gray = sourceMat.clone();
+            }
+        } else if (sourceMat.channels() == 3) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGR2GRAY);
+        } else if (sourceMat.channels() == 4) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGRA2GRAY);
+        }
 
-        // Copy the result (original + edges) into the staging buffer preserving stride
-        for (int row = 0; row < h; ++row) {
-            const unsigned char* s = result.ptr<unsigned char>(row);
-            unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
-            // result.step may equal w, but to be safe copy min(w, dstStride)
-            const size_t toCopy = static_cast<size_t>(std::min<int>(w, dstStride));
-            std::memcpy(d, s, toCopy);
-            // If dstStride is larger than w, zero the remaining bytes on the row
-            if (dstStride > w) std::memset(d + toCopy, 0, size_t(dstStride - toCopy));
+        if (!gray.empty()) {
+            applyEdgeDetection(gray, w, h, srcStride);
         }
     } else {
         for (int row = 0; row < h; ++row) {
@@ -335,3 +340,69 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
 
     swizzle_mode = want;
 }
+
+void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
+{
+    // 1. Smooth and detect edges in grayscale
+    cv::Mat smoothed;
+    cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
+
+    cv::Mat edges;
+    const double lowThreshold = 50.0;
+    const double highThreshold = lowThreshold * 3.0;
+    const int kernel_size = 3;
+    cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+
+    unsigned char* dstBase = reinterpret_cast<unsigned char*>(byte_array_staging.data());
+    const int bytesPerPixel = pending_bpp / 8;
+    for (int row = 0; row < h; ++row)
+    {
+        unsigned char* d = dstBase + size_t(row) * size_t(srcStride);
+
+        // Write each pixel in the correct format
+        for (int col = 0; col < w; ++col)
+        {
+            bool isEdge = edges.at<unsigned char>(row, col) != 0;
+            unsigned char edgeValue = 0; // black for edges
+            unsigned char v = isEdge ? edgeValue : gray.at<unsigned char>(row, col);
+
+            switch (pending_bpp)
+            {
+                case 8:
+                    d[col] = v;
+                    break;
+                case 16: {
+                    // Assume 16-bit grayscale: expand to 16-bit range
+                    uint16_t* px = reinterpret_cast<uint16_t*>(d + col * 2);
+                    *px = uint16_t(v) << 8;   // Scale 8→16 bits
+                    break;
+                }
+
+                case 24: {
+                    // BGR format
+                    unsigned char* px = d + col * 3;
+                    px[0] = v;  // B
+                    px[1] = v;  // G
+                    px[2] = v;  // R
+                    break;
+                }
+
+                case 32: {
+                    // BGRA format, preserve alpha = 255
+                    unsigned char* px = d + col * 4;
+                    px[0] = v;  // B
+                    px[1] = v;  // G
+                    px[2] = v;  // R
+                    px[3] = 255;
+                    break;
+                }
+            }
+        }
+
+        // If stride > w*bytesPerPixel, clear padding
+        int rowBytes = w * bytesPerPixel;
+        if (srcStride > rowBytes)
+            std::memset(d + rowBytes, 0, srcStride - rowBytes);
+    }
+}
+

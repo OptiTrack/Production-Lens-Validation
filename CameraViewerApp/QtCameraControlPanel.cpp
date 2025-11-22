@@ -84,16 +84,9 @@ void CameraControlPanel::buildUi() {
     addModeBtn("Precision", Core::PrecisionMode);
     addModeBtn("MJPEG",     Core::MJPEGMode);
     addModeBtn("Duplex",    Core::DuplexMode);
-    // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
     edge_button = new QPushButton("Edge Detect", mode_bar);
     edge_button->setCheckable(true);
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
-        // If enabling, force camera into Grayscale mode so frames are 8bpp
-        if (checked) {
-            if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }
-            // request grayscale video on camera
-            onSetVideoMode(static_cast<int>(Core::GrayscaleMode));
-        }
         emit edgeDetectToggled(checked);
     });
     hm->addWidget(edge_button);
