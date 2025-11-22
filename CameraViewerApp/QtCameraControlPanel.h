@@ -1,6 +1,7 @@
 #pragma once
 #include <QWidget>
 #include <QPointer>
+#include <QTabWidget>
 
 class QLineEdit;
 class QComboBox;
@@ -27,6 +28,8 @@ private:
 
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
+
+    QTabWidget* leftTabWidget{nullptr};
 
     QLineEdit* exposure_edit{nullptr};
     QSlider* exposure_slider{nullptr};
@@ -60,6 +63,11 @@ private:
     // Droplist for selecting the video mode (replaces multiple mode buttons)
     QComboBox* video_mode_combo{nullptr};
     QPushButton* edge_button{nullptr};
+
+public slots:
+    void onSetTab0Visibility();
+    void onSetTab1Visibility();
+    void onSetTab2Visibility();
 
 private slots:
     void onSetExposure();

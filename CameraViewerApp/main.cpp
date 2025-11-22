@@ -7,6 +7,7 @@
 #include <QFuture>
 #include <QApplication>
 #include <QLabel>
+#include <QStyleFactory>
 
 #include <opencv2/opencv.hpp>
 
@@ -17,7 +18,6 @@
 #include "BitmapPool.h"
 #include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
-#include "GradientDot.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -56,7 +56,9 @@ int main(int argc, char *argv[])
     } guard;
 
     QApplication app(argc, argv);
-    QtCameraViewer::ApplyAppStyle();
+    //QtCameraViewer::ApplyAppStyle();
+
+    app.setStyleSheet("C:\Capstone\Production-Lens-Validation\Designs\motive.css");
 
     // ==== Camera manager ========================================================
     auto* mgr = new CameraConnectionManager(); 
@@ -69,7 +71,7 @@ int main(int argc, char *argv[])
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
-    QLabel* focus_result = new QLabel("Disabled");
+    DisplayResults* focus_result = new DisplayResults("Disabled");
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
@@ -93,13 +95,6 @@ int main(int argc, char *argv[])
     FocusEvaluator fe;
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
-
-    GradientDot* dot = new GradientDot();
-    dot->resize(200, 200);
-    dot->move(viewer->videoContainer()->width() - 30, 10); // top-right corner
-    dot->setValue(0.3); // red
-    dot->show();
-    dot->raise();
 
     std::thread capture([&](){
         for (;;) {
@@ -146,33 +141,15 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, &dot, bmp_shared, &score]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_shared, &score]() {
                         score = fe.EvaluateBitmapFocus(bmp_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, dot, score]() {
-
-								dot->setValue(score);
-
-                                // change color and text of result depending on success rate
-                                if ((0 < score) && (score < .65)) {
-                                    focus_result->setText("Failure");
-                                    focus_result->setStyleSheet("color:FireBrick; font-weight:600;");
-                                }
-                                else if ((.65 <= score) && (score < .75)) {
-                                    focus_result->setText("Success (Wide Angle Lens)");
-                                    focus_result->setStyleSheet("color:#668b0b; font-weight:600;");
-                                }
-                                else if ((.75 <= score) && (score <= 1.0)) {
-                                    focus_result->setText("Success (All lenses)");
-                                    focus_result->setStyleSheet("color:ForestGreen; font-weight:600;");
-                                }
-                                else {
-                                    focus_result->setText("Inconclusive");
-                                    focus_result->setStyleSheet("color:Gold; font-weight:600;");
-                                }
+                            [focus_result, score]() {
+                                
+                                focus_result->updateTextandColor(score);
                             },
                             Qt::QueuedConnection
                         );
@@ -190,10 +167,6 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
-
-    // ------------------- DEBUG FOCUS RESULTS DISPLAY -----------------------
-    // focus_result->setText("Testing this here");
-    // focus_result->setStyleSheet("color:#00BFFF; font-weight:600;");
 
     // Ensure Camera Library Shutdown on program exit
     guard.captureThread = &capture;

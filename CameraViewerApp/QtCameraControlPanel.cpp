@@ -33,20 +33,27 @@ bool CameraControlPanel::currentSerialValid() const {
 }
 
 void CameraControlPanel::buildUi() {
-    auto* root = new QVBoxLayout(this);
+    // auto* root = new QVBoxLayout(this);
+    auto* root = new QHBoxLayout(this);
     root->setContentsMargins(0,0,0,0);
     root->setSpacing(6);
 
-    // Row: Exposure / FPS / Gain
+    leftTabWidget = new QTabWidget(this);
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
+    // Tab: Exposure / FPS / Gain
+    auto* tab0 = new QWidget(this);
+    auto* v0 = new QVBoxLayout(tab0);
+
     // Group: Camera Controls (exposure, fps, gain)
-    auto* camGroup = new QGroupBox("Camera Controls", row1);
-    auto* camLayout = new QHBoxLayout(camGroup); camLayout->setContentsMargins(6,6,6,6);
+
+    auto* camGroup = new QGroupBox("General Camera Controls");
+    auto* camLayout = new QVBoxLayout(this); camLayout->setContentsMargins(6,6,6,6);
+    camGroup->setLayout(camLayout);
     
     // Exposure: slider from 1 to 200
-    exposure_slider = new QSlider(Qt::Horizontal, camGroup);
+    exposure_slider = new QSlider(Qt::Horizontal, this);
     exposure_slider->setRange(1, 200);
     exposure_slider->setValue(50);
     exposure_slider->setMaximumWidth(150);
@@ -94,42 +101,48 @@ void CameraControlPanel::buildUi() {
     auto* exposureWidget = new QWidget(camGroup);
     auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(4);
     auto* expLabel = new QLabel("Exposure:", exposureWidget);
-    expLayout->addWidget(expLabel, 0, Qt::AlignRight);
+    expLayout->addWidget(expLabel, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_slider);
-    expLayout->addWidget(exposure_label, 0, Qt::AlignRight);
+    expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_button);
 
     auto* fpsWidget = new QWidget(camGroup);
     auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(4);
     auto* fpsLbl = new QLabel("FPS:", fpsWidget);
-    fpsLayoutW->addWidget(fpsLbl, 0, Qt::AlignRight);
+    fpsLayoutW->addWidget(fpsLbl, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_slider);
-    fpsLayoutW->addWidget(fps_label, 0, Qt::AlignRight);
+    fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_button);
 
     auto* gainWidget = new QWidget(camGroup);
     auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(4);
     auto* gainLbl = new QLabel("Gain:", gainWidget);
-    gainLayoutW->addWidget(gainLbl, 0, Qt::AlignRight);
+    gainLayoutW->addWidget(gainLbl, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_slider);
-    gainLayoutW->addWidget(gain_label, 0, Qt::AlignRight);
+    gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
 
+    leftTabWidget->addTab(tab0, QString("Controls"));
+
     camLayout->addWidget(exposureWidget);
-    camLayout->addSpacing(8);
+    //camLayout->addSpacing(8);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
-    h1->addWidget(camGroup);
+    // NEW!!
+    // camGroup->setLayout(camLayout);
+    v0->addWidget(camGroup);
+    //v0->addLayout(camLayout);
+    h1->addWidget(leftTabWidget);
     
-    root->addWidget(row1);
-
-    root->addWidget(row1);
+    //root->addWidget(leftTabWidget);
 
     // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
+    auto* tab1 = new QWidget(this);
+    auto* v1 = new QVBoxLayout(tab1);
+
     // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
     // Add a Video Mode dropdown next to existing controls so modes appear with other controls
-    auto* modeLbl = new QLabel("Video Mode:", row1);
-    video_mode_combo = new QComboBox(row1);
+    video_mode_combo = new QComboBox(tab1);
     video_mode_combo->addItem("Segment", QVariant(static_cast<int>(Core::SegmentMode)));
     video_mode_combo->setItemData(video_mode_combo->count()-1, "5-segment view (center+corners)", Qt::ToolTipRole);
     video_mode_combo->addItem("Grayscale", QVariant(static_cast<int>(Core::GrayscaleMode)));
@@ -153,9 +166,9 @@ void CameraControlPanel::buildUi() {
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
-    auto* videoGroup = new QGroupBox("Video Mode", row1);
-    auto* videoLayout = new QHBoxLayout(videoGroup); videoLayout->setContentsMargins(6,6,6,6);
-    videoLayout->addWidget(modeLbl);
+    auto* videoGroup = new QGroupBox("Video Mode");
+    auto* videoLayout = new QVBoxLayout(videoGroup); videoLayout->setContentsMargins(6,6,6,6);
+    videoGroup->setLayout(videoLayout);
     videoLayout->addWidget(video_mode_combo);
     edge_button = new QPushButton("Edge Detect", videoGroup);
     edge_button->setCheckable(true);
@@ -174,16 +187,19 @@ void CameraControlPanel::buildUi() {
         emit edgeDetectToggled(checked);
     });
     edge_button->setToolTip("Enable edge overlay in viewer (forces Grayscale video mode)");
-    videoLayout->addWidget(edge_button);
-    h1->addWidget(videoGroup);
 
-    // Row: Color compression / gamma
-    auto* row2 = new QWidget(this);
-    auto* h2   = new QHBoxLayout(row2); h2->setContentsMargins(0,0,0,0); h2->setSpacing(6);
+    leftTabWidget->addTab(tab1, QString("Video Modes"));
+    videoLayout->addWidget(edge_button);
+    v1->addWidget(videoGroup);
+
+    // Tab: Color compression / gamma
+    auto* tab2 = new QWidget(this);
+    auto* v2   = new QVBoxLayout(tab2);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
-    auto* compGroup = new QGroupBox("Color Compression", row2);
-    auto* compLayout = new QHBoxLayout(compGroup); compLayout->setContentsMargins(6,6,6,6);
+    auto* compGroup = new QGroupBox("Color Compression and Gamma");
+    auto* compLayout = new QVBoxLayout(compGroup); compLayout->setContentsMargins(6,6,6,6);
+    compGroup->setLayout(compLayout);
 
     // Quality slider (0.0 - 1.0, scaled to 0-100 for slider)
     quality_slider = new QSlider(Qt::Horizontal, compGroup);
@@ -214,6 +230,27 @@ void CameraControlPanel::buildUi() {
     set_compression_button = new QPushButton("Apply", compGroup);
     connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
+    // Build compression controls widget
+    auto* compressionCtrlsWidget = new QWidget(compGroup);
+    auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(4);
+    auto* qualityLbl = new QLabel("Quality:", compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(qualityLbl, 0, Qt::AlignLeft);
+    compressionCtrlsLayout->addWidget(quality_slider);
+    compressionCtrlsLayout->addWidget(quality_label, 0, Qt::AlignLeft);
+
+    auto* bitrateLbl = new QLabel("Bitrate:", compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(bitrateLbl, 0, Qt::AlignLeft);
+    compressionCtrlsLayout->addWidget(bitrate_slider);
+    compressionCtrlsLayout->addWidget(bitrate_label, 0, Qt::AlignLeft);
+
+    compressionCtrlsLayout->addWidget(mode_combo);
+    compressionCtrlsLayout->addWidget(set_compression_button);
+
+    // Group: Color Compression (quality, bitrate, mode dropdown)
+    auto* gammaGroup = new QGroupBox("Gamma");
+    auto* gammaLayout = new QVBoxLayout(gammaGroup); gammaLayout->setContentsMargins(6,6,6,6);
+    gammaGroup->setLayout(gammaLayout);
+
     // Gamma slider (0.1 - 1.0)
     gamma_slider = new QSlider(Qt::Horizontal, compGroup);
     gamma_slider->setRange(1, 10);
@@ -228,35 +265,22 @@ void CameraControlPanel::buildUi() {
     gamma_button = new QPushButton("Apply", compGroup);
     connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
-    // Build compression controls widget
-    auto* compressionCtrlsWidget = new QWidget(compGroup);
-    auto* compressionCtrlsLayout = new QHBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(4);
-    auto* qualityLbl = new QLabel("Quality:", compressionCtrlsWidget);
-    compressionCtrlsLayout->addWidget(qualityLbl, 0, Qt::AlignRight);
-    compressionCtrlsLayout->addWidget(quality_slider);
-    compressionCtrlsLayout->addWidget(quality_label, 0, Qt::AlignRight);
-
-    auto* bitrateLbl = new QLabel("Bitrate:", compressionCtrlsWidget);
-    compressionCtrlsLayout->addWidget(bitrateLbl, 0, Qt::AlignRight);
-    compressionCtrlsLayout->addWidget(bitrate_slider);
-    compressionCtrlsLayout->addWidget(bitrate_label, 0, Qt::AlignRight);
-
-    compressionCtrlsLayout->addWidget(mode_combo);
-    compressionCtrlsLayout->addWidget(set_compression_button);
-
     auto* gammaCtrlsWidget = new QWidget(compGroup);
-    auto* gammaCtrlsLayout = new QHBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(4);
+    auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(4);
     auto* gammaLbl = new QLabel("Gamma:", gammaCtrlsWidget);
-    gammaCtrlsLayout->addWidget(gammaLbl, 0, Qt::AlignRight);
+    gammaCtrlsLayout->addWidget(gammaLbl, 0, Qt::AlignLeft);
     gammaCtrlsLayout->addWidget(gamma_slider);
-    gammaCtrlsLayout->addWidget(gamma_label, 0, Qt::AlignRight);
+    gammaCtrlsLayout->addWidget(gamma_label, 0, Qt::AlignLeft);
     gammaCtrlsLayout->addWidget(gamma_button);
 
     compLayout->addWidget(compressionCtrlsWidget);
-    compLayout->addWidget(gammaCtrlsWidget);
+    gammaLayout->addWidget(gammaCtrlsWidget);
 
-    h2->addWidget(compGroup);
-    root->addWidget(row2);
+    leftTabWidget->addTab(tab2, QString("Color"));
+    v2->addWidget(compGroup);
+    v2->addWidget(gammaGroup);
+
+    root->addWidget(leftTabWidget);
 }
 
 void CameraControlPanel::onSetExposure() {
@@ -308,5 +332,47 @@ void CameraControlPanel::onSetVideoMode(int modeEnum) {
     QString err;
     if (!camera_manager->SetVideoType(selected_serial, static_cast<Core::eVideoMode>(modeEnum), &err)) {
         if (!err.isEmpty()) emit showWarning("Unsupported Mode", err);
+    }
+}
+
+void CameraControlPanel::onSetTab0Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(0)) {
+        this->leftTabWidget->setTabVisible(0, false);
+        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(0, true);
+        this->leftTabWidget->setVisible(true);
+    }
+}
+
+void CameraControlPanel::onSetTab1Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(1)) {
+        this->leftTabWidget->setTabVisible(1, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(1, true);
+        this->leftTabWidget->setVisible(true);
+    }
+}
+
+void CameraControlPanel::onSetTab2Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(2)) {
+        this->leftTabWidget->setTabVisible(2, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(2, true);
+        this->leftTabWidget->setVisible(true);
     }
 }
