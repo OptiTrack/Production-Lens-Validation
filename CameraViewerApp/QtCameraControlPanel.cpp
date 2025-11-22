@@ -71,16 +71,16 @@ void CameraControlPanel::buildUi() {
 
     leftTabWidget->addTab(pageOne, QString("Controls"));
 
-    // controlsBox->addWidget(tab_visibility_button);
     controlsBox->addWidget(camLbl);
     controlsBox->addWidget(exposure_edit);
     controlsBox->addWidget(exposure_button);
-    // controlsBox->addSpacing(8);
     controlsBox->addWidget(fps_edit);
     controlsBox->addWidget(fps_button);
     controlsBox->addWidget(gain_edit);
     controlsBox->addWidget(gain_button);
+    controlsBox->addSpacing(8);
     v1->addLayout(controlsBox);
+
     focusEvalBox->addWidget(evaLbl);
     v1->addLayout(focusEvalBox);
     h1->addWidget(leftTabWidget);
@@ -154,6 +154,8 @@ void CameraControlPanel::buildUi() {
     v2->addWidget(bitrate_edit);
     v2->addWidget(mode_combo);
     v2->addWidget(set_compression_button);
+    // at index 5, insert size 150 spacing
+    v2->insertSpacing(5, 150);
     v2->addWidget(gammLbl);
     v2->addWidget(gamma_edit);
     v2->addWidget(gamma_button);
@@ -226,9 +228,13 @@ void CameraControlPanel::onSetTab0Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(0)) {
         this->leftTabWidget->setTabVisible(0, false);
+        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
+            this->leftTabWidget->setVisible(false);
+        }
     }
     else {
         this->leftTabWidget->setTabVisible(0, true);
+        this->leftTabWidget->setVisible(true);
     }
 }
 
@@ -236,9 +242,13 @@ void CameraControlPanel::onSetTab1Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(1)) {
         this->leftTabWidget->setTabVisible(1, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2))) {
+            this->leftTabWidget->setVisible(false);
+        }
     }
     else {
         this->leftTabWidget->setTabVisible(1, true);
+        this->leftTabWidget->setVisible(true);
     }
 }
 
@@ -246,8 +256,12 @@ void CameraControlPanel::onSetTab2Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(2)) {
         this->leftTabWidget->setTabVisible(2, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1))) {
+            this->leftTabWidget->setVisible(false);
+        }
     }
     else {
         this->leftTabWidget->setTabVisible(2, true);
+        this->leftTabWidget->setVisible(true);
     }
 }

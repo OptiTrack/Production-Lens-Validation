@@ -45,6 +45,7 @@ private:
     CameraControlPanel* camera_controls{nullptr};
     QWidget*          status_bar{nullptr};
     QWidget*          second_status_bar{nullptr};
+    QWidget*          third_status_bar{nullptr};
     QLabel*           fps_label{nullptr};
     QWidget*          center_widget{nullptr};
     QStackedLayout*   stacked_layout{nullptr};

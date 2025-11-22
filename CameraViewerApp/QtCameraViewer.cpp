@@ -75,37 +75,24 @@ void QtCameraViewer::buildUi()
     camera_picker = new CameraPicker(camera_manager, this);
     v->addWidget(camera_picker);
 
-    // Row 2: Controls panel
+    // controls panel that later comes in Row 5
     camera_controls = new CameraControlPanel(camera_manager, this);
 
-    // Row 3: Status bar with FPS
+    // Row 2: Status bar with FPS
     status_bar = new QWidget(this);
     auto* sh = new QHBoxLayout(status_bar);
-    //sh->setContentsMargins(6,10,6,0);
+    sh->setContentsMargins(6,0,6,0);
     fps_label = new QLabel("FPS: —", status_bar);
     fps_label->setStyleSheet("color:#ddd; font-weight:600;");
-    // ------------------------------------------------------------------
-    auto* toggle_label = new QLabel("Toggle Tabs:", status_bar);
-    auto* tab0_visibility_button = new QPushButton("Control Tab", status_bar);
-    connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
-    auto* tab1_visibility_button = new QPushButton("Video Modes Tab", status_bar);
-    connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-    auto* tab2_visibility_button = new QPushButton("Color Compr./Gamma Tab", status_bar);
-    connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
-    // ------------------------------------------------------------------
     sh->addWidget(fps_label);
-    sh->addWidget(toggle_label);
-    sh->addWidget(tab0_visibility_button);
-    sh->addWidget(tab1_visibility_button);
-    sh->addWidget(tab2_visibility_button);
     sh->addStretch(1);
 
     v->addWidget(status_bar);
 
-    // Row 4: Another status bar, this time with focus eval results
+    // Row 3: Another status bar, this time with focus eval results
     second_status_bar = new QWidget(this);
     auto* second_box = new QHBoxLayout(second_status_bar);
-    //second_box->setContentsMargins(6,0,6,0);
+    second_box->setContentsMargins(6,0,6,0);
     focus_result_label = new QLabel("Focus Result:", second_status_bar);
     focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
     focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
@@ -122,6 +109,29 @@ void QtCameraViewer::buildUi()
     });
     fpsTimer->start();
 
+    // Row 4: Third status bar, this time holding toggle buttons for the tabs' visibility
+    third_status_bar = new QWidget(this);
+    auto* third_box = new QHBoxLayout(third_status_bar);
+    third_box->setContentsMargins(6,0,6,0);
+    auto* toggle_label = new QLabel("Toggle Tabs:", third_status_bar);
+    auto* tab0_visibility_button = new QPushButton("Control Tab", third_status_bar);
+    // tab0_visibility_button->setMaximumSize(50, 50);
+    connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
+    auto* tab1_visibility_button = new QPushButton("Video Modes Tab", third_status_bar);
+    connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
+    auto* tab2_visibility_button = new QPushButton("Color Compr./Gamma Tab", third_status_bar);
+    connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
+
+    third_box->addWidget(toggle_label);
+    third_box->addWidget(tab0_visibility_button);
+    third_box->addWidget(tab1_visibility_button);
+    third_box->addWidget(tab2_visibility_button);
+    third_box->addStretch(1);
+
+    v->addWidget(third_status_bar);
+
+    // Row 5: Another status bar, this time with focus eval results
+    // only add camera_controls after all of the other things (camera picker, etc.)
     h2->addWidget(camera_controls);
 
     // Center stacked layout
