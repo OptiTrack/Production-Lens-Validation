@@ -1,20 +1,16 @@
 #include <QHBoxLayout>
-#include <QVBoxLayout>
 #include <QLineEdit>
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
-#include <QSlider>
 #include <QGroupBox>
-#include <QFormLayout>
 #include <QMessageBox>
-#include <QIntValidator>
-#include <QDoubleValidator>
+#include "widgets/graphwidget.h"
+#include "metricscontroller.h"
 
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
 #include "CameraHelpers.h"
-#include "cameralibrary.h"
 
 using namespace CameraLibrary;
 
@@ -39,6 +35,7 @@ void CameraControlPanel::buildUi() {
     root->setSpacing(6);
 
     leftTabWidget = new QTabWidget(this);
+
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
@@ -59,6 +56,7 @@ void CameraControlPanel::buildUi() {
     exposure_slider->setMaximumWidth(150);
     exposure_label = new QLabel("50", camGroup);
     exposure_label->setMaximumWidth(50);
+    exposure_label->setMinimumWidth(50);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         exposure_label->setText(QString::number(val));
     });
@@ -73,7 +71,8 @@ void CameraControlPanel::buildUi() {
     fps_slider->setValue(30);
     fps_slider->setMaximumWidth(150);
     fps_label = new QLabel("30", camGroup);
-    fps_label->setMaximumWidth(50);
+    fps_label->setMaximumWidth(60);
+    fps_label->setMinimumWidth(60);
     connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         fps_label->setText(QString::number(val));
     });
@@ -89,6 +88,7 @@ void CameraControlPanel::buildUi() {
     gain_slider->setMaximumWidth(100);
     gain_label = new QLabel("0", camGroup);
     gain_label->setMaximumWidth(30);
+    gain_label->setMinimumWidth(30);
     connect(gain_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         gain_label->setText(QString::number(val));
     });
@@ -101,6 +101,8 @@ void CameraControlPanel::buildUi() {
     auto* exposureWidget = new QWidget(camGroup);
     auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(4);
     auto* expLabel = new QLabel("Exposure:", exposureWidget);
+    expLabel->setMinimumWidth(70);
+    expLabel->setMaximumWidth(70);
     expLayout->addWidget(expLabel, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_slider);
     expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
@@ -109,6 +111,8 @@ void CameraControlPanel::buildUi() {
     auto* fpsWidget = new QWidget(camGroup);
     auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(4);
     auto* fpsLbl = new QLabel("FPS:", fpsWidget);
+    fpsLbl->setMinimumWidth(70);
+    fpsLbl->setMaximumWidth(70);
     fpsLayoutW->addWidget(fpsLbl, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_slider);
     fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
@@ -117,6 +121,8 @@ void CameraControlPanel::buildUi() {
     auto* gainWidget = new QWidget(camGroup);
     auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(4);
     auto* gainLbl = new QLabel("Gain:", gainWidget);
+    gainLbl->setMaximumWidth(70);
+    gainLbl->setMinimumWidth(70);
     gainLayoutW->addWidget(gainLbl, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_slider);
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
@@ -128,9 +134,11 @@ void CameraControlPanel::buildUi() {
     //camLayout->addSpacing(8);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
+
     // NEW!!
     // camGroup->setLayout(camLayout);
     v0->addWidget(camGroup);
+    v0->addStretch();
     //v0->addLayout(camLayout);
     h1->addWidget(leftTabWidget);
     
@@ -191,6 +199,7 @@ void CameraControlPanel::buildUi() {
     leftTabWidget->addTab(tab1, QString("Video Modes"));
     videoLayout->addWidget(edge_button);
     v1->addWidget(videoGroup);
+    v1->addStretch();
 
     // Tab: Color compression / gamma
     auto* tab2 = new QWidget(this);
@@ -208,6 +217,7 @@ void CameraControlPanel::buildUi() {
     quality_slider->setMaximumWidth(120);
     quality_label = new QLabel("0.75", compGroup);
     quality_label->setMaximumWidth(50);
+    quality_label->setMinimumWidth(50);
     connect(quality_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         quality_label->setText(QString::number(val / 100.0, 'f', 2));
     });
@@ -218,7 +228,8 @@ void CameraControlPanel::buildUi() {
     bitrate_slider->setValue(50);
     bitrate_slider->setMaximumWidth(120);
     bitrate_label = new QLabel("50.00", compGroup);
-    bitrate_label->setMaximumWidth(50);
+    bitrate_label->setMaximumWidth(60);
+    bitrate_label->setMinimumWidth(60);
     connect(bitrate_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         bitrate_label->setText(QString::number(val / 100.0, 'f', 2));
     });
@@ -258,6 +269,7 @@ void CameraControlPanel::buildUi() {
     gamma_slider->setMaximumWidth(100);
     gamma_label = new QLabel("1.0", compGroup);
     gamma_label->setMaximumWidth(40);
+    gamma_label->setMinimumWidth(40);
     connect(gamma_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         gamma_label->setText(QString::number(val / 10.0, 'f', 1));
     });
@@ -279,8 +291,84 @@ void CameraControlPanel::buildUi() {
     leftTabWidget->addTab(tab2, QString("Color"));
     v2->addWidget(compGroup);
     v2->addWidget(gammaGroup);
+    v2->addStretch();
+
+	// Tab for statistics graphs with MetricController integration
+    auto* tabStats = new QWidget(this);
+    auto* vStats = new QVBoxLayout(tabStats);
+
+    // Create Focus Metrics with controller
+    QVector<QString> focusLabels = {"FocusQuality"};
+    QVector<QString> focusDescriptions = {""};
+    QVector<bool> focusGraphs = {true};
+    MetricWidgets* focusMetrics = createMetricWidgets("Focus Statistics", "", focusLabels, focusDescriptions, focusGraphs);
+    focusMetricsController = new MetricController(focusMetrics);
+    vStats->addWidget(focusMetrics->groupBox);
+
+    // Create Lens Metrics with controller
+    QVector<QString> lensLabels = {"LensValidation"};
+    QVector<QString> lensDescriptions = {""};
+    QVector<bool> lensGraphs = {true};
+    MetricWidgets* lensMetrics = createMetricWidgets("Lens Statistics", "", lensLabels, lensDescriptions, lensGraphs);
+    lensMetricsController = new MetricController(lensMetrics);
+    vStats->addWidget(lensMetrics->groupBox);
+    vStats->addStretch();
+
+    leftTabWidget->addTab(tabStats, "Statistics");
 
     root->addWidget(leftTabWidget);
+}
+
+MetricWidgets* CameraControlPanel::createMetricWidgets(const QString name, const QString units, QVector<QString> labels, QVector<QString> descriptions, QVector<bool> graphs) {
+
+    // Create new metricWidgets structure & layout
+    MetricWidgets* metricWidgets = new MetricWidgets();
+    QVBoxLayout* layout = new QVBoxLayout();
+
+    // Set name & units
+    metricWidgets->name = name;
+    metricWidgets->units = units;
+
+    // Set groupBox Settings
+    metricWidgets->groupBox->setTitle(name);
+    metricWidgets->groupBox->setCheckable(true);
+
+    for (int i = 0; i < labels.count(); ++i) {
+        QLabel* dataLabel = new QLabel();
+        dataLabel->setObjectName(labels[i] + "DataLabel");
+        dataLabel->setText("- " + units);
+        dataLabel->setAlignment(Qt::AlignRight);
+
+        layout->addWidget(dataLabel);
+        metricWidgets->dataLabels.append(dataLabel);
+
+        QString description = descriptions.value(i);
+        if (!description.isEmpty()) {
+            QLabel* descriptionLabel = new QLabel();
+            descriptionLabel->setObjectName(labels[i] + "DescriptionLabel");
+            descriptionLabel->setText(description);
+            descriptionLabel->setAlignment(Qt::AlignRight);
+
+            layout->addWidget(descriptionLabel);
+            metricWidgets->descriptionLabels.append(descriptionLabel);
+        }
+
+        if (graphs[i]) {
+            GraphWidget* metricGraph = new GraphWidget(metricWidgets->groupBox);
+            metricGraph->setObjectName(labels[i] + "Graph");
+            metricGraph->setMinimumHeight(100);
+
+            layout->addWidget(metricGraph);
+            metricWidgets->metricGraphs.append(metricGraph);
+        }
+        else {
+            metricWidgets->metricGraphs.append(nullptr);
+        }
+    }
+
+    metricWidgets->groupBox->setLayout(layout);
+
+    return metricWidgets;
 }
 
 void CameraControlPanel::onSetExposure() {
@@ -373,6 +461,20 @@ void CameraControlPanel::onSetTab2Visibility() {
     }
     else {
         this->leftTabWidget->setTabVisible(2, true);
+        this->leftTabWidget->setVisible(true);
+    }
+}
+
+void CameraControlPanel::onSetTab3Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(3)) {
+        this->leftTabWidget->setTabVisible(3, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(3, true);
         this->leftTabWidget->setVisible(true);
     }
 }

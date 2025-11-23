@@ -2,6 +2,35 @@
 #include <QWidget>
 #include <QPointer>
 #include <QTabWidget>
+#include <QGroupBox>
+#include <QLabel>
+#include <QVector>
+#include <QString>
+
+class GraphWidget;
+class MetricController;
+
+#pragma once
+#include <QString>
+#include <QVector>
+#include <QGroupBox>
+
+class QLabel;
+
+struct MetricWidgets {
+    QString name;
+    QString units;
+    QGroupBox* groupBox{nullptr};
+    QVector<QLabel*> dataLabels;
+    QVector<QLabel*> descriptionLabels;
+    QVector<GraphWidget*> metricGraphs;
+
+    // Optional constructor to initialize the group box with a parent
+    explicit MetricWidgets(QWidget* parent = nullptr) {
+        groupBox = new QGroupBox(parent);
+    }
+};
+
 
 class QLineEdit;
 class QComboBox;
@@ -16,7 +45,8 @@ class CameraControlPanel : public QWidget {
 public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
-
+    MetricController* getFocusMetricsController() const { return focusMetricsController; }
+	
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
@@ -25,11 +55,16 @@ signals:
 private:
     void buildUi();
     bool currentSerialValid() const;
+    MetricWidgets* createMetricWidgets(const QString name, const QString units, QVector<QString> labels, QVector<QString> descriptions, QVector<bool> graphs);
 
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
 
     QTabWidget* leftTabWidget{nullptr};
+
+    // Metrics controllers for Statistics tab
+    MetricController* focusMetricsController{nullptr};
+    MetricController* lensMetricsController{nullptr};
 
     QLineEdit* exposure_edit{nullptr};
     QSlider* exposure_slider{nullptr};
@@ -64,10 +99,12 @@ private:
     QComboBox* video_mode_combo{nullptr};
     QPushButton* edge_button{nullptr};
 
+
 public slots:
     void onSetTab0Visibility();
     void onSetTab1Visibility();
     void onSetTab2Visibility();
+	void onSetTab3Visibility();
 
 private slots:
     void onSetExposure();
