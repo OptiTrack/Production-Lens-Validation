@@ -16,7 +16,7 @@ endif()
 find_package(CameraLibrary REQUIRED HINTS ${CAMERA_SDK_PATH})
 
 # Qt & OpenGL
-find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent)
 find_package(OpenGL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -32,6 +32,8 @@ set(APP_SOURCES
     QtCameraConnectionManager.cpp
     QtVideoWidget.cpp
     QtCameraControlPanel.cpp
+    metricscontroller.cpp
+    widgets/graphwidget.cpp
 )
 
 # Only compile the decoder if FFmpeg is enabled
@@ -40,8 +42,28 @@ if(ENABLE_FFMPEG)
     add_compile_definitions(HAVE_FFMPEG=1)
 endif()
 
-qt6_wrap_cpp(MOC_SOURCES QtCameraViewer.h QtCameraConnectionManager.h QtCameraPicker.h QtVideoWidget.h QtCameraControlPanel.h)
+qt6_wrap_cpp(MOC_SOURCES
+    QtCameraViewer.h
+    QtCameraConnectionManager.h
+    QtCameraPicker.h
+    QtVideoWidget.h
+    QtCameraControlPanel.h
+    metricscontroller.h
+    widgets/graphwidget.h
+)
+
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
+target_include_directories(CameraViewerApp PRIVATE widgets)
+
+# Copy Motive CSS to output folder
+set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
+
+add_custom_command(
+    TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${DESIGNS_DIR}/motive.css"
+            "$<TARGET_FILE_DIR:CameraViewerApp>/motive.css"
+)
 
 # ------------------------------------------
 # OpenCV
@@ -53,7 +75,7 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(CameraViewerApp PRIVATE ${OpenCV_LIBS})
 
 # Link basics
-target_link_libraries(CameraViewerApp PRIVATE Qt6::Core Qt6::Gui Qt6::OpenGLWidgets OpenGL::GL)
+target_link_libraries(CameraViewerApp PRIVATE Qt6::Core Qt6::Gui Qt6::OpenGLWidgets Qt6::Concurrent OpenGL::GL)
 
 # FFmpeg if included
 if(ENABLE_FFMPEG)
@@ -169,6 +191,7 @@ if(WIN32)
 		Qt6Widgets.dll
 		Qt6OpenGLWidgets.dll
 		Qt6OpenGL.dll
+		Qt6Concurrent.dll
 	)
 
 	# Folder where Qt DLLs are located

@@ -7,16 +7,16 @@
 #include <QFuture>
 #include <QApplication>
 #include <QLabel>
-#include <QStyleFactory>
-
-#include <opencv2/opencv.hpp>
+#include <QDateTime>
+#include <qfile.h>
 
 #include "QtCameraConnectionManager.h"
 #include "QtVideoWidget.h"
 #include "QtCameraViewer.h"
+#include "QtCameraControlPanel.h"
+#include "metricscontroller.h"
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
-#include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
 
 #ifdef HAVE_FFMPEG
@@ -26,7 +26,6 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
-#include <qobjectdefs.h>
 
 using namespace CameraLibrary;
 
@@ -56,9 +55,16 @@ int main(int argc, char *argv[])
     } guard;
 
     QApplication app(argc, argv);
-    //QtCameraViewer::ApplyAppStyle();
 
-    app.setStyleSheet("C:\Capstone\Production-Lens-Validation\Designs\motive.css");
+    QFile file("motive.css");
+    if (file.open(QFile::ReadOnly | QFile::Text)) {
+        QString styleSheet = file.readAll();
+        app.setStyleSheet(styleSheet);
+        file.close();
+    }
+    else {
+        qWarning() << "[!] Could not open stylesheet file.";
+    }
 
     // ==== Camera manager ========================================================
     auto* mgr = new CameraConnectionManager(); 
@@ -76,6 +82,10 @@ int main(int argc, char *argv[])
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, nullptr);
+
+	// get instance to camera control panel for metrics updates
+    auto* panel = viewer->getControlPanel();
+
     viewer->resize(1100, 600);
     viewer->show();
 
@@ -89,12 +99,15 @@ int main(int argc, char *argv[])
     });
 
     // ==== Main Application Thread ===============================================
-    std::atomic_bool running(true);  
+    std::atomic_bool running(true);
     std::atomic_bool focusToolEnabled(true); // changed by focus UI control
-    
+
     FocusEvaluator fe;
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
+
+    // Start time for relative timestamps in metrics
+    auto startTime = std::chrono::steady_clock::now();
 
     std::thread capture([&](){
         for (;;) {
@@ -141,15 +154,28 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_shared, &score]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_shared, &score, panel, &startTime]() {
                         score = fe.EvaluateBitmapFocus(bmp_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
+                        // Calculate relative time in seconds since app start
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                        qreal relativeTime = elapsed.count() / 1000.0;
+
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score]() {
-                                
+                            [focus_result, score, panel, relativeTime]() {
+
                                 focus_result->updateTextandColor(score);
+
+                                // Update Focus Metrics
+                                if (panel && panel->getFocusMetricsController()) {
+                                    QHash<QString, qreal> focusMetrics;
+                                    focusMetrics["FocusQuality"] = score;
+                                    panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                                    qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
+                                }
                             },
                             Qt::QueuedConnection
                         );
