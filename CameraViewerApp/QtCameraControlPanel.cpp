@@ -179,7 +179,13 @@ void CameraControlPanel::buildUi() {
         // find mode value from current data and request it
         const int mode = video_mode_combo->itemData(idx).toInt();
         onSetVideoMode(mode);
-        if (edge_button && edge_button->isChecked()) { edge_button->setChecked(false); emit edgeDetectToggled(false); }
+        // Disable edge button for incompatible modes (Segment, Object, Duplex)
+        const bool isCompatible = isEdgeDetectCompatible(mode);
+        edge_button->setEnabled(isCompatible);
+        if (!isCompatible && edge_button->isChecked()) {
+            edge_button->setChecked(false);
+            emit edgeDetectToggled(false);
+        }
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -191,20 +197,12 @@ void CameraControlPanel::buildUi() {
     edge_button->setCheckable(true);
     edge_button->setProperty("secondary", true);
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
-        // If enabling, force camera into Grayscale mode so frames are 8bpp
         if (checked) {
             if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }
-            // request grayscale video on camera
-            onSetVideoMode(static_cast<int>(Core::GrayscaleMode));
-            // Update dropdown so it reflects the camera's requested grayscale mode
-            if (video_mode_combo) {
-                const int gi = video_mode_combo->findData(QVariant(static_cast<int>(Core::GrayscaleMode)));
-                if (gi >= 0) video_mode_combo->setCurrentIndex(gi);
-            }
         }
         emit edgeDetectToggled(checked);
     });
-    edge_button->setToolTip("Enable edge overlay in viewer (forces Grayscale video mode)");
+    edge_button->setToolTip("Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes");
 
     leftTabWidget->addTab(tab1, QString("Video Modes"));
     videoLayout->addWidget(edge_button);
@@ -488,5 +486,17 @@ void CameraControlPanel::onSetTab3Visibility() {
     else {
         this->leftTabWidget->setTabVisible(3, true);
         this->leftTabWidget->setVisible(true);
+    }
+}
+
+bool CameraControlPanel::isEdgeDetectCompatible(int mode)
+{
+    switch (mode) {
+        case Core::SegmentMode:
+        case Core::ObjectMode:
+        case Core::DuplexMode:
+            return false;
+        default:
+            return true;
     }
 }

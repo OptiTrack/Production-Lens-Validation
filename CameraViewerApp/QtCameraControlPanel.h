@@ -113,5 +113,6 @@ private slots:
     void onSetGamma();
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
+    bool isEdgeDetectCompatible(int mode); 
 };
 

@@ -10,6 +10,9 @@
 #include <QByteArray>
 #include <atomic>
 
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include "cameralibrary.h"
 
 class VideoWidget : public QOpenGLWindow, protected QOpenGLFunctions {
@@ -36,6 +39,12 @@ private:
     int position_attribute = -1;
     int uv_attribute  = -1;
     int sampler_uniform  = -1;
+    // Edge detection uniforms using OpenGL shader
+    int edge_mask_uniform = -1;
+    int edge_color_uniform = -1;
+    int edge_alpha_uniform = -1;
+    GLuint edgeMaskTex = 0;
+    float last_edge_focus_score = 0.0f; // 0..1 where 1 = sharp
 
     int   frame_width = 0;
     int   frame_height = 0;
@@ -62,6 +71,7 @@ private:
     void ensureVaoVbo();
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
+    void applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride);
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
 };
