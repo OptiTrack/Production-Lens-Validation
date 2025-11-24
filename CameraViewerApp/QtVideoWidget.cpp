@@ -205,9 +205,14 @@ void VideoWidget::paintGL() {
     const float alpha = edge_detect_enabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     program_shader->setUniformValue(edge_alpha_uniform, alpha);
     // Draw quad and cleanup
-    glActiveTexture(GL_TEXTURE0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    
+    // Restore GL state: unbind textures on both units
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
     vertex_array.release();
     program_shader->release();
 }
