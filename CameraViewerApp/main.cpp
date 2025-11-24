@@ -154,8 +154,17 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_shared, &score, panel, &startTime]() {
-                        score = fe.EvaluateBitmapFocus(bmp_shared.get());
+                    // clone bitmap for thread-safe focus evaluation (was competing with edge-detection)
+                    auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
+                    std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
+                    
+                    auto bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
+                        bmp_clone,
+                        [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
+                    );
+                    
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime]() {
+                        score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
                         // Calculate relative time in seconds since app start

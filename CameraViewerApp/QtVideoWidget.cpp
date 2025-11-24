@@ -385,10 +385,10 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
 
     cv::Mat edges;
-    const double lowThreshold = 50.0;
-    const double highThreshold = lowThreshold * 3.0;
+    const double lowThreshold = 100.0;
+    const double ratio = 3.0;
     const int kernel_size = 3;
-    cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+    cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
     // Ensure edges data is contiguous for GL upload
     cv::Mat edgesC = edges.clone();
