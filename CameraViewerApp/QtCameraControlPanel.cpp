@@ -170,17 +170,12 @@ void CameraControlPanel::buildUi() {
         // find mode value from current data and request it
         const int mode = video_mode_combo->itemData(idx).toInt();
         onSetVideoMode(mode);
-        
         // Disable edge button for incompatible modes (Segment, Object, Duplex)
-        const bool isCompatible = (mode != static_cast<int>(Core::SegmentMode) && 
-                                   mode != static_cast<int>(Core::ObjectMode) && 
-                                   mode != static_cast<int>(Core::DuplexMode));
-        if (edge_button) {
-            edge_button->setEnabled(isCompatible);
-            if (!isCompatible && edge_button->isChecked()) {
-                edge_button->setChecked(false);
-                emit edgeDetectToggled(false);
-            }
+        const bool isCompatible = isEdgeDetectCompatible(mode);
+        edge_button->setEnabled(isCompatible);
+        if (!isCompatible && edge_button->isChecked()) {
+            edge_button->setChecked(false);
+            emit edgeDetectToggled(false);
         }
     });
 
@@ -479,5 +474,17 @@ void CameraControlPanel::onSetTab3Visibility() {
     else {
         this->leftTabWidget->setTabVisible(3, true);
         this->leftTabWidget->setVisible(true);
+    }
+}
+
+bool isEdgeDetectCompatible(int mode)
+{
+    switch (mode) {
+        case Core::SegmentMode:
+        case Core::ObjectMode:
+        case Core::DuplexMode:
+            return false;
+        default:
+            return true;
     }
 }
