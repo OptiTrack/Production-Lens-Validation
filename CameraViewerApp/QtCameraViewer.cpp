@@ -3,16 +3,12 @@
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QComboBox>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QTimer>
 #include <QStackedLayout>
 #include <QStyleFactory>
-#include <QPalette>
-#include <QFont>
-#include <QMetaObject>
 #include <QPushButton>
 
+#include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
 #include "QtCameraPicker.h"
 #include "QtCameraControlPanel.h"
@@ -121,18 +117,21 @@ void QtCameraViewer::buildUi()
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
     auto* tab2_visibility_button = new QPushButton("Color Tab", third_status_bar);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
+    auto* tab3_visibility_button = new QPushButton("Statistics", third_status_bar);
+    connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
 
     third_box->addWidget(toggle_label);
     third_box->addWidget(tab0_visibility_button);
     third_box->addWidget(tab1_visibility_button);
     third_box->addWidget(tab2_visibility_button);
+    third_box->addWidget(tab3_visibility_button);
     third_box->addStretch(1);
 
     v->addWidget(third_status_bar);
 
     // Row 5: Another status bar, this time with focus eval results
     // only add camera_controls after all of the other things (camera picker, etc.)
-    h2->addWidget(camera_controls);
+
 
     // Center stacked layout
     center_widget = new QWidget(this);
@@ -157,7 +156,10 @@ void QtCameraViewer::buildUi()
     stacked_layout->addWidget(viewer_container);
     setEmptyState(camera_picker->combo() && camera_picker->combo()->count() > 0);
 
+    // video pane on left, camera controls and stats on right
     h2->addWidget(center_widget, 1);
+    h2->addWidget(camera_controls);
+
     mainLayout->addLayout(v);
     mainLayout->addLayout(h2);
 }
