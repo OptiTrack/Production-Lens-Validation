@@ -64,7 +64,7 @@ void CameraControlPanel::buildUi() {
     exposure_label->setMaximumWidth(75);
     exposure_label->setMinimumWidth(75);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
-        exposure_label->setText(QString::number(val) + " µs");
+        exposure_label->setText(QString::number(val) + " ms");
     });
     exposure_button = new QPushButton("Apply", camGroup);
     exposure_button->setProperty("primary", true);
