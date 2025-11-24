@@ -170,7 +170,18 @@ void CameraControlPanel::buildUi() {
         // find mode value from current data and request it
         const int mode = video_mode_combo->itemData(idx).toInt();
         onSetVideoMode(mode);
-        if (edge_button && edge_button->isChecked()) { edge_button->setChecked(false); emit edgeDetectToggled(false); }
+        
+        // Disable edge button for incompatible modes (Segment, Object, Duplex)
+        const bool isCompatible = (mode != static_cast<int>(Core::SegmentMode) && 
+                                   mode != static_cast<int>(Core::ObjectMode) && 
+                                   mode != static_cast<int>(Core::DuplexMode));
+        if (edge_button) {
+            edge_button->setEnabled(isCompatible);
+            if (!isCompatible && edge_button->isChecked()) {
+                edge_button->setChecked(false);
+                emit edgeDetectToggled(false);
+            }
+        }
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
