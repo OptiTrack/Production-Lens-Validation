@@ -229,9 +229,7 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
     byte_array_staging.resize(int(required));
     const int dstStride = srcStride;
     // Relaxed is sufficient because this flag is not used for synchronization
-    // Edge detection is only applicable for 8pp and 16bpp modes
-    const bool shouldApplyEdges = edge_detect_enabled.load(std::memory_order_relaxed) && (bpp == 8 || bpp == 16);
-    if (shouldApplyEdges) {
+    if (edge_detect_enabled.load(std::memory_order_relaxed)) {
         // Convert source to appropriate cv::Mat based on bpp
         cv::Mat sourceMat;
         // Wrap source buffer in a cv::Mat. Treating it as read-only; OpenCV never writes to this buffer.
@@ -239,12 +237,20 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
             sourceMat = cv::Mat(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
         } else if (bpp == 16) {
             sourceMat = cv::Mat(h, w, CV_16UC1, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 24) {
+            sourceMat = cv::Mat(h, w, CV_8UC3, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 32) {
+            sourceMat = cv::Mat(h, w, CV_8UC4, const_cast<unsigned char*>(src), srcStride);
         }
 
         // Convert to 8-bit grayscale for edge detection
         cv::Mat gray;
         if (bpp == 16) {
             sourceMat.convertTo(gray, CV_8U, 1.0 / 256.0);
+        } else if (bpp == 24) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGR2GRAY);
+        } else if (bpp == 32) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGRA2GRAY);
         } else {
             gray = sourceMat;
         }
