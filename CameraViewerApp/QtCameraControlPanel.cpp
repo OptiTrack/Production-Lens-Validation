@@ -35,6 +35,12 @@ void CameraControlPanel::buildUi() {
     root->setSpacing(6);
 
     leftTabWidget = new QTabWidget(this);
+    // use the 'underline' tab style (sleek blue underline for active tab)
+    if (leftTabWidget->tabBar()) {
+        leftTabWidget->tabBar()->setProperty("underline", true);
+        // give the left tab bar a stable object name so CSS can target it precisely
+        leftTabWidget->tabBar()->setObjectName("leftControlTabs");
+    }
 
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
@@ -55,12 +61,13 @@ void CameraControlPanel::buildUi() {
     exposure_slider->setValue(50);
     exposure_slider->setMaximumWidth(150);
     exposure_label = new QLabel("50", camGroup);
-    exposure_label->setMaximumWidth(50);
-    exposure_label->setMinimumWidth(50);
+    exposure_label->setMaximumWidth(75);
+    exposure_label->setMinimumWidth(75);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
-        exposure_label->setText(QString::number(val));
+        exposure_label->setText(QString::number(val) + " ms");
     });
     exposure_button = new QPushButton("Apply", camGroup);
+    exposure_button->setProperty("primary", true);
     connect(exposure_button, &QPushButton::clicked, this, [this](){
         onSetExposure();
     });
@@ -71,12 +78,13 @@ void CameraControlPanel::buildUi() {
     fps_slider->setValue(30);
     fps_slider->setMaximumWidth(150);
     fps_label = new QLabel("30", camGroup);
-    fps_label->setMaximumWidth(60);
-    fps_label->setMinimumWidth(60);
+    fps_label->setMaximumWidth(80);
+    fps_label->setMinimumWidth(80);
     connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
-        fps_label->setText(QString::number(val));
+        fps_label->setText(QString::number(val) + " fps");
     });
     fps_button  = new QPushButton("Apply", camGroup);
+    fps_button->setProperty("primary", true);
     connect(fps_button, &QPushButton::clicked, this, [this](){
         onSetFps();
     });
@@ -87,42 +95,43 @@ void CameraControlPanel::buildUi() {
     gain_slider->setValue(0);
     gain_slider->setMaximumWidth(100);
     gain_label = new QLabel("0", camGroup);
-    gain_label->setMaximumWidth(30);
-    gain_label->setMinimumWidth(30);
+    gain_label->setMaximumWidth(60);
+    gain_label->setMinimumWidth(60);
     connect(gain_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
-        gain_label->setText(QString::number(val));
+        gain_label->setText(QString::number(val) + " dB");
     });
     gain_button  = new QPushButton("Apply", camGroup);
+    gain_button->setProperty("primary", true);
     connect(gain_button, &QPushButton::clicked, this, [this](){
         onSetGain();
     });
 
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(camGroup);
-    auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(4);
+    auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
     auto* expLabel = new QLabel("Exposure:", exposureWidget);
-    expLabel->setMinimumWidth(70);
-    expLabel->setMaximumWidth(70);
+    expLabel->setMinimumWidth(80);
+    expLabel->setMaximumWidth(80);
     expLayout->addWidget(expLabel, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_slider);
     expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_button);
 
     auto* fpsWidget = new QWidget(camGroup);
-    auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(4);
+    auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(8);
     auto* fpsLbl = new QLabel("FPS:", fpsWidget);
-    fpsLbl->setMinimumWidth(70);
-    fpsLbl->setMaximumWidth(70);
+    fpsLbl->setMinimumWidth(80);
+    fpsLbl->setMaximumWidth(80);
     fpsLayoutW->addWidget(fpsLbl, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_slider);
     fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_button);
 
     auto* gainWidget = new QWidget(camGroup);
-    auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(4);
+    auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(8);
     auto* gainLbl = new QLabel("Gain:", gainWidget);
-    gainLbl->setMaximumWidth(70);
-    gainLbl->setMinimumWidth(70);
+    gainLbl->setMaximumWidth(80);
+    gainLbl->setMinimumWidth(80);
     gainLayoutW->addWidget(gainLbl, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_slider);
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
@@ -180,6 +189,7 @@ void CameraControlPanel::buildUi() {
     videoLayout->addWidget(video_mode_combo);
     edge_button = new QPushButton("Edge Detect", videoGroup);
     edge_button->setCheckable(true);
+    edge_button->setProperty("secondary", true);
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
         // If enabling, force camera into Grayscale mode so frames are 8bpp
         if (checked) {
@@ -239,11 +249,12 @@ void CameraControlPanel::buildUi() {
     mode_combo->addItem("Constant Bitrate", QVariant(1));
 
     set_compression_button = new QPushButton("Apply", compGroup);
+    set_compression_button->setProperty("primary", true);
     connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
     // Build compression controls widget
     auto* compressionCtrlsWidget = new QWidget(compGroup);
-    auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(4);
+    auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(8);
     auto* qualityLbl = new QLabel("Quality:", compressionCtrlsWidget);
     compressionCtrlsLayout->addWidget(qualityLbl, 0, Qt::AlignLeft);
     compressionCtrlsLayout->addWidget(quality_slider);
@@ -275,10 +286,11 @@ void CameraControlPanel::buildUi() {
     });
 
     gamma_button = new QPushButton("Apply", compGroup);
+    gamma_button->setProperty("primary", true);
     connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
     auto* gammaCtrlsWidget = new QWidget(compGroup);
-    auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(4);
+    auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(8);
     auto* gammaLbl = new QLabel("Gamma:", gammaCtrlsWidget);
     gammaCtrlsLayout->addWidget(gammaLbl, 0, Qt::AlignLeft);
     gammaCtrlsLayout->addWidget(gamma_slider);
