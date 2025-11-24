@@ -181,20 +181,12 @@ void CameraControlPanel::buildUi() {
     edge_button = new QPushButton("Edge Detect", videoGroup);
     edge_button->setCheckable(true);
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
-        // If enabling, force camera into Grayscale mode so frames are 8bpp
         if (checked) {
             if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }
-            // request grayscale video on camera
-            onSetVideoMode(static_cast<int>(Core::GrayscaleMode));
-            // Update dropdown so it reflects the camera's requested grayscale mode
-            if (video_mode_combo) {
-                const int gi = video_mode_combo->findData(QVariant(static_cast<int>(Core::GrayscaleMode)));
-                if (gi >= 0) video_mode_combo->setCurrentIndex(gi);
-            }
         }
         emit edgeDetectToggled(checked);
     });
-    edge_button->setToolTip("Enable edge overlay in viewer (forces Grayscale video mode)");
+    edge_button->setToolTip("Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes");
 
     leftTabWidget->addTab(tab1, QString("Video Modes"));
     videoLayout->addWidget(edge_button);
