@@ -477,7 +477,7 @@ void CameraControlPanel::onSetTab3Visibility() {
     }
 }
 
-bool isEdgeDetectCompatible(int mode)
+bool CameraControlPanel::isEdgeDetectCompatible(int mode)
 {
     switch (mode) {
         case Core::SegmentMode:
