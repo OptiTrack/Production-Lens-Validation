@@ -206,7 +206,6 @@ void VideoWidget::paintGL() {
     program_shader->setUniformValue(edge_alpha_uniform, alpha);
     // Draw quad and cleanup
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    
     // Restore GL state: unbind textures on both units
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -215,6 +214,9 @@ void VideoWidget::paintGL() {
     
     vertex_array.release();
     program_shader->release();
+    
+    // Explicitly ensure shader is unbound
+    glUseProgram(0);
 }
 
 
@@ -395,8 +397,15 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     const int kernel_size = 3;
     cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
+    // CRITICAL: Make this window's GL context current before any GL calls
+    // Without this, we might be making GL calls in another widget's context!
+    makeCurrent();
+    
     // Ensure edges data is contiguous for GL upload
     cv::Mat edgesC = edges.clone();
+    
+    // Explicitly set texture unit to avoid using whatever unit is currently active
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 #ifdef GL_UNPACK_ROW_LENGTH
@@ -408,5 +417,7 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
     glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    
+    doneCurrent();
 }
-

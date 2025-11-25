@@ -13,6 +13,9 @@ public:
     GraphWidget(QWidget *parent = nullptr);
     void addData(qreal x, qreal y);
     QList<QVector<qreal>>getData();
+    void setYAxisRange(qreal min, qreal max); // Set fixed Y-axis range
+    void setAutoScale(bool enable); // Enable/disable auto-scaling
+    void updateScrollPosition(qreal currentTime); // Update scroll without adding data
 
 protected:
     void initializeGL() override;
@@ -25,7 +28,12 @@ private:
 
     qreal xWindowSize = 10.0;
     qreal xScrollOffset = 0.0;
-
+    
+    // Y-axis configuration
+    bool autoScaleY = true;
+    qreal fixedYMin = 0.0;
+    qreal fixedYMax = 1.0;
+    
     const int segments = 20;
     const float lineWidth = 3.0f;
     const float markerRadius = 1.0f;

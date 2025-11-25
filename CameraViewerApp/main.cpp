@@ -109,6 +109,9 @@ int main(int argc, char *argv[])
     // Start time for relative timestamps in metrics
     auto startTime = std::chrono::steady_clock::now();
 
+    // Implement Edge-Detection Width Metric Here (Bernardo)
+
+
     std::thread capture([&](){
         for (;;) {
             if (!running) break;

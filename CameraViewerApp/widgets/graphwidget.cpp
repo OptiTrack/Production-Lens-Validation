@@ -149,3 +149,23 @@ void GraphWidget::paintGL() {
                    diskRadiusX,  diskRadiusY); 
     }
 }
+
+void GraphWidget::setYAxisRange(qreal min, qreal max) {
+    autoScaleY = false;
+    fixedYMin = min;
+    fixedYMax = max;
+    update();
+}
+
+void GraphWidget::setAutoScale(bool enable) {
+    autoScaleY = enable;
+    update();
+}
+
+void GraphWidget::updateScrollPosition(qreal currentTime) {
+    // Update scroll offset to keep graph moving even without new data
+    if (currentTime > xScrollOffset + xWindowSize) {
+        xScrollOffset = currentTime - xWindowSize;
+        update();
+    }
+}
