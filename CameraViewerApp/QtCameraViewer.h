@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QString>
+#include <QLineEdit>
 #include <memory>
 #include <optional>
 #include <atomic>
@@ -55,6 +56,7 @@ private:
     QWidget*          viewer_container{nullptr};
     VideoWidget*      gl_viewer_window{nullptr};
     QLabel*           focus_result_label{nullptr};
+    QLineEdit*        serial_input{nullptr};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
@@ -68,4 +70,5 @@ private:
     void wireSignals();
     void setEmptyState(bool anyCamerasPresent);
     void handleSerialSelected(std::optional<unsigned> serialOpt);
+    void takeScreenshot();
 };

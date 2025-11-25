@@ -437,7 +437,7 @@ void CameraControlPanel::onSetTab0Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(0)) {
         this->leftTabWidget->setTabVisible(0, false);
-        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
+        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -451,7 +451,7 @@ void CameraControlPanel::onSetTab1Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(1)) {
         this->leftTabWidget->setTabVisible(1, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -465,7 +465,7 @@ void CameraControlPanel::onSetTab2Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(2)) {
         this->leftTabWidget->setTabVisible(2, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -479,7 +479,7 @@ void CameraControlPanel::onSetTab3Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(3)) {
         this->leftTabWidget->setTabVisible(3, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
             this->leftTabWidget->setVisible(false);
         }
     }

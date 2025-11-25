@@ -7,6 +7,9 @@
 #include <QStackedLayout>
 #include <QStyleFactory>
 #include <QPushButton>
+#include <QScreen>
+#include <QDateTime>
+#include <QLineEdit>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
@@ -95,8 +98,23 @@ void QtCameraViewer::buildUi()
     second_box->addWidget(focus_result_label);
     second_box->addWidget(focus_result);
     second_box->addStretch(1);
-
+    
     v->addWidget(second_status_bar);
+
+    // Add Screenshot button
+    QPushButton* screenshot_button = new QPushButton(second_status_bar);
+    // Add a text box to input lens serial number
+    serial_input = new QLineEdit(second_status_bar);
+    serial_input->setPlaceholderText("Serial #");
+    second_box->addWidget(serial_input);
+    screenshot_button->setText("Screenshot");
+    screenshot_button->setToolTip("Take Screenshot");
+    second_box->addWidget(screenshot_button);
+    screenshot_button->setProperty("primary", true);
+    connect(screenshot_button, &QPushButton::clicked, this, [this]() {
+        takeScreenshot();
+        emit camera_controls->showWarning("Screenshot", "Screenshot saved!");
+    });
 
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
@@ -231,4 +249,21 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
             break;
         }
     }
+}
+// Take the screen shot and save to file
+void QtCameraViewer::takeScreenshot()
+{
+    // Check if loaded screen
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+    // Add Serial number of lens if possible
+    QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text(): "#";
+    // Get the window image
+    QPixmap pix = screen->grabWindow(this->winId());
+    // Assign the time and day, with the serial number for file name
+    QString path = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
+    // Still need to add File location selection, plain camera screenshots, Ui for overlay select.
+    pix.save(path);
+
 }
