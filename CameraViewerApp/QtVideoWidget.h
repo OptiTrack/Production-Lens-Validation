@@ -65,7 +65,6 @@ private:
     GLenum current_type = 0;
     int    current_bpp = 0;
 
-
 private:
     void ensureProgram();
     void ensureVaoVbo();

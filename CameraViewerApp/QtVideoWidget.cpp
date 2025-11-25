@@ -397,15 +397,12 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     const int kernel_size = 3;
     cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
-    // CRITICAL: Make this window's GL context current before any GL calls
-    // Without this, we might be making GL calls in another widget's context!
+    // make this windows's GL context current
     makeCurrent();
     
     // Ensure edges data is contiguous for GL upload
     cv::Mat edgesC = edges.clone();
-    
-    // Explicitly set texture unit to avoid using whatever unit is currently active
-    glActiveTexture(GL_TEXTURE1);
+        glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 #ifdef GL_UNPACK_ROW_LENGTH
