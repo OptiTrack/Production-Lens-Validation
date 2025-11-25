@@ -10,6 +10,8 @@
 #include <QScreen>
 #include <QDateTime>
 #include <QLineEdit>
+#include <QFileDialog>
+#include <QCheckBox>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
@@ -101,6 +103,25 @@ void QtCameraViewer::buildUi()
     
     v->addWidget(second_status_bar);
 
+
+    browse_label = new QLabel("Screenshot Dir:" + screenshotDirectory, status_bar);
+    sh->addWidget(browse_label);
+    QPushButton* browse_button = new QPushButton(status_bar);
+    browse_button->setText("Browse...");
+    sh->addWidget(browse_button);
+
+    connect(browse_button, &QPushButton::clicked, this, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(
+            this,
+            "Select Screenshot Directory",
+            screenshotDirectory
+        );
+
+        if (!dir.isEmpty())
+            screenshotDirectory = dir;
+            browse_label->setText("Screenshot Dir: " + screenshotDirectory);
+    });
+
     // Add Screenshot button
     QPushButton* screenshot_button = new QPushButton(second_status_bar);
     // Add a text box to input lens serial number
@@ -144,6 +165,33 @@ void QtCameraViewer::buildUi()
     third_box->addWidget(tab2_visibility_button);
     third_box->addWidget(tab3_visibility_button);
     third_box->addStretch(1);
+
+    overlay_button = new QCheckBox(third_status_bar);
+    overlay_button->setText("Overlay Enabled");
+    third_box->addWidget(overlay_button);
+    overlay_button->setChecked(true);
+overlay_button->setStyleSheet(
+    "QCheckBox::indicator {"
+    "    width: 18px;"
+    "    height: 18px;"
+    "    border: 2px solid #aaa;"
+    "    background: #333;"
+    "}"
+    "QCheckBox::indicator:checked {"
+    "    background: #66c9ccff;"
+    "    border-color: #66f5ffff;"
+    "}"
+    "QCheckBox::indicator:unchecked {"
+    "    background: #333;"
+    "}"
+);
+    connect(overlay_button, &QCheckBox::clicked, this, [this]() {
+    overlayState = !overlayState;
+    if (overlayState)
+        overlay_button->setText("Overlay Enabled");
+    else
+        overlay_button->setText("Overlay Disabled" );
+    });
 
     v->addWidget(third_status_bar);
 
@@ -260,10 +308,19 @@ void QtCameraViewer::takeScreenshot()
     // Add Serial number of lens if possible
     QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text(): "#";
     // Get the window image
-    QPixmap pix = screen->grabWindow(this->winId());
+    QPixmap pix;
+    if (overlayState)
+        pix = screen->grabWindow(this->winId());
+    else
+        pix = screen->grabWindow(gl_viewer_window->winId());
     // Assign the time and day, with the serial number for file name
-    QString path = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
-    // Still need to add File location selection, plain camera screenshots, Ui for overlay select.
-    pix.save(path);
+    QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
+    // File location selection
+    if (screenshotDirectory.isEmpty()){
+        pix.save(filename);
+    }else{
+        QString fileLocation = QDir(screenshotDirectory).filePath(filename);
+        pix.save(fileLocation);
+    }
 
 }

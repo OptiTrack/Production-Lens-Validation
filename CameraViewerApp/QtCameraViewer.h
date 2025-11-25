@@ -3,6 +3,8 @@
 #include <QWidget>
 #include <QString>
 #include <QLineEdit>
+#include <QDir>
+#include <QCheckBox>
 #include <memory>
 #include <optional>
 #include <atomic>
@@ -57,6 +59,10 @@ private:
     VideoWidget*      gl_viewer_window{nullptr};
     QLabel*           focus_result_label{nullptr};
     QLineEdit*        serial_input{nullptr};
+    QLabel*           browse_label{nullptr};
+    QString screenshotDirectory = QDir::currentPath();
+    QCheckBox*        overlay_button{nullptr};
+    bool              overlayState{true};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
