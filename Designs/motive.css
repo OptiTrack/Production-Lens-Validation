@@ -1161,3 +1161,16 @@ WidgetGroup {
   border-bottom: 1px solid rgba(29, 29, 29, 100%); }
   WidgetGroup[last=true] {
     border-bottom: 1px solid transparent; }
+
+QCheckBox::indicator {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #aaa;
+  background: #333;
+}
+QCheckBox::indicator:checked {
+  background: rgb(0, 247, 255);
+}
+QCheckBox::indicator:unchecked {
+  background: #333;
+}

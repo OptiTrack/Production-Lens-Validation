@@ -90,20 +90,7 @@ void QtCameraViewer::buildUi()
 
     v->addWidget(status_bar);
 
-    // Row 3: Another status bar, this time with focus eval results
-    second_status_bar = new QWidget(this);
-    auto* second_box = new QHBoxLayout(second_status_bar);
-    second_box->setContentsMargins(6,0,6,0);
-    focus_result_label = new QLabel("Focus Result:", second_status_bar);
-    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-    second_box->addWidget(focus_result_label);
-    second_box->addWidget(focus_result);
-    second_box->addStretch(1);
-    
-    v->addWidget(second_status_bar);
-
-
+    // Screenshot directory label and browse button on the right of row 2
     browse_label = new QLabel("Screenshot Dir:" + screenshotDirectory, status_bar);
     sh->addWidget(browse_label);
     QPushButton* browse_button = new QPushButton(status_bar);
@@ -122,9 +109,23 @@ void QtCameraViewer::buildUi()
             browse_label->setText("Screenshot Dir: " + screenshotDirectory);
     });
 
-    // Add Screenshot button
+    // Row 3: Another status bar, this time with focus eval results
+    second_status_bar = new QWidget(this);
+    auto* second_box = new QHBoxLayout(second_status_bar);
+    second_box->setContentsMargins(6,0,6,0);
+    focus_result_label = new QLabel("Focus Result:", second_status_bar);
+    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+    second_box->addWidget(focus_result_label);
+    second_box->addWidget(focus_result);
+    second_box->addStretch(1);
+    
+    v->addWidget(second_status_bar);
+
+
+    // Add Screenshot button to the right of row 3
     QPushButton* screenshot_button = new QPushButton(second_status_bar);
-    // Add a text box to input lens serial number
+    // Add a text box to input lens serial number to the left of the button
     serial_input = new QLineEdit(second_status_bar);
     serial_input->setPlaceholderText("Serial #");
     second_box->addWidget(serial_input);
@@ -166,25 +167,11 @@ void QtCameraViewer::buildUi()
     third_box->addWidget(tab3_visibility_button);
     third_box->addStretch(1);
 
+    // Overlay enable/disable checkbox far right of row 4
     overlay_button = new QCheckBox(third_status_bar);
     overlay_button->setText("Overlay Enabled");
     third_box->addWidget(overlay_button);
     overlay_button->setChecked(true);
-overlay_button->setStyleSheet(
-    "QCheckBox::indicator {"
-    "    width: 18px;"
-    "    height: 18px;"
-    "    border: 2px solid #aaa;"
-    "    background: #333;"
-    "}"
-    "QCheckBox::indicator:checked {"
-    "    background: #66c9ccff;"
-    "    border-color: #66f5ffff;"
-    "}"
-    "QCheckBox::indicator:unchecked {"
-    "    background: #333;"
-    "}"
-);
     connect(overlay_button, &QCheckBox::clicked, this, [this]() {
     overlayState = !overlayState;
     if (overlayState)
@@ -305,7 +292,7 @@ void QtCameraViewer::takeScreenshot()
     QScreen* screen = QGuiApplication::primaryScreen();
     if (!screen)
         return;
-    // Add Serial number of lens if possible
+    // Add Serial number of lens if possible, else put #
     QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text(): "#";
     // Get the window image
     QPixmap pix;
