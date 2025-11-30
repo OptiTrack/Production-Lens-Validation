@@ -45,7 +45,6 @@ private:
     int edge_alpha_uniform = -1;
     GLuint edgeMaskTex = 0;
     float last_edge_focus_score = 0.0f; // 0..1 where 1 = sharp
-
     int   frame_width = 0;
     int   frame_height = 0;
     QColor background_color = Qt::black;

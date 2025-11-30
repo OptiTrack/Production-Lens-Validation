@@ -205,11 +205,18 @@ void VideoWidget::paintGL() {
     const float alpha = edge_detect_enabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     program_shader->setUniformValue(edge_alpha_uniform, alpha);
     // Draw quad and cleanup
-    glActiveTexture(GL_TEXTURE0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    // Restore GL state: unbind textures on both units
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
     vertex_array.release();
     program_shader->release();
+    
+    // Explicitly ensure shader is unbound
+    glUseProgram(0);
 }
 
 
@@ -385,13 +392,17 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
 
     cv::Mat edges;
-    const double lowThreshold = 50.0;
-    const double highThreshold = lowThreshold * 3.0;
+    const double lowThreshold = 100.0;
+    const double ratio = 3.0;
     const int kernel_size = 3;
-    cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+    cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
+    // make this windows's GL context current
+    makeCurrent();
+    
     // Ensure edges data is contiguous for GL upload
     cv::Mat edgesC = edges.clone();
+        glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 #ifdef GL_UNPACK_ROW_LENGTH
@@ -403,5 +414,7 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
     glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    
+    doneCurrent();
 }
-

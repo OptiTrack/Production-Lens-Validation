@@ -196,6 +196,11 @@ void CameraControlPanel::buildUi() {
     edge_button = new QPushButton("Edge Detect", videoGroup);
     edge_button->setCheckable(true);
     edge_button->setProperty("secondary", true);
+    
+    // Set initial state based on first item in combo (Segment mode)
+    const int initialMode = video_mode_combo->itemData(0).toInt();
+    edge_button->setEnabled(isEdgeDetectCompatible(initialMode));
+    
     connect(edge_button, &QPushButton::toggled, this, [this](bool checked){
         if (checked) {
             if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); edge_button->setChecked(false); return; }

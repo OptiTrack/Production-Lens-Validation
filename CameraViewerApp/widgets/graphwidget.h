@@ -25,7 +25,6 @@ private:
 
     qreal xWindowSize = 10.0;
     qreal xScrollOffset = 0.0;
-
     const int segments = 20;
     const float lineWidth = 3.0f;
     const float markerRadius = 1.0f;
