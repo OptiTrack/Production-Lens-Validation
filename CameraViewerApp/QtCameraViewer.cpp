@@ -7,6 +7,11 @@
 #include <QStackedLayout>
 #include <QStyleFactory>
 #include <QPushButton>
+#include <QScreen>
+#include <QDateTime>
+#include <QLineEdit>
+#include <QFileDialog>
+#include <QCheckBox>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
@@ -85,6 +90,25 @@ void QtCameraViewer::buildUi()
 
     v->addWidget(status_bar);
 
+    // Screenshot directory label and browse button on the right of row 2
+    browse_label = new QLabel("Screenshot Dir:" + screenshotDirectory, status_bar);
+    sh->addWidget(browse_label);
+    QPushButton* browse_button = new QPushButton(status_bar);
+    browse_button->setText("Browse...");
+    sh->addWidget(browse_button);
+
+    connect(browse_button, &QPushButton::clicked, this, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(
+            this,
+            "Select Screenshot Directory",
+            screenshotDirectory
+        );
+
+        if (!dir.isEmpty())
+            screenshotDirectory = dir;
+            browse_label->setText("Screenshot Dir: " + screenshotDirectory);
+    });
+
     // Row 3: Another status bar, this time with focus eval results
     second_status_bar = new QWidget(this);
     auto* second_box = new QHBoxLayout(second_status_bar);
@@ -95,8 +119,24 @@ void QtCameraViewer::buildUi()
     second_box->addWidget(focus_result_label);
     second_box->addWidget(focus_result);
     second_box->addStretch(1);
-
+    
     v->addWidget(second_status_bar);
+
+
+    // Add Screenshot button to the right of row 3
+    QPushButton* screenshot_button = new QPushButton(second_status_bar);
+    // Add a text box to input lens serial number to the left of the button
+    serial_input = new QLineEdit(second_status_bar);
+    serial_input->setPlaceholderText("Serial #");
+    second_box->addWidget(serial_input);
+    screenshot_button->setText("Screenshot");
+    screenshot_button->setToolTip("Take Screenshot");
+    second_box->addWidget(screenshot_button);
+    screenshot_button->setProperty("primary", true);
+    connect(screenshot_button, &QPushButton::clicked, this, [this]() {
+        takeScreenshot();
+        emit camera_controls->showWarning("Screenshot", "Screenshot saved!");
+    });
 
     auto* fpsTimer = new QTimer(this);
     fpsTimer->setInterval(500);
@@ -126,6 +166,19 @@ void QtCameraViewer::buildUi()
     third_box->addWidget(tab2_visibility_button);
     third_box->addWidget(tab3_visibility_button);
     third_box->addStretch(1);
+
+    // Overlay enable/disable checkbox far right of row 4
+    overlay_button = new QCheckBox(third_status_bar);
+    overlay_button->setText("Overlay Enabled");
+    third_box->addWidget(overlay_button);
+    overlay_button->setChecked(true);
+    connect(overlay_button, &QCheckBox::clicked, this, [this]() {
+    overlayState = !overlayState;
+    if (overlayState)
+        overlay_button->setText("Overlay Enabled");
+    else
+        overlay_button->setText("Overlay Disabled" );
+    });
 
     v->addWidget(third_status_bar);
 
@@ -231,4 +284,30 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
             break;
         }
     }
+}
+// Take the screen shot and save to file
+void QtCameraViewer::takeScreenshot()
+{
+    // Check if loaded screen
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+    // Add Serial number of lens if possible, else put #
+    QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text(): "#";
+    // Get the window image
+    QPixmap pix;
+    if (overlayState)
+        pix = screen->grabWindow(this->winId());
+    else
+        pix = screen->grabWindow(gl_viewer_window->winId());
+    // Assign the time and day, with the serial number for file name
+    QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
+    // File location selection
+    if (screenshotDirectory.isEmpty()){
+        pix.save(filename);
+    }else{
+        QString fileLocation = QDir(screenshotDirectory).filePath(filename);
+        pix.save(fileLocation);
+    }
+
 }
