@@ -7,17 +7,17 @@
 #include <QFuture>
 #include <QApplication>
 #include <QLabel>
-
-#include <opencv2/opencv.hpp>
+#include <QDateTime>
+#include <qfile.h>
 
 #include "QtCameraConnectionManager.h"
 #include "QtVideoWidget.h"
 #include "QtCameraViewer.h"
+#include "QtCameraControlPanel.h"
+#include "metricscontroller.h"
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
-#include "QtCameraControlPanel.h" 
 #include "FocusEval.h"
-#include "GradientDot.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -26,7 +26,6 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
-#include <qobjectdefs.h>
 
 using namespace CameraLibrary;
 
@@ -56,7 +55,16 @@ int main(int argc, char *argv[])
     } guard;
 
     QApplication app(argc, argv);
-    QtCameraViewer::ApplyAppStyle();
+
+    QFile file("motive.css");
+    if (file.open(QFile::ReadOnly | QFile::Text)) {
+        QString styleSheet = file.readAll();
+        app.setStyleSheet(styleSheet);
+        file.close();
+    }
+    else {
+        qWarning() << "[!] Could not open stylesheet file.";
+    }
 
     // ==== Camera manager ========================================================
     auto* mgr = new CameraConnectionManager(); 
@@ -69,11 +77,15 @@ int main(int argc, char *argv[])
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
-    QLabel* focus_result = new QLabel("Disabled");
+    DisplayResults* focus_result = new DisplayResults("Disabled");
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, nullptr);
+
+	// get instance to camera control panel for metrics updates
+    auto* panel = viewer->getControlPanel();
+
     viewer->resize(1100, 600);
     viewer->show();
 
@@ -87,19 +99,15 @@ int main(int argc, char *argv[])
     });
 
     // ==== Main Application Thread ===============================================
-    std::atomic_bool running(true);  
+    std::atomic_bool running(true);
     std::atomic_bool focusToolEnabled(true); // changed by focus UI control
-    
+
     FocusEvaluator fe;
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
 
-    GradientDot* dot = new GradientDot();
-    dot->resize(200, 200);
-    dot->move(viewer->videoContainer()->width() - 30, 10); // top-right corner
-    dot->setValue(0.3); // red
-    dot->show();
-    dot->raise();
+    // Start time for relative timestamps in metrics
+    auto startTime = std::chrono::steady_clock::now();
 
     std::thread capture([&](){
         for (;;) {
@@ -146,32 +154,27 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, &dot, bmp_shared, &score]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_shared, &score, panel, &startTime]() {
                         score = fe.EvaluateBitmapFocus(bmp_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
+                        // Calculate relative time in seconds since app start
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                        qreal relativeTime = elapsed.count() / 1000.0;
+
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, dot, score]() {
+                            [focus_result, score, panel, relativeTime]() {
 
-								dot->setValue(score);
+                                focus_result->updateTextandColor(score);
 
-                                // change color and text of result depending on success rate
-                                if ((0 < score) && (score < .65)) {
-                                    focus_result->setText("Failure");
-                                    focus_result->setStyleSheet("color:FireBrick; font-weight:600;");
-                                }
-                                else if ((.65 <= score) && (score < .75)) {
-                                    focus_result->setText("Success (Wide Angle Lens)");
-                                    focus_result->setStyleSheet("color:#668b0b; font-weight:600;");
-                                }
-                                else if ((.75 <= score) && (score <= 1.0)) {
-                                    focus_result->setText("Success (All lenses)");
-                                    focus_result->setStyleSheet("color:ForestGreen; font-weight:600;");
-                                }
-                                else {
-                                    focus_result->setText("Inconclusive");
-                                    focus_result->setStyleSheet("color:Gold; font-weight:600;");
+                                // Update Focus Metrics
+                                if (panel && panel->getFocusMetricsController()) {
+                                    QHash<QString, qreal> focusMetrics;
+                                    focusMetrics["FocusQuality"] = score;
+                                    panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                                    qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
                             },
                             Qt::QueuedConnection
@@ -190,10 +193,6 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
-
-    // ------------------- DEBUG FOCUS RESULTS DISPLAY -----------------------
-    // focus_result->setText("Testing this here");
-    // focus_result->setStyleSheet("color:#00BFFF; font-weight:600;");
 
     // Ensure Camera Library Shutdown on program exit
     guard.captureThread = &capture;

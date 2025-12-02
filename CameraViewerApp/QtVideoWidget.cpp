@@ -4,6 +4,7 @@
 // OpenCV for simple image processing (edge detection)
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <QVector3D>
 
 // Specialized GL Viewer for displaying bitmaps from a camera
 
@@ -25,6 +26,7 @@ VideoWidget::VideoWidget(UpdateBehavior behavior)
 VideoWidget::~VideoWidget() {
     makeCurrent();
     if (gl_texture) glDeleteTextures(1, &gl_texture);
+    if (edgeMaskTex) glDeleteTextures(1, &edgeMaskTex); // Delete edge mask texture
     vertext_buffer.destroy();
     vertex_array.destroy();
     program_shader.reset();
@@ -40,6 +42,18 @@ void VideoWidget::initializeGL() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,   GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,   GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Create edge mask texture (single-channel) for edge-detetion.
+    // This will be replaced every frame if edge detection is enabled with real edge map data via OpenCV.
+    glGenTextures(1, &edgeMaskTex);
+    glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,   GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,   GL_CLAMP_TO_EDGE);
+    unsigned char zero = 0;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, &zero);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     ensureProgram();
@@ -181,6 +195,17 @@ void VideoWidget::paintGL() {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl_texture);
     program_shader->setUniformValue(sampler_uniform, 0);
+    // Bind edge mask on texture unit 1 and provide overlay color/alpha
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
+    program_shader->setUniformValue(edge_mask_uniform, 1);
+    // Neon blue (possibly implement QT element to change color?)
+    program_shader->setUniformValue(edge_color_uniform, QVector3D(0.00f, 0.65f, 1.0f));
+    // Only show overlay when edge detection is enabled: alpha = 1.0 (showing) else 0.0 (transparent)
+    const float alpha = edge_detect_enabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
+    program_shader->setUniformValue(edge_alpha_uniform, alpha);
+    // Draw quad and cleanup
+    glActiveTexture(GL_TEXTURE0);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindTexture(GL_TEXTURE_2D, 0);
     vertex_array.release();
@@ -203,35 +228,42 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
 
     byte_array_staging.resize(int(required));
     const int dstStride = srcStride;
-    if (bpp == 8 && edge_detect_enabled.load(std::memory_order_acquire)) {
-        // Wrap the source as a cv::Mat (no copy) using the source stride/step
-        cv::Mat gray(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
+    // Relaxed is sufficient because this flag is not used for synchronization
+    if (edge_detect_enabled.load(std::memory_order_relaxed)) {
+        // Convert source to appropriate cv::Mat based on bpp
+        cv::Mat sourceMat;
+        // Wrap source buffer in a cv::Mat. Treating it as read-only; OpenCV never writes to this buffer.
+        if (bpp == 8) {
+            sourceMat = cv::Mat(h, w, CV_8UC1, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 16) {
+            sourceMat = cv::Mat(h, w, CV_16UC1, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 24) {
+            sourceMat = cv::Mat(h, w, CV_8UC3, const_cast<unsigned char*>(src), srcStride);
+        } else if (bpp == 32) {
+            sourceMat = cv::Mat(h, w, CV_8UC4, const_cast<unsigned char*>(src), srcStride);
+        }
 
-        // Smooth and detect edges
-        cv::Mat smoothed;
-        cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
-        cv::Mat edges;
-        const double lowThreshold = 50.0;
-        const double highThreshold = lowThreshold * 3.0;
-        const int kernel_size = 3;
-        cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
-
-        // Overlay edges on the original gray image
-        // Make a copy of the original to preserve it
-        cv::Mat result = gray.clone();
-        // Set edge pixels to white (255) on the result
-        cv::Scalar edgeColor(31, 81, 255);
-        result.setTo(edgeColor, edges);
-
-        // Copy the result (original + edges) into the staging buffer preserving stride
+        // Convert to 8-bit grayscale for edge detection
+        cv::Mat gray;
+        if (bpp == 16) {
+            sourceMat.convertTo(gray, CV_8U, 1.0 / 256.0);
+        } else if (bpp == 24) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGR2GRAY);
+        } else if (bpp == 32) {
+            cv::cvtColor(sourceMat, gray, cv::COLOR_BGRA2GRAY);
+        } else {
+            gray = sourceMat;
+        }
+        // Always copy the original source bytes into the staging buffer for the base texture
         for (int row = 0; row < h; ++row) {
-            const unsigned char* s = result.ptr<unsigned char>(row);
-            unsigned char*       d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
-            // result.step may equal w, but to be safe copy min(w, dstStride)
-            const size_t toCopy = static_cast<size_t>(std::min<int>(w, dstStride));
-            std::memcpy(d, s, toCopy);
-            // If dstStride is larger than w, zero the remaining bytes on the row
-            if (dstStride > w) std::memset(d + toCopy, 0, size_t(dstStride - toCopy));
+            const unsigned char* s = src + size_t(row) * size_t(srcStride);
+            unsigned char* d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
+            std::memcpy(d, s, size_t(dstStride));
+        }
+
+        // Then compute and upload the edge mask if we successfully formed a grayscale image
+        if (!gray.empty()) {
+            applyEdgeDetection(gray, w, h, srcStride);
         }
     } else {
         for (int row = 0; row < h; ++row) {
@@ -271,8 +303,16 @@ void VideoWidget::ensureProgram() {
         "precision mediump float;\n"
         "#endif\n"
         "uniform sampler2D uTex;\n"
+        "uniform sampler2D uEdgeMask;\n"
+        "uniform vec3 uEdgeColor;\n"
+        "uniform float uEdgeAlpha;\n"
         "varying vec2 vUV;\n"
-        "void main(){ gl_FragColor = texture2D(uTex, vUV); }\n";
+        "void main(){\n"
+        "  vec4 base = texture2D(uTex, vUV);\n"
+        "  float mask = texture2D(uEdgeMask, vUV).r;\n"
+        "  vec3 blended = mix(base.rgb, uEdgeColor, mask * uEdgeAlpha);\n"
+        "  gl_FragColor = vec4(blended, base.a);\n"
+        "}\n";
 
     program_shader->addShaderFromSourceCode(QOpenGLShader::Vertex,   vs);
     program_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fs);
@@ -281,6 +321,9 @@ void VideoWidget::ensureProgram() {
     position_attribute = program_shader->attributeLocation("aPos");
     uv_attribute  = program_shader->attributeLocation("aUV");
     sampler_uniform  = program_shader->uniformLocation("uTex");
+    edge_mask_uniform = program_shader->uniformLocation("uEdgeMask");
+    edge_color_uniform = program_shader->uniformLocation("uEdgeColor");
+    edge_alpha_uniform = program_shader->uniformLocation("uEdgeAlpha");
 }
 
 void VideoWidget::ensureVaoVbo() {
@@ -335,3 +378,30 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
 
     swizzle_mode = want;
 }
+
+void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
+{
+    cv::Mat smoothed;
+    cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
+
+    cv::Mat edges;
+    const double lowThreshold = 50.0;
+    const double highThreshold = lowThreshold * 3.0;
+    const int kernel_size = 3;
+    cv::Canny(smoothed, edges, lowThreshold, highThreshold, kernel_size);
+
+    // Ensure edges data is contiguous for GL upload
+    cv::Mat edgesC = edges.clone();
+    glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+#ifdef GL_UNPACK_ROW_LENGTH
+    const GLint rowLen = int(edgesC.step / edgesC.elemSize());
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLen);
+#endif
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, edgesC.data);
+#ifdef GL_UNPACK_ROW_LENGTH
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+#endif
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
