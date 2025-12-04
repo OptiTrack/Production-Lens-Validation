@@ -219,7 +219,7 @@ void CameraControlPanel::buildUi() {
     auto* v2   = new QVBoxLayout(tab2);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
-    auto* compGroup = new QGroupBox("Color Compression and Gamma");
+    auto* compGroup = new QGroupBox("Color Compression");
     auto* compLayout = new QVBoxLayout(compGroup); compLayout->setContentsMargins(6,6,6,6);
     compGroup->setLayout(compLayout);
 

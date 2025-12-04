@@ -150,12 +150,12 @@ void QtCameraViewer::buildUi()
     auto* third_box = new QHBoxLayout(third_status_bar);
     third_box->setContentsMargins(6,0,6,0);
     auto* toggle_label = new QLabel("Toggle Tabs:", third_status_bar);
-    auto* tab0_visibility_button = new QPushButton("Control Tab", third_status_bar);
+    auto* tab0_visibility_button = new QPushButton("Controls", third_status_bar);
     // tab0_visibility_button->setMaximumSize(50, 50);
     connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
-    auto* tab1_visibility_button = new QPushButton("Video Modes Tab", third_status_bar);
+    auto* tab1_visibility_button = new QPushButton("Video Modes", third_status_bar);
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-    auto* tab2_visibility_button = new QPushButton("Color Tab", third_status_bar);
+    auto* tab2_visibility_button = new QPushButton("Color", third_status_bar);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
     auto* tab3_visibility_button = new QPushButton("Statistics", third_status_bar);
     connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
