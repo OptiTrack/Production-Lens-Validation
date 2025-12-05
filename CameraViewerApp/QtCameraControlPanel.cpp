@@ -162,20 +162,20 @@ void CameraControlPanel::buildUi() {
         focus_button->setText("Focus Disabled" );
     });
 
-    // Overlay enable/disable checkbox
-    overlay_button = new QCheckBox(focusToolGroup);
-    overlay_button->setText("Overlay Enabled");
-    overlay_button->setChecked(true);
-    connect(overlay_button, &QCheckBox::clicked, this, [this]() {
-    overlayState = !overlayState;
-    if (overlayState)
-        overlay_button->setText("Overlay Enabled");
+    // Focus HUD enable/disable checkbox
+    focusHUD_button = new QCheckBox(focusToolGroup);
+    focusHUD_button->setText("Focus HUD Enabled");
+    focusHUD_button->setChecked(true);
+    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() {
+    focusHUDState = !focusHUDState;
+    if (focusHUDState)
+        focusHUD_button->setText("Focus HUD Enabled");
     else
-        overlay_button->setText("Overlay Disabled" );
+        focusHUD_button->setText("Focus HUD Disabled" );
     });
 
     focusToolLayout->addWidget(focus_button);
-    focusToolLayout->addWidget(overlay_button);
+    focusToolLayout->addWidget(focusHUD_button);
 
 
     leftTabWidget->addTab(tab0, QString("Controls"));

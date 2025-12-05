@@ -84,8 +84,8 @@ private:
 
     QCheckBox*        focus_button{nullptr};
     bool              focusState{true};
-    QCheckBox*        overlay_button{nullptr};
-    bool              overlayState{true};
+    QCheckBox*        focusHUD_button{nullptr};
+    bool              focusHUDState{true};
 
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};

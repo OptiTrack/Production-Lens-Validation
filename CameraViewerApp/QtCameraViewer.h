@@ -61,6 +61,8 @@ private:
     QLineEdit*        serial_input{nullptr};
     QLabel*           browse_label{nullptr};
     QString screenshotDirectory = QDir::currentPath();
+    QCheckBox*        overlay_button{nullptr};
+    bool              overlayState{true};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;

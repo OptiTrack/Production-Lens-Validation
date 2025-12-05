@@ -167,6 +167,19 @@ void QtCameraViewer::buildUi()
     third_box->addWidget(tab3_visibility_button);
     third_box->addStretch(1);
 
+    // Overlay enable/disable checkbox far right of row 4
+    overlay_button = new QCheckBox(third_status_bar);
+    overlay_button->setText("Overlay Enabled");
+    third_box->addWidget(overlay_button);
+    overlay_button->setChecked(true);
+    connect(overlay_button, &QCheckBox::clicked, this, [this]() {
+    overlayState = !overlayState;
+    if (overlayState)
+        overlay_button->setText("Overlay Enabled");
+    else
+        overlay_button->setText("Overlay Disabled" );
+    });
+
     v->addWidget(third_status_bar);
 
     // Row 5: Another status bar, this time with focus eval results
