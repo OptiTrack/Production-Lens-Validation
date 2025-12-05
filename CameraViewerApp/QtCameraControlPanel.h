@@ -3,6 +3,7 @@
 #include <QPointer>
 #include <QTabWidget>
 #include <QGroupBox>
+#include <QCheckBox>
 #include <QLabel>
 #include <QVector>
 #include <QString>
@@ -80,6 +81,11 @@ private:
     QSlider* gain_slider{nullptr};
     QLabel* gain_label{nullptr};
     QPushButton* gain_button{nullptr};
+
+    QCheckBox*        focus_button{nullptr};
+    bool              focusState{true};
+    QCheckBox*        overlay_button{nullptr};
+    bool              overlayState{true};
 
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};
