@@ -58,10 +58,11 @@ After a **Release** build, deploy the matching Qt runtime DLLs and plugins next 
 ```
 <!-- LICENSE -->
 # License
+All non-third party code included in this repository is jointly owned by the team mentioned above and NaturalPoint Inc. DBA OptiTrack. 
 
-Distributed under the ___ License. 
-See `LICENSE.txt` in the "licenses" folder for more information.
-Third-party licenses can also be found in the "licenses" folder, named accordingly.
+See `LICENSE.txt` in the "Documents" folder for more information.
+
+Third-party licenses can be found in the "CameraViewerApp/license" folder, named accordingly.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
