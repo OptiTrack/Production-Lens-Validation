@@ -155,23 +155,31 @@ void CameraControlPanel::buildUi() {
     focus_button->setText("Focus Enabled");
     focus_button->setChecked(true);
     connect(focus_button, &QCheckBox::clicked, this, [this]() {
-    focusState = !focusState;
-    if (focusState)
-        focus_button->setText("Focus Enabled");
-    else
-        focus_button->setText("Focus Disabled" );
+        focusState = !focusState;
+        if (focusState) {
+            focus_button->setText("Focus Enabled");
+            emit focusToolToggled(true);
+        }
+        else {
+            focus_button->setText("Focus Disabled" );
+            emit focusToolToggled(false);
+        }
     });
 
     // Focus HUD enable/disable checkbox
     focusHUD_button = new QCheckBox(focusToolGroup);
     focusHUD_button->setText("Focus HUD Enabled");
     focusHUD_button->setChecked(true);
-    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() {
-    focusHUDState = !focusHUDState;
-    if (focusHUDState)
-        focusHUD_button->setText("Focus HUD Enabled");
-    else
-        focusHUD_button->setText("Focus HUD Disabled" );
+    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() { 
+        focusHUDState = !focusHUDState;
+        if (focusHUDState) {
+            focusHUD_button->setText("Focus HUD Enabled");
+            emit focusHUDToggled(true);
+        }
+        else {
+            focusHUD_button->setText("Focus HUD Disabled" );
+            emit focusHUDToggled(false);
+        }
     });
 
     focusToolLayout->addWidget(focus_button);

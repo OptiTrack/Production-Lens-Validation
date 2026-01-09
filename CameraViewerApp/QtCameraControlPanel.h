@@ -47,11 +47,16 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
+    bool returnFocusToolState() { return focusState; }
 	
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
     void edgeDetectToggled(bool enabled);
+    // toggle the focus tool
+    void focusToolToggled(bool toggle);
+    // toggle the HUD for the focus tool
+    void focusHUDToggled(bool toggle);
 
 private:
     void buildUi();

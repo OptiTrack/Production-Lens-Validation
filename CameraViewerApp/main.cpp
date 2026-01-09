@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
 
     viewer->resize(1100, 600);
     viewer->show();
+    viewer->focus_score = 0;
 
     // Bitmap resource
     BitmapPool bmp_pool([](int w, int h, int bpp, int stride) -> Bitmap* {
@@ -100,7 +101,7 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
-    std::atomic_bool focusToolEnabled(true); // changed by focus UI control
+    std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
 
     FocusEvaluator fe;
     const int focusEvalFrameGap = 10;
@@ -155,6 +156,12 @@ int main(int argc, char *argv[])
 
                 double score = 0;
 
+                // // change focus tool boolean depending on state of its toggle button
+                // QObject::connect(&panel, &CameraControlPanel::focusToolToggled, [&](bool toggle){
+                //     focusToolEnabled = toggled;
+                // });
+                focusToolEnabled = panel->returnFocusToolState();
+
                 // if focus evaluation enabled, do so now
                 if (focusToolEnabled && frameCount == 0) {
                     // clone bitmap for thread-safe focus evaluation (was competing with edge-detection)
@@ -166,7 +173,7 @@ int main(int argc, char *argv[])
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
                     
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, viewer, &startTime]() {
                         score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
@@ -177,9 +184,10 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, panel, relativeTime]() {
+                            [focus_result, score, panel, viewer, relativeTime]() {
 
                                 focus_result->updateTextandColor(score);
+                                viewer->focus_score = score;
 
                                 // Update Focus Metrics
                                 if (panel && panel->getFocusMetricsController()) {
