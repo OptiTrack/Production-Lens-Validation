@@ -229,6 +229,11 @@ using frameScore = FocusEvaluator::frameScore;
 		return score;
 	}
 
+	/// <summary>
+	/// Changes state of focusToolEnabled (atomic bool) depending on state of focus_button
+	/// </summary>
+	/// <param name="toggle">State (T/F) of focus_button</param>
+	/// <returns>Nothing</returns>
 	void FocusEvaluator::onSetFocusTool(bool toggle) {
 		this->focusToolEnabled = toggle;
 		qDebug("[dbg] focusToolEnabled = %d", toggle);
