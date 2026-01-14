@@ -47,7 +47,7 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
-    bool returnFocusToolState() { return focusState; }
+    bool const returnFocusToolState() { return focusState; }
 	
 signals:
     void showWarning(const QString& title, const QString& message);

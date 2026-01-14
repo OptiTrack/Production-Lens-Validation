@@ -228,3 +228,8 @@ using frameScore = FocusEvaluator::frameScore;
 
 		return score;
 	}
+
+	void FocusEvaluator::onSetFocusTool(bool toggle) {
+		this->focusToolEnabled = toggle;
+		qDebug("[dbg] focusToolEnabled = %d", toggle);
+	}

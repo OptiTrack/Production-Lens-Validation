@@ -25,7 +25,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Sources
 set(APP_SOURCES
     main.cpp
-	FocusEval.cpp
+    FocusEval.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
     QtCameraPicker.cpp
@@ -50,6 +50,7 @@ qt6_wrap_cpp(MOC_SOURCES
     QtCameraControlPanel.h
     metricscontroller.h
     widgets/graphwidget.h
+    FocusEval.h
 )
 
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})

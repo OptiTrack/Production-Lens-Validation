@@ -101,9 +101,10 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
-    std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
+    //std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
 
     FocusEvaluator fe;
+    fe.focusToolEnabled = true; // changed by focus UI control; set True by default
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
 
@@ -112,10 +113,15 @@ int main(int argc, char *argv[])
 
     // Implement Edge-Detection Width Metric Here (Bernardo)
 
+    // change whether focus tool is enabled via it's toggle button
+    QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
 
     std::thread capture([&](){
         for (;;) {
             if (!running) break;
+
+            // // DEBUG
+            // qDebug("[dbg] main.cpp fe.focusToolEnabled = %d", fe.focusToolEnabled.load());
 
             std::shared_ptr<Camera> cam;
             { std::lock_guard<std::mutex> lk(cam_mutex); cam = current_camera; }
@@ -156,14 +162,8 @@ int main(int argc, char *argv[])
 
                 double score = 0;
 
-                // // change focus tool boolean depending on state of its toggle button
-                // QObject::connect(&panel, &CameraControlPanel::focusToolToggled, [&](bool toggle){
-                //     focusToolEnabled = toggled;
-                // });
-                focusToolEnabled = panel->returnFocusToolState();
-
                 // if focus evaluation enabled, do so now
-                if (focusToolEnabled && frameCount == 0) {
+                if (fe.focusToolEnabled && frameCount == 0) {
                     // clone bitmap for thread-safe focus evaluation (was competing with edge-detection)
                     auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
                     std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
