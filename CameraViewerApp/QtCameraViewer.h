@@ -43,14 +43,22 @@ public:
     QWidget*     videoContainer() const { return viewer_container; }
     VideoWidget* videoWidget()    const { return gl_viewer_window; }
     CameraControlPanel* getControlPanel() const { return camera_controls; }
+    double focus_score = 0;
+
+public slots:
+    void onSetFocusHUDVisibility(bool toggle);
 
 
 private:
     CameraPicker*   camera_picker{nullptr};
     CameraControlPanel* camera_controls{nullptr};
-    QWidget*          status_bar{nullptr};
-    QWidget*          second_status_bar{nullptr};
-    QWidget*          third_status_bar{nullptr};
+    QWidget*          fps_bar{nullptr};
+    QWidget*          focus_result_bar{nullptr};
+    QWidget*          focus_score_bar{nullptr};
+    QWidget*          toggle_tabs_bar{nullptr};
+    QWidget*          browse_bar{nullptr};
+    QWidget*          screenshot_bar{nullptr};
+    QWidget*          overlay_bar{nullptr};
     QLabel*           fps_label{nullptr};
     QWidget*          center_widget{nullptr};
     QStackedLayout*   stacked_layout{nullptr};
@@ -58,6 +66,8 @@ private:
     QWidget*          viewer_container{nullptr};
     VideoWidget*      gl_viewer_window{nullptr};
     QLabel*           focus_result_label{nullptr};
+    QLabel*           focus_score_label{nullptr};
+    QLabel*           focus_score_display{nullptr};
     QLineEdit*        serial_input{nullptr};
     QLabel*           browse_label{nullptr};
     QString screenshotDirectory = QDir::currentPath();

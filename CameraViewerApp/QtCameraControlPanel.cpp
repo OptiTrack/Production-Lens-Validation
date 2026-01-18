@@ -4,6 +4,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QGroupBox>
+#include <QCheckBox>
 #include <QMessageBox>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
@@ -41,11 +42,13 @@ void CameraControlPanel::buildUi() {
         // give the left tab bar a stable object name so CSS can target it precisely
         leftTabWidget->tabBar()->setObjectName("leftControlTabs");
     }
+    leftTabWidget->setMinimumWidth(300);
+    leftTabWidget->setMaximumWidth(300);
 
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
-    // Tab: Exposure / FPS / Gain
+    // Tab: Camera Controls and Focus Tool ----------------------------------------------------------
     auto* tab0 = new QWidget(this);
     auto* v0 = new QVBoxLayout(tab0);
 
@@ -108,7 +111,7 @@ void CameraControlPanel::buildUi() {
 
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(camGroup);
-    auto* expLayout = new QHBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
+    auto* expLayout = new QVBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
     auto* expLabel = new QLabel("Exposure:", exposureWidget);
     expLabel->setMinimumWidth(80);
     expLabel->setMaximumWidth(80);
@@ -118,7 +121,7 @@ void CameraControlPanel::buildUi() {
     expLayout->addWidget(exposure_button);
 
     auto* fpsWidget = new QWidget(camGroup);
-    auto* fpsLayoutW = new QHBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(8);
+    auto* fpsLayoutW = new QVBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(8);
     auto* fpsLbl = new QLabel("FPS:", fpsWidget);
     fpsLbl->setMinimumWidth(80);
     fpsLbl->setMaximumWidth(80);
@@ -128,7 +131,7 @@ void CameraControlPanel::buildUi() {
     fpsLayoutW->addWidget(fps_button);
 
     auto* gainWidget = new QWidget(camGroup);
-    auto* gainLayoutW = new QHBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(8);
+    auto* gainLayoutW = new QVBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(8);
     auto* gainLbl = new QLabel("Gain:", gainWidget);
     gainLbl->setMaximumWidth(80);
     gainLbl->setMinimumWidth(80);
@@ -137,21 +140,62 @@ void CameraControlPanel::buildUi() {
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
 
-    leftTabWidget->addTab(tab0, QString("Controls"));
-
     camLayout->addWidget(exposureWidget);
-    //camLayout->addSpacing(8);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
 
-    // NEW!!
-    // camGroup->setLayout(camLayout);
+    // Group: Focus Tool
+
+    auto* focusToolGroup = new QGroupBox("Focus Tool");
+    auto* focusToolLayout = new QVBoxLayout(this); focusToolLayout->setContentsMargins(6,6,6,6);
+    focusToolGroup->setLayout(focusToolLayout);
+
+    // Focus Tool enable/disable checkbox
+    focus_button = new QCheckBox(focusToolGroup);
+    focus_button->setText("Focus Enabled");
+    focus_button->setChecked(true);
+    connect(focus_button, &QCheckBox::clicked, this, [this]() {
+        focusState = !focusState;
+        if (focusState) {
+            focus_button->setText("Focus Enabled");
+            emit focusToolToggled(true);
+        }
+        else {
+            focus_button->setText("Focus Disabled" );
+            emit focusToolToggled(false);
+        }
+    });
+
+    // Focus HUD enable/disable checkbox
+    focusHUD_button = new QCheckBox(focusToolGroup);
+    focusHUD_button->setText("Focus HUD Enabled");
+    focusHUD_button->setChecked(true);
+    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() { 
+        focusHUDState = !focusHUDState;
+        if (focusHUDState) {
+            focusHUD_button->setText("Focus HUD Enabled");
+            emit focusHUDToggled(true);
+        }
+        else {
+            focusHUD_button->setText("Focus HUD Disabled" );
+            emit focusHUDToggled(false);
+        }
+    });
+
+    focusToolLayout->addWidget(focus_button);
+    focusToolLayout->addWidget(focusHUD_button);
+
+
+    leftTabWidget->addTab(tab0, QString("Controls"));
+
+    // add camera controls and focus tool to tab
     v0->addWidget(camGroup);
+    v0->addWidget(focusToolGroup);
     v0->addStretch();
-    //v0->addLayout(camLayout);
     h1->addWidget(leftTabWidget);
     
-    //root->addWidget(leftTabWidget);
+
+    // Tab: Video Modes ----------------------------------------------------------
 
     // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
     auto* tab1 = new QWidget(this);
@@ -219,7 +263,7 @@ void CameraControlPanel::buildUi() {
     auto* v2   = new QVBoxLayout(tab2);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
-    auto* compGroup = new QGroupBox("Color Compression and Gamma");
+    auto* compGroup = new QGroupBox("Color Compression");
     auto* compLayout = new QVBoxLayout(compGroup); compLayout->setContentsMargins(6,6,6,6);
     compGroup->setLayout(compLayout);
 

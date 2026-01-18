@@ -2,8 +2,12 @@
 
 #include "CameraHelpers.h"
 #include <opencv2/opencv.hpp>
+#include <atomic>
 
-class FocusEvaluator {
+#include <QObject>
+
+class FocusEvaluator : public QObject {
+	Q_OBJECT
 public:
 	double EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp);
 	struct frameScore {
@@ -11,6 +15,10 @@ public:
 		double avgContourArea;
 		int contourCount;
 	};
+	std::atomic_bool focusToolEnabled; // changed by focus UI control; set True by default
+
+public slots:
+    void onSetFocusTool(bool toggle);
 
 private:
 	cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap* bmp);
