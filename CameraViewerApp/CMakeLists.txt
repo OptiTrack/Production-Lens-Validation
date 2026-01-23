@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(APP_SOURCES
     main.cpp
 	FocusEval.cpp
+	MetricsExporter.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
     QtCameraPicker.cpp
@@ -34,6 +35,7 @@ set(APP_SOURCES
     QtCameraControlPanel.cpp
     metricscontroller.cpp
     widgets/graphwidget.cpp
+	FocusEval.h
 )
 
 # Only compile the decoder if FFmpeg is enabled
@@ -49,6 +51,8 @@ qt6_wrap_cpp(MOC_SOURCES
     QtVideoWidget.h
     QtCameraControlPanel.h
     metricscontroller.h
+	FocusEval.h
+	MetricsExporter.h
     widgets/graphwidget.h
 )
 
@@ -68,7 +72,7 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "C:/opencv/build")
+set(OpenCV_DIR "C:/opencv/build_x64_vs2026")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -208,7 +212,7 @@ if(WIN32)
 	endforeach()
 	
 	# Copy OpenCV DLLs
-    file(GLOB OPENCV_DLLS "C:/opencv/build/x64/vc16/bin/*.dll")
+    file(GLOB OPENCV_DLLS "C:/opencv/build_x64_vs2026/bin/Release/*.dll")
     foreach(_dll ${OPENCV_DLLS})
         add_custom_command(TARGET CameraViewerApp POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

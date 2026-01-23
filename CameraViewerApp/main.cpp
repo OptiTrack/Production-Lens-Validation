@@ -18,6 +18,7 @@
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
 #include "FocusEval.h"
+#include "MetricsExporter.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -26,6 +27,8 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
+#include "FocusResultText.h"
+#include <qobject.h>
 
 using namespace CameraLibrary;
 
@@ -79,9 +82,20 @@ int main(int argc, char *argv[])
 
     DisplayResults* focus_result = new DisplayResults("Disabled");
 
+    MetricsExporter mExport;
+
+
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, focus_result, nullptr);
+                                      fps_calculator, focus_result, mExport, nullptr);
+
+    
+
+    QObject::connect(viewer, &QtCameraViewer::exportMetricsRequested,
+        [viewer, mExport]() {
+            MetricsExporter::lensMetrics lmData2; //test
+            mExport.ExportMetrics(lmData2, "output.csv");
+        });
 
 	// get instance to camera control panel for metrics updates
     auto* panel = viewer->getControlPanel();
