@@ -25,7 +25,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Sources
 set(APP_SOURCES
     main.cpp
-    FocusEval.cpp
+	FocusEval.cpp
+    CircleMarkerDetector.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
     QtCameraPicker.cpp

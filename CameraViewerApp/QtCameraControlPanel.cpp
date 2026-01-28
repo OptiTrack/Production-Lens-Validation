@@ -253,8 +253,47 @@ void CameraControlPanel::buildUi() {
     });
     edge_button->setToolTip("Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes");
 
+    // Hough Circle Detection Controls
+    circle_detect_button = new QPushButton("Circle Detection", videoGroup);
+    circle_detect_button->setCheckable(true);
+    circle_detect_button->setProperty("secondary", true);
+    circle_detect_button->setToolTip("Enable Hough Circle detection to identify circular markers");
+    
+    connect(circle_detect_button, &QPushButton::toggled, this, [this](bool checked){
+        emit circleDetectionToggled(checked);
+    });
+    
+    circle_count_label = new QLabel("Circles Detected: ?", videoGroup);
+    circle_count_label->setStyleSheet("QLabel { font-weight: bold; }");
+    
+    // Accumulator Threshold (param2) slider and edit box
+    auto* param2Layout = new QHBoxLayout();
+    auto* param2Label = new QLabel("Param2 (Threshold):", videoGroup);
+    circle_param2_slider = new QSlider(Qt::Horizontal, videoGroup);
+    circle_param2_slider->setRange(5, 100);
+    circle_param2_slider->setValue(20);
+    circle_param2_slider->setToolTip("Accumulator threshold - higher = fewer detections");
+    
+    circle_param2_edit = new QLineEdit(videoGroup);
+    circle_param2_edit->setText("20");
+    circle_param2_edit->setMaximumWidth(50);
+    
+    param2Layout->addWidget(param2Label);
+    param2Layout->addWidget(circle_param2_slider);
+    param2Layout->addWidget(circle_param2_edit);
+    
+    connect(circle_param2_slider, &QSlider::valueChanged, this, [this](int value){
+        circle_param2_edit->setText(QString::number(value));
+        onCircleParam2Changed();
+    });
+    
+    connect(circle_param2_edit, &QLineEdit::returnPressed, this, &CameraControlPanel::onCircleParam2Changed);
+
     leftTabWidget->addTab(tab1, QString("Video Modes"));
     videoLayout->addWidget(edge_button);
+    videoLayout->addWidget(circle_detect_button);
+    videoLayout->addWidget(circle_count_label);
+    videoLayout->addLayout(param2Layout);
     v1->addWidget(videoGroup);
     v1->addStretch();
 
@@ -547,5 +586,21 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode)
             return false;
         default:
             return true;
+    }
+}
+
+void CameraControlPanel::updateCircleCount(int count)
+{
+    if (circle_count_label) {
+        circle_count_label->setText(QString("Circles Detected: %1").arg(count));
+    }
+}
+
+void CameraControlPanel::onCircleParam2Changed()
+{
+    bool ok;
+    double param2 = circle_param2_edit->text().toDouble(&ok);
+    if (ok && param2 >= 5.0 && param2 <= 100.0) {
+        emit circleParam2Changed(param2);
     }
 }
