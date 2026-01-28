@@ -6,6 +6,8 @@
 #include <QLabel>
 #include <QVector>
 #include <QString>
+#include <QLineEdit>
+#include <QSlider>
 
 class GraphWidget;
 class MetricController;
@@ -46,11 +48,19 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
+    
+    /// @brief Update circle detection count display
+    void updateCircleCount(int count);
 	
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
-    void edgeDetectToggled(bool enabled);
+    void edgeDetectToggled(bool enabled);    cd "e:\coding\Production-Lens-Validation\CameraViewerApp"
+    .\winBuild.bat ..\.\CameraSDK\
+    // Toggle circle detection
+    void circleDetectionToggled(bool enabled);
+    // Update circle detection param2 (accumulator threshold)
+    void circleParam2Changed(double param2);
 
 private:
     void buildUi();
@@ -98,6 +108,12 @@ private:
     // Droplist for selecting the video mode (replaces multiple mode buttons)
     QComboBox* video_mode_combo{nullptr};
     QPushButton* edge_button{nullptr};
+    
+    // Hough Circle detection controls
+    QPushButton* circle_detect_button{nullptr};
+    QLabel* circle_count_label{nullptr};
+    QLineEdit* circle_param2_edit{nullptr};
+    QSlider* circle_param2_slider{nullptr};
 
 
 public slots:
@@ -113,6 +129,7 @@ private slots:
     void onSetGamma();
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
-    bool isEdgeDetectCompatible(int mode); 
+    bool isEdgeDetectCompatible(int mode);
+    void onCircleParam2Changed(); 
 };
 
