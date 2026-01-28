@@ -300,6 +300,19 @@ int main(int argc, char *argv[])
                         );
                     });
                 }
+                // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
+                if (!fe.focusToolEnabled) {
+                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer]() {
+                        QMetaObject::invokeMethod(
+                            qApp,
+                            [focus_result, score, viewer]() {
+                                focus_result->updateTextandColor(-1);
+                                viewer->focus_score = 0;
+                            },
+                            Qt::QueuedConnection
+                        );
+                    });
+                }
 
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
                     viewer->videoWidget()->updateFrameFromBitmap(raw_bmp);
