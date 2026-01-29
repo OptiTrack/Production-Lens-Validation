@@ -22,8 +22,8 @@ const char* CNHeaders[] = {
 	u8"处置",
 	u8"缺陷类型",
 	u8"X（像素)",
-	u8"Y（像素)"
-	u8"镜头对焦是否最佳？"
+	u8"Y（像素)",
+	u8"镜头对焦是否最佳？",
 };
 
 using lensMetrics = MetricsExporter::lensMetrics;
