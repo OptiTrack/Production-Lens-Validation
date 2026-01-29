@@ -29,16 +29,30 @@ public:
 	};
 
 	struct lensMetrics {
-		bool lensFocusOptimal;
-		lensDisposition lensDisp;
+		bool lensFocusOptimal = false;
+		lensDisposition lensDisp = check;
 		std::vector<lensDefect> lensDefects;
 		std::string lensSerial;
-		OutputLanguage lang;
+		OutputLanguage lang = English;
 	};
 
-	static bool ExportMetrics(MetricsExporter::lensMetrics lm, std::string outputPath);
+	// Export the current metrics
+	bool ExportMetrics();
+
+	// Accessors for the metrics
+	lensMetrics& getMetrics() { return m_metrics; }
+	const lensMetrics& getMetrics() const { return m_metrics; }
+
+	void setLensSerial(const std::string& serial) { m_metrics.lensSerial = serial; }
+	void setLanguage(OutputLanguage lang) { m_metrics.lang = lang; }
+	void setDisposition(lensDisposition disp) { m_metrics.lensDisp = disp; }
+	void setFocusOptimal(bool optimal) { m_metrics.lensFocusOptimal = optimal; }
+	void addDefect(const lensDefect& defect) { m_metrics.lensDefects.push_back(defect); }
+	void clearDefects() { m_metrics.lensDefects.clear(); }
 
 private:
+	lensMetrics m_metrics;
+
 	static const char* DispositionToString(MetricsExporter::lensDisposition ds);
 	static const char* DefectTypeToString(MetricsExporter::defectType dt);
 };

@@ -73,6 +73,7 @@ private:
     std::atomic<unsigned>&   active_serial;
 	CameraHelper::FrameRateCalculator& fps_calculator;
 	DisplayResults* focus_result;
+	MetricsExporter& metrics_exporter;
 
 	void buildUi();
 	void wireSignals();

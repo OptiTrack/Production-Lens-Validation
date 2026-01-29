@@ -84,17 +84,14 @@ int main(int argc, char *argv[])
 
     MetricsExporter mExport;
 
-
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, mExport, nullptr);
 
-    
-
+    // set up shared metrics object and make Qt signal connection
     QObject::connect(viewer, &QtCameraViewer::exportMetricsRequested,
-        [viewer, mExport]() {
-            MetricsExporter::lensMetrics lmData2; //test
-            mExport.ExportMetrics(lmData2, "output.csv");
+        [&mExport]() {
+            mExport.ExportMetrics();
         });
 
 	// get instance to camera control panel for metrics updates
@@ -180,7 +177,7 @@ int main(int argc, char *argv[])
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
                     
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &mExport]() {
                         score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
@@ -191,9 +188,9 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, panel, relativeTime]() {
+                            [focus_result, score, panel, relativeTime, mExport]() {
 
-                                focus_result->updateTextandColor(score);
+                                focus_result->updateTextandColor(score, mExport);
 
                                 // Update Focus Metrics
                                 if (panel && panel->getFocusMetricsController()) {

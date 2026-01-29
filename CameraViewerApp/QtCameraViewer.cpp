@@ -63,6 +63,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 	, active_serial(activeSerial)
 	, fps_calculator(fpsCalc)
 	, focus_result(newText)
+	, metrics_exporter(metricsExporter)
 {
 	buildUi();
 	wireSignals();
@@ -130,6 +131,11 @@ void QtCameraViewer::buildUi()
 	// Add a text box to input lens serial number to the left of the button
 	serial_input = new QLineEdit(second_status_bar);
 	serial_input->setPlaceholderText("Serial #");
+
+	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
+		metrics_exporter.setLensSerial(text.toStdString());
+	});
+
 	second_box->addWidget(serial_input);
 	screenshot_button->setText("Screenshot");
 	screenshot_button->setToolTip("Take Screenshot");

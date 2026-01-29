@@ -1,12 +1,12 @@
-#pragma once
-
 #include <fstream>
 #include <string>
-
+#include <qfiledialog.h>
 #include "MetricsExporter.h"
 #include <ios>
 #include <qlogging.h>
 #include <iterator>
+#include <qstring.h>
+#include <qobject.h>
 
 const char* ENHeaders[] = {
 	"Serial number",
@@ -23,39 +23,31 @@ const char* CNHeaders[] = {
 	u8"缺陷类型",
 	u8"X（像素)",
 	u8"Y（像素)"
+	u8"镜头对焦是否最佳？"
 };
 
 using lensMetrics = MetricsExporter::lensMetrics;
 
 /// <summary>
-/// Given an object containing lens data, export to CSV file
+/// Export the current lens metrics to CSV file
 /// </summary>
-/// <param name="lm">lensMetrics object</param>
-/// <param name="outputPath">Path of output file</param>
-/// <returns></returns>
-bool MetricsExporter::ExportMetrics(MetricsExporter::lensMetrics lm, std::string outputPath) {
-	
-	/*
-	QString defaultFileName = QString("lens_metrics_%1.csv")
-		.arg(QString::number(current_camera->Serial()));
+/// <returns>True if export succeeded, false otherwise</returns>
+bool MetricsExporter::ExportMetrics() {
+
+	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_metrics.lensSerial.c_str());
 
 	QString filePath = QFileDialog::getSaveFileName(
-		this,
-		tr("Export Data"),
+		nullptr,
+		QObject::tr("Export Data"),
 		defaultFileName,
-		tr("CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
+		QObject::tr("CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
 	);
 
-	QString err;
-	if (!MetricsExporter::ExportMetrics(, &err)) {
-		emit camera_controls->showWarning("Export Failed", err.isEmpty() ? "Failed to export lens metrics." : err);
+	if (filePath.isEmpty()) {
+		return false;
 	}
-	else {
-		emit camera_controls->showWarning("Export Successful", "Lens metrics exported successfully.");
-	}
-	*/
 
-	std::ofstream out(outputPath, std::ios::binary);
+	std::ofstream out(filePath.toStdString(), std::ios::binary);
 	if (!out.is_open()) {
 		qDebug("[dbg] File creation failed!");
 		return false;
@@ -65,7 +57,7 @@ bool MetricsExporter::ExportMetrics(MetricsExporter::lensMetrics lm, std::string
 	size_t hCount = 0;
 
 	// language check
-	if (lm.lang == English) {
+	if (m_metrics.lang == MetricsExporter::English) {
 		hTable = ENHeaders;
 		hCount = std::size(ENHeaders);
 	}
@@ -81,13 +73,13 @@ bool MetricsExporter::ExportMetrics(MetricsExporter::lensMetrics lm, std::string
 	}
 	out << "\n";
 
-	for (const auto& d : lm.lensDefects) {
-		out << lm.lensSerial << ","
-			<< DispositionToString(lm.lensDisp) << ","
+	for (const auto& d : m_metrics.lensDefects) {
+		out << m_metrics.lensSerial << ","
+			<< DispositionToString(m_metrics.lensDisp) << ","
 			<< DefectTypeToString(d.dType) << ","
 			<< d.pxWPosition << ","
 			<< d.pxHPosition << ","
-			<< std::boolalpha << std::to_string(lm.lensFocusOptimal) << ","
+			<< (m_metrics.lensFocusOptimal ? "true" : "false") << ","
 			<< "\n";
 	}
 
