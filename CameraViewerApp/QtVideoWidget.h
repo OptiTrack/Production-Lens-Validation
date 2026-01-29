@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <atomic>
 
+#include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -73,6 +74,7 @@ private:
     void setSwizzleIfNeeded(SwizzleMode want);
     void applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride);
 	void applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
+	void drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int diamondW, int diamondH, cv::Mat& diamondMask);
 	
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
