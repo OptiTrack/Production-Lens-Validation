@@ -562,6 +562,7 @@ void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int d
 
     int smallTickLenPx = 24;
     int largeTickLenPx = 72;
+    int tickDistancePx = 128;
 
     // small tick marks
     // left
@@ -587,6 +588,32 @@ void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int d
         cv::Point(diamondW / 2 - (smallTickLenPx / 2), diamondH - 1), // left pt
         cv::Point(diamondW / 2 + (smallTickLenPx / 2), diamondH - 1), // right pt
         cv::Scalar(80, 80, 80), 1);
+
+	// large tick marks
+	// left
+    cv::line(combined,
+        cv::Point(0 - tickDistancePx, diamondH / 2 + (largeTickLenPx / 2)), // top
+        cv::Point(0 - tickDistancePx, diamondH / 2 - (largeTickLenPx / 2)), // bottom
+		cv::Scalar(80, 80, 80), 1);
+
+	// right
+    cv::line(combined,
+        cv::Point(diamondW - 1 + tickDistancePx, diamondH / 2 + (largeTickLenPx / 2)), // top
+		cv::Point(diamondW - 1 + tickDistancePx, diamondH / 2 - (largeTickLenPx / 2)), // bottom
+		cv::Scalar(80, 80, 80), 1);
+    
+	// top
+    cv::line(combined,
+		cv::Point(diamondW / 2 - (largeTickLenPx / 2), 0 + tickDistancePx), // left pt
+		cv::Point(diamondW / 2 + (largeTickLenPx / 2), 0 + tickDistancePx), // right pt
+		cv::Scalar(80, 80, 80), 1);
+
+	// bottom
+    cv::line(combined,
+        cv::Point(diamondW / 2 - (largeTickLenPx / 2), diamondH - 1 - tickDistancePx), // left pt
+        cv::Point(diamondW / 2 + (largeTickLenPx / 2), diamondH - 1 - tickDistancePx), // right pt
+        cv::Scalar(80, 80, 80), 1);
+
 
     // Offset diamond points for drawing on combined image
     std::vector<cv::Point> offsetDiamondPts;
