@@ -21,6 +21,7 @@ namespace Core
     {
         SegmentMode              = 0,
         GrayscaleMode            = 1,
+		GrayscaleWithROIMode     = 8,
         ObjectMode               = 2,
         InterleavedGrayscaleMode = 3,
         PrecisionMode            = 4,

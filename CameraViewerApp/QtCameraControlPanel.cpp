@@ -164,6 +164,8 @@ void CameraControlPanel::buildUi() {
     video_mode_combo->setItemData(video_mode_combo->count()-1, "5-segment view (center+corners)", Qt::ToolTipRole);
     video_mode_combo->addItem("Grayscale", QVariant(static_cast<int>(Core::GrayscaleMode)));
     video_mode_combo->setItemData(video_mode_combo->count()-1, "8bpp camera preview", Qt::ToolTipRole);
+    video_mode_combo->addItem("Grayscale + ROI Zoom", QVariant(static_cast<int>(Core::GrayscaleWithROIMode)));
+    video_mode_combo->setItemData(video_mode_combo->count()-1, "8bpp camera preview with corner/middle markers focused", Qt::ToolTipRole);
     video_mode_combo->addItem("Object", QVariant(static_cast<int>(Core::ObjectMode)));
     video_mode_combo->setItemData(video_mode_combo->count()-1, "Object mode: runs detection pipeline", Qt::ToolTipRole);
     video_mode_combo->addItem("Precision", QVariant(static_cast<int>(Core::PrecisionMode)));
