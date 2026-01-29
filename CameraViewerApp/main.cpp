@@ -149,9 +149,8 @@ int main(int argc, char *argv[])
 
                 const auto ftype = frame->FrameType();
                 unsigned outBpp = (ftype == Core::ObjectMode) || (ftype == Core::SegmentMode) ? 24U
-                                : (ftype == Core::GrayscaleMode || ftype == Core::GrayscaleWithROIMode) ? 8U
+                                : (ftype == Core::GrayscaleMode) ? 8U
                                 : 32U;
-
                 const int bytesPerPixel = int(outBpp / 8);
                 const int stride = w * bytesPerPixel;
 
