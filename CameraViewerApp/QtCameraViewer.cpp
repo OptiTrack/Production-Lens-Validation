@@ -250,6 +250,9 @@ void QtCameraViewer::wireSignals()
 	if (camera_controls) {
 		connect(camera_controls, &CameraControlPanel::edgeDetectToggled,
 			this, [this](bool enabled) { if (gl_viewer_window) gl_viewer_window->setEdgeDetectEnabled(enabled); });
+		connect(camera_controls, &CameraControlPanel::onMarkerZoomToggled,
+			this, [this](bool enabled) { if (gl_viewer_window) gl_viewer_window->setRoiZoomEnabled(enabled); });
+
 	}
 }
 

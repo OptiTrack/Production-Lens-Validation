@@ -162,8 +162,17 @@ void CameraControlPanel::buildUi() {
     video_mode_combo = new QComboBox(tab1);
     video_mode_combo->addItem("Segment", QVariant(static_cast<int>(Core::SegmentMode)));
     video_mode_combo->setItemData(video_mode_combo->count()-1, "5-segment view (center+corners)", Qt::ToolTipRole);
-    video_mode_combo->addItem("Grayscale", QVariant(static_cast<int>(Core::GrayscaleMode)));
+    
+    video_mode_combo->addItem("Grayscale", QVariantList{
+        static_cast<int>(Core::GrayscaleMode),
+        false });
     video_mode_combo->setItemData(video_mode_combo->count()-1, "8bpp camera preview", Qt::ToolTipRole);
+
+    video_mode_combo->addItem("Grayscale with ROI Zoom", QVariantList{
+        static_cast<int>(Core::GrayscaleMode),
+        true });
+    video_mode_combo->setItemData(video_mode_combo->count() - 1, "8bpp camera preview with center/edge marker focus", Qt::ToolTipRole);
+
     video_mode_combo->addItem("Object", QVariant(static_cast<int>(Core::ObjectMode)));
     video_mode_combo->setItemData(video_mode_combo->count()-1, "Object mode: runs detection pipeline", Qt::ToolTipRole);
     video_mode_combo->addItem("Precision", QVariant(static_cast<int>(Core::PrecisionMode)));
@@ -175,16 +184,38 @@ void CameraControlPanel::buildUi() {
 
     // Selecting any regular mode should disable Edge Detect if it was enabled
     connect(video_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
-        if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
+        if (!currentSerialValid()) {
+            emit showWarning("No Camera", "No camera is currently selected.");
+            return;
+        }
+
         // find mode value from current data and request it
-        const int mode = video_mode_combo->itemData(idx).toInt();
+        QVariant itemData = video_mode_combo->itemData(idx);
+        int mode;
+        bool markerZoom = false;
+
+        // Check if data is a list (Grayscale modes) or a single int (other modes)
+        if (itemData.canConvert<QVariantList>()) {
+            QVariantList dataList = itemData.toList();
+            mode = dataList[0].toInt();
+            markerZoom = dataList[1].toBool();
+        } else {
+            mode = itemData.toInt();
+        }
+
         onSetVideoMode(mode);
+
         // Disable edge button for incompatible modes (Segment, Object, Duplex)
         const bool isCompatible = isEdgeDetectCompatible(mode);
         edge_button->setEnabled(isCompatible);
         if (!isCompatible && edge_button->isChecked()) {
             edge_button->setChecked(false);
             emit edgeDetectToggled(false);
+        }
+
+        // Handle ROI marker zoom case with grayscale mode
+        if (mode == Core::GrayscaleMode) {
+            emit onMarkerZoomToggled(markerZoom);
         }
     });
 

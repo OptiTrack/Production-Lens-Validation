@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
-    std::atomic_bool focusToolEnabled(true); // changed by focus UI control
+    std::atomic_bool focusToolEnabled(true);    // changed by focus UI control
 
     FocusEvaluator fe;
     const int focusEvalFrameGap = 10;
