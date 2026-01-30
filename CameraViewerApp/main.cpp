@@ -18,6 +18,7 @@
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
 #include "FocusEval.h"
+#include "MetricsExporter.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -26,6 +27,8 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
+#include "FocusResultText.h"
+#include <qobject.h>
 
 using namespace CameraLibrary;
 
@@ -79,9 +82,17 @@ int main(int argc, char *argv[])
 
     DisplayResults* focus_result = new DisplayResults("Disabled");
 
+    MetricsExporter mExport;
+
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, focus_result, nullptr);
+                                      fps_calculator, focus_result, mExport, nullptr);
+
+    // set up shared metrics object and make Qt signal connection
+    QObject::connect(viewer, &QtCameraViewer::exportMetricsRequested,
+        [&mExport]() {
+            mExport.ExportMetrics();
+        });
 
 	// get instance to camera control panel for metrics updates
     auto* panel = viewer->getControlPanel();
@@ -101,7 +112,7 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
-    //std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
+    std::atomic_bool focusToolEnabled(true);    // changed by focus UI control
 
     FocusEvaluator fe;
     fe.focusToolEnabled = true; // changed by focus UI control; set True by default
@@ -173,7 +184,7 @@ int main(int argc, char *argv[])
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
                     
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, viewer, &startTime]() {
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &mExport]() {
                         score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
@@ -184,10 +195,9 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, panel, viewer, relativeTime]() {
+                            [focus_result, score, panel, relativeTime, mExport]() {
 
-                                focus_result->updateTextandColor(score);
-                                viewer->focus_score = score;
+                                focus_result->updateTextandColor(score, mExport);
 
                                 // Update Focus Metrics
                                 if (panel && panel->getFocusMetricsController()) {

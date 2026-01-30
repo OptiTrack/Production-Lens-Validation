@@ -53,10 +53,7 @@ signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
     void edgeDetectToggled(bool enabled);
-    // toggle the focus tool
-    void focusToolToggled(bool toggle);
-    // toggle the HUD for the focus tool
-    void focusHUDToggled(bool toggle);
+    void onMarkerZoomToggled(bool enabled);
 
 private:
     void buildUi();
@@ -124,6 +121,6 @@ private slots:
     void onSetGamma();
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
-    bool isEdgeDetectCompatible(int mode); 
+    bool isEdgeDetectCompatible(int mode);
 };
 

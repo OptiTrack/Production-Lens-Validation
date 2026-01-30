@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <atomic>
 
+#include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -56,6 +57,7 @@ private:
     int pending_stride = 0;
     std::atomic<bool> has_pending{false};
     std::atomic<bool> edge_detect_enabled{false};
+    std::atomic<bool> roiZoomEnabled{ false };
 
     // Swizzle cache to avoid re-setting every frame
     enum class SwizzleMode { DefaultRGBA, RedToRGB };
@@ -71,8 +73,12 @@ private:
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
     void applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride);
+	void applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
+	void drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int diamondW, int diamondH, cv::Mat& diamondMask);
+	
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
+	void setRoiZoomEnabled(bool enabled) { roiZoomEnabled.store(enabled, std::memory_order_release); }
 };
 
 #endif // VIDEOWIDGET_H
