@@ -3,6 +3,7 @@
 #include <QPointer>
 #include <QTabWidget>
 #include <QGroupBox>
+#include <QCheckBox>
 #include <QLabel>
 #include <QVector>
 #include <QString>
@@ -46,6 +47,7 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
+    bool const returnFocusToolState() { return focusState; }
 	
 signals:
     void showWarning(const QString& title, const QString& message);
@@ -81,6 +83,11 @@ private:
     QSlider* gain_slider{nullptr};
     QLabel* gain_label{nullptr};
     QPushButton* gain_button{nullptr};
+
+    QCheckBox*        focus_button{nullptr};
+    bool              focusState{true};
+    QCheckBox*        focusHUD_button{nullptr};
+    bool              focusHUDState{true};
 
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};

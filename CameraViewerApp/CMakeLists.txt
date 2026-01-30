@@ -54,6 +54,7 @@ qt6_wrap_cpp(MOC_SOURCES
 	FocusEval.h
 	MetricsExporter.h
     widgets/graphwidget.h
+    FocusEval.h
 )
 
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})

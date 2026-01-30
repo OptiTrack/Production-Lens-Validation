@@ -334,3 +334,8 @@ void QtCameraViewer::takeScreenshot()
 		pix.save(fileLocation);
 	}
 }
+
+void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
+    this->focus_result_bar->setVisible(toggle);
+    this->focus_score_bar->setVisible(toggle);
+}
