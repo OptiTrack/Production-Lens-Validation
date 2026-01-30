@@ -56,9 +56,6 @@ public:
 	
 signals:
     void showWarning(const QString& title, const QString& message);
-    // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
-    void edgeDetectToggled(bool enabled);    cd "e:\coding\Production-Lens-Validation\CameraViewerApp"
-    .\winBuild.bat ..\.\CameraSDK\
     // Toggle circle detection
     void circleDetectionToggled(bool enabled);
     // Update circle detection param2 (accumulator threshold)

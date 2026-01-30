@@ -130,13 +130,10 @@ int main(int argc, char *argv[])
 
     // Start time for relative timestamps in metrics
     auto startTime = std::chrono::steady_clock::now();
-
-    // Implement Edge-Detection Width Metric Here (Bernardo)
-
     // change whether focus tool is enabled via it's toggle button
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
 
-    std::thread capture([&](){
+    std::thread capture([&]() {
         for (;;) {
             if (!running) break;
 
@@ -184,55 +181,44 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (fe.focusToolEnabled && frameCount == 0) {
-                    // clone bitmap for thread-safe focus evaluation (was competing with edge-detection)
                     auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
                     std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
-                    
+
                     auto bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
-                    
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &circleDetectionEnabled]() {
-                        // Only run circle detection when enabled
+
+                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled]() {
                         int circleCount = 0;
                         if (circleDetectionEnabled.load(std::memory_order_acquire)) {
                             auto circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
                             circleCount = static_cast<int>(circles.size());
                         }
 
-                        // Evaluate focus score (Phase 2)
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, viewer, &startTime]() {
-                        score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+                        double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
 
-                        qDebug("[dbg] Focus score: %.2f", score);
-
-                        // Calculate relative time in seconds since app start
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
                         qreal relativeTime = elapsed.count() / 1000.0;
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, panel, relativeTime]() {
-                            [focus_result, score, panel, viewer, relativeTime]() {
+                            [focus_result, score, circleCount, panel, viewer, relativeTime]() {
 
                                 focus_result->updateTextandColor(score);
 
-                                // Update circle count display
                                 if (panel) {
                                     panel->updateCircleCount(circleCount);
                                 }
+
                                 viewer->focus_score = score;
 
-                                // Update Focus Metrics
                                 if (panel && panel->getFocusMetricsController()) {
                                     QHash<QString, qreal> focusMetrics;
                                     focusMetrics["FocusQuality"] = score;
                                     focusMetrics["CircleCount"] = circleCount;
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                                    qDebug("[metrics] Added focus data at t=%.2f, focus=%.2f, circles=%d", 
-                                           relativeTime, score, circleCount);
                                 }
                             },
                             Qt::QueuedConnection
