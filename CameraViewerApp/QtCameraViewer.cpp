@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QComboBox>
 #include <QTimer>
 #include <QStackedLayout>
@@ -336,6 +337,7 @@ void QtCameraViewer::takeScreenshot()
 }
 
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
-    this->focus_result_bar->setVisible(toggle);
-    this->focus_score_bar->setVisible(toggle);
+    if (this->second_status_bar) {
+        this->second_status_bar->setVisible(toggle);
+    }
 }

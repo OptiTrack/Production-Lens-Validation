@@ -54,6 +54,8 @@ signals:
     // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
     void edgeDetectToggled(bool enabled);
     void onMarkerZoomToggled(bool enabled);
+    void focusToolToggled(bool enabled);
+    void focusHUDToggled(bool enabled);
 
 private:
     void buildUi();

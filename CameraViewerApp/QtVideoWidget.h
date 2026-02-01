@@ -15,12 +15,19 @@
 #include <opencv2/imgproc.hpp>
 
 #include "cameralibrary.h"
+#include <vector>
 
 class VideoWidget : public QOpenGLWindow, protected QOpenGLFunctions {
     Q_OBJECT
 public:
     explicit VideoWidget(UpdateBehavior behavior = QOpenGLWindow::NoPartialUpdate);
     ~VideoWidget() override;
+
+    struct RoiInfo {
+        double circularity;
+        cv::Rect rect;
+        cv::Point2f centroid;
+    };
 
 public slots:
     void updateFrameFromBitmap(CameraLibrary::Bitmap* bmp);
@@ -74,8 +81,10 @@ private:
     void setSwizzleIfNeeded(SwizzleMode want);
     void applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride);
 	void applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
-	void drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int diamondW, int diamondH, cv::Mat& diamondMask);
-	
+	void drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int imgCenterX, int imgCenterY, int diamondW, int diamondH);
+    std::vector<RoiInfo> extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs);
+	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom);
+
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
 	void setRoiZoomEnabled(bool enabled) { roiZoomEnabled.store(enabled, std::memory_order_release); }

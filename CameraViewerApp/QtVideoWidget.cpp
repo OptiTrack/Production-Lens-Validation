@@ -5,10 +5,15 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <QVector3D>
+#include <vector>
+#include <string>
+#include <opencv2/core/types.hpp>
+#include <limits>
 
 // Specialized GL Viewer for displaying bitmaps from a camera
 
 using namespace CameraLibrary;
+using RoiInfo = VideoWidget::RoiInfo;
 
 namespace {
 struct Vertex { float x, y, u, v; };
@@ -407,7 +412,7 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
 }
 
 /// <summary>
-/// Detects ROIs in the grayscale image, crops and zooms them, and arranges them according to position in the frame.
+/// Focuses the view onto the outermost four markers and center marker by zooming into each region
 /// </summary>
 /// <param name="src">Source bitmap data</param>
 /// <param name="gray">Converted gray mat from bitmap source</param>
@@ -416,222 +421,273 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
 /// <param name="stride">Bitmap stride</param>
 void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride) {
 
-    cv::Mat edges;
-    cv::Canny(gray, edges, 100, 300, 3);
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    // some constants defining the viewing area
+    const int diamondW = 600;
+    const int diamondH = 0.8 * diamondW;    // approximation from Git issue screenshot
 
-    // --- 0. Define combined image
-    cv::Size zoomSize(128, 128);
-    int combinedW = zoomSize.width * 3;   // 2x2 quadrants + center column for diamond
-    int combinedH = zoomSize.height * 3;
+    const float ROIZoomScale = 2.5f;        // zoom amount
 
+    int combinedW = gray.cols + diamondW;   // original image width + diamond width
+    int combinedH = gray.rows + diamondH;   // original image height + diamond height
 
     cv::Mat combined(combinedH, combinedW, gray.type(), cv::Scalar(0));
 
+    int quadW = combinedW / 2;
+    int quadH = combinedH / 2;
+
     int imgCenterX = combined.cols / 2;
     int imgCenterY = combined.rows / 2;
-    int diamondW = 128;
-    int diamondH = 128;
-    int cx = imgCenterX - diamondW / 2;
-    int cy = imgCenterY - diamondH / 2;
-    cv::Mat diamondMask = cv::Mat::zeros(diamondH, diamondW, CV_8UC1);
 
-    VideoWidget::drawMarkerBorderOnMat(combined, cx, cy, diamondW, diamondH, diamondMask);
+    cv::Mat edges;
+    cv::Canny(gray, edges, 100, 300, 3);
 
-    if (!contours.empty()) {
+    if (!edges.empty()) {
+        auto rois = extractROIs(gray, edges, 15, 5);
 
-        struct RoiInfo {
-            cv::Rect rect;
-            cv::Point2f centroid;
-            cv::Mat image;  // cropped + zoomed
-        };
-        std::vector<RoiInfo> rois;
+        if (!rois.empty()) {
 
-        int boundingRectMarginPx = 64;
-        for (auto& c : contours) {
-            cv::Rect r = cv::boundingRect(c);
-            r.x = std::max(0, r.x - boundingRectMarginPx);
-            r.y = std::max(0, r.y - boundingRectMarginPx);
-            r.width = std::min(gray.cols - r.x, r.width + 2 * boundingRectMarginPx);
-            r.height = std::min(gray.rows - r.y, r.height + 2 * boundingRectMarginPx);
+            // Find center-most ROI
+            cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
+            
+            int centerIdx = -1;
+            float minDistSq = std::numeric_limits<float>::max();
 
-            cv::Moments m = cv::moments(c);
-            cv::Point2f centroid(float(m.m10 / m.m00), float(m.m01 / m.m00));
-            rois.push_back({ r, centroid });
-        }
-
-        // Pick top 5 largest contours by area
-        std::sort(rois.begin(), rois.end(), [](const RoiInfo& a, const RoiInfo& b) {
-            return a.rect.area() > b.rect.area();
-            });
-        if (rois.size() > 5) rois.resize(5);
-
-		// Crop and zoom each ROI to standard size
-        for (auto& roi : rois) {
-            cv::Mat cropped = gray(roi.rect);
-            cv::Mat zoomed;
-            cv::resize(cropped, zoomed, zoomSize);
-            roi.image = zoomed;
-        }
-
-		// Find center-most ROI
-        cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
-
-        int centerIdx = -1;
-        float minDistSq = std::numeric_limits<float>::max();
-
-        for (size_t i = 0; i < rois.size(); ++i) {
-            cv::Point2f c = rois[i].centroid;
-            float dx = c.x - imageCenter.x;
-            float dy = c.y - imageCenter.y;
-            float distSq = dx * dx + dy * dy;
-            if (distSq < minDistSq) {
-                minDistSq = distSq;
-                centerIdx = static_cast<int>(i);
-            }
-        }
-
-        // Extract center ROI and remove it from rois vector (if found)
-        if (centerIdx >= 0 && !rois.empty()) {
-
-            RoiInfo centerRoiInfo = rois[centerIdx];
-            rois.erase(rois.begin() + centerIdx);
-
-            // --- 2. Place remaining ROIs in 2x2 quadrants (skip center)
-            for (auto& roi : rois) {
-                int col = 0; // left by default
-                int row = 0; // top by default
-
-                float cx = roi.centroid.x / float(gray.cols);
-                float cy = roi.centroid.y / float(gray.rows);
-
-                col = (cx > 0.5f) ? 2 : 0; // right quadrant
-                row = (cy > 0.5f) ? 2 : 0; // bottom quadrant
-
-                // Compute placement in combined image
-                int x = col * zoomSize.width;
-                int y = row * zoomSize.height;
-
-				//qDebug() << "Placing ROI at (" << x << "," << y << "," << cx << "," << cy << ")";
-
-                roi.image.copyTo(combined(cv::Rect(x, y, zoomSize.width, zoomSize.height)));
+            for (size_t i = 0; i < rois.size(); ++i) {
+                cv::Point2f c = rois[i].centroid;
+                float dx = c.x - imageCenter.x;
+                float dy = c.y - imageCenter.y;
+                float distSq = dx * dx + dy * dy;
+                if (distSq < minDistSq) {
+                    minDistSq = distSq;
+                    centerIdx = static_cast<int>(i);
+                }
             }
 
-            //Copy ROI into diamond shape using mask
-            cv::Mat roiDiamond;
-            centerRoiInfo.image.copyTo(roiDiamond, diamondMask);
+            // Place remaining ROIs in quadrants
+            for (size_t i = 0; i < rois.size(); ++i) {
 
-            // Paste center diamond and image into larger combined image
-            roiDiamond.copyTo(combined(cv::Rect(
-                cx, 
-                cy, 
-                centerRoiInfo.image.cols, 
-                centerRoiInfo.image.rows)),
-                diamondMask);
+                VideoWidget::RoiInfo& roi = rois[i];
+
+                //skip center ROI
+                if (static_cast<int>(i) == centerIdx) { 
+
+                    continue; 
+                }
+
+                int col = (roi.centroid.x > imageCenter.x) ? 1 : 0;
+                int row = (roi.centroid.y > imageCenter.y) ? 1 : 0;
+
+                int x = col * (quadW);
+                int y = row * (quadH);
+
+                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
+                cv::Mat resized;
+                cv::resize(cropped, resized, cv::Size(quadW, quadH));
+
+                resized.copyTo(combined(cv::Rect(x, y, quadW, quadH)));
+            }
+
+			int diamondX = imgCenterX - (diamondW / 2);
+			int diamondY = imgCenterY - (diamondH / 2);
+
+            // Place center ROI in diamond area with mask
+            if (centerIdx >= 0) {
+                VideoWidget::RoiInfo& roi = rois[centerIdx];
+
+                // Crop the center region of the original image
+                int cropSize = std::min(gray.cols, gray.rows) / 2;
+
+                int cropX = (gray.cols - cropSize) / 2;
+                int cropY = (gray.rows - cropSize) / 2;
+
+                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
+
+                cv::Mat centerResized;
+                cv::resize(cropped, centerResized, cv::Size(diamondW, diamondH));
+
+                cv::Mat diamondMask = cv::Mat::zeros(diamondH, diamondW, CV_8UC1);
+                std::vector<cv::Point> diamondPts{
+                    {diamondW / 2, 0},
+                    {diamondW - 1, diamondH / 2},
+                    {diamondW / 2, diamondH - 1},
+                    {0, diamondH / 2}
+                };
+
+                cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{diamondPts}, cv::Scalar(255));
+
+                centerResized.copyTo(combined(cv::Rect(diamondX, diamondY, diamondW, diamondH)), diamondMask);
+
+                std::vector<cv::Point> diamondPtsOffset;
+                for (auto& p : diamondPts) {
+                    diamondPtsOffset.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
+                }
+                cv::polylines(combined, std::vector<std::vector<cv::Point>>{diamondPtsOffset}, true, cv::Scalar(80, 80, 80), 2);
+            }
+            drawMarkerBorderOnMat(combined, quadW, quadH, imgCenterX, imgCenterY, diamondW, diamondH);
         }
     }
 
     cv::Mat resizedCombined;
-    cv::resize(combined, resizedCombined, cv::Size(w, h)); // gray -> 1-channel
+    cv::resize(combined, resizedCombined, cv::Size(w, h));
 
-    // Copy into src buffer row by row (respecting stride)
     for (int y = 0; y < h; ++y) {
-        memcpy(src + y * stride,
-            resizedCombined.ptr(y),
-            w); // 1 byte per pixel (GL_R8)
+        memcpy(src + y * stride, resizedCombined.ptr(y), w);
     }
+}
+
+/// <summary>
+/// Produces a zoomed crop of the source image centered at 'center' point
+/// </summary>
+/// <param name="src">Source image data</param>
+/// <param name="center">Center point to zoom and crop about</param>
+/// <param name="zoom">Zoom scale</param>
+/// <returns>Mat of cropped/zoomed image area</returns>
+cv::Mat VideoWidget::zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom) {
+    // Determine the square side length
+    int side = static_cast<int>(std::min(src.cols, src.rows) / zoom);
+
+    // Compute top-left corner to center the crop
+    int cropX = center.x - side / 2;
+    int cropY = center.y - side / 2;
+
+    // Clamp to image bounds
+    cropX = std::max(0, std::min(cropX, src.cols - side));
+    cropY = std::max(0, std::min(cropY, src.rows - side));
+
+    return src(cv::Rect(cropX, cropY, side, side)).clone();
+}
+
+/// <summary>
+/// Given a grayscale image and its edge map, extracts largest N marker ROIs based on detected contours
+/// </summary>
+/// <param name="gray"></param>
+/// <param name="edges"></param>
+/// <param name="margin"></param>
+/// <param name="maxROIs"></param>
+/// <returns></returns>
+std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs) {
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    std::vector<RoiInfo> rois;
+    for (auto& c : contours) {
+        cv::Rect r = cv::boundingRect(c);
+        r.x = std::max(0, r.x - margin);
+        r.y = std::max(0, r.y - margin);
+        r.width = std::min(gray.cols - r.x, r.width + 1 * margin);
+        r.height = std::min(gray.rows - r.y, r.height + 1 * margin);
+
+        cv::Moments m = cv::moments(c);
+        cv::Point2f centroid(float(m.m10 / m.m00), float(m.m01 / m.m00));
+
+        double area = cv::contourArea(c);
+        double perimeter = cv::arcLength(c, true);
+
+		double circularity = 0.0;
+
+        // Filter out noise / tiny fragments
+		// This is a bit useless right now since we're not drawing text on the image, but keeping for future plans
+        if (perimeter > 0 && area > 10.0) {
+            circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
+        }
+        rois.push_back({ circularity, r, centroid });
+    }
+
+    // Keep top N largest by area
+    std::sort(rois.begin(), rois.end(), [](const RoiInfo& a, const RoiInfo& b) {
+        return a.rect.area() > b.rect.area();
+        });
+    if (rois.size() > maxROIs) {
+        rois.resize(maxROIs);
+    }
+    return rois;
 }
 
 /// <summary>
 /// For the ROI zoom mode, draws shapes on the combined image mat
 /// </summary>
-/// <param name="mat"></param>
-void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int diamondW, int diamondH, cv::Mat& diamondMask) {
+/// <param name="combined">Combined image to draw on</param>
+/// <param name="cx">X offset for diamond in combined image</param>
+/// <param name="cy">Y offset for diamond in combined image</param>
+/// <param name="imgCenterX">Center X of combined image</param>
+/// <param name="imgCenterY">Center Y of combined image</param>
+/// <param name="diamondW">Width of diamond</param>
+/// <param name="diamondH">Height of diamond</param>
+void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY, int imgCenterX, int imgCenterY, int diamondW, int diamondH) {
+
+    const int smallTickLenPx = 64;
+    const int largeTickLenPx = 196;
+    const int tickSeparationPx = 60;
+
+    // =====================
+    // quadrant dividing lines
+    // =====================
     // vertical center line
     cv::line(combined,
         cv::Point(0, combined.rows / 2),
         cv::Point(combined.cols - 1, combined.rows / 2),
-        cv::Scalar(80, 80, 80), 1);
+        cv::Scalar(80, 80, 80), 2);
 
     // horizontal center line
     cv::line(combined,
         cv::Point(combined.cols / 2, 0),
         cv::Point(combined.cols / 2, combined.rows - 1),
-        cv::Scalar(80, 80, 80), 1);
+        cv::Scalar(80, 80, 80), 2);
 
-    int smallTickLenPx = 24;
-    int largeTickLenPx = 72;
-    int tickDistancePx = 128;
-
+    // =====================
     // small tick marks
+    // =====================
     // left
     cv::line(combined,
-        cv::Point(0, diamondH / 2 + (smallTickLenPx / 2)), // top
-        cv::Point(0, diamondH / 2 - (smallTickLenPx / 2)), // bottom
-        cv::Scalar(80, 80, 80), 1);
+        cv::Point(imgCenterX - diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
+        cv::Point(imgCenterX - diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
+        cv::Scalar(80, 80, 80), 2);
 
     // right
     cv::line(combined,
-        cv::Point(diamondW - 1, diamondH / 2 + (smallTickLenPx / 2)), // top
-        cv::Point(diamondW - 1, diamondH / 2 - (smallTickLenPx / 2)), // bottom
-        cv::Scalar(80, 80, 80), 1);
+        cv::Point(imgCenterX + diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
+        cv::Point(imgCenterX + diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
+        cv::Scalar(80, 80, 80), 2);
 
-    // top
+    // top (horizontal)
     cv::line(combined,
-        cv::Point(diamondW / 2 - (smallTickLenPx / 2), 0), // left pt
-        cv::Point(diamondW / 2 + (smallTickLenPx / 2), 0), // right pt
-        cv::Scalar(80, 80, 80), 1);
+        { imgCenterX - smallTickLenPx / 2, imgCenterY - diamondH / 2 },
+        { imgCenterX + smallTickLenPx / 2, imgCenterY - diamondH / 2 },
+        { 80, 80, 80 }, 2);
 
-    // bottom
+    // bottom (horizontal)
     cv::line(combined,
-        cv::Point(diamondW / 2 - (smallTickLenPx / 2), diamondH - 1), // left pt
-        cv::Point(diamondW / 2 + (smallTickLenPx / 2), diamondH - 1), // right pt
-        cv::Scalar(80, 80, 80), 1);
+        { imgCenterX - smallTickLenPx / 2, imgCenterY + diamondH / 2 },
+        { imgCenterX + smallTickLenPx / 2, imgCenterY + diamondH / 2 },
+        { 80, 80, 80 }, 2);
 
-	// large tick marks
-	// left
+    // =====================
+    // large tick marks
+    // =====================
+
+    // left (vertical)
     cv::line(combined,
-        cv::Point(0 - tickDistancePx, diamondH / 2 + (largeTickLenPx / 2)), // top
-        cv::Point(0 - tickDistancePx, diamondH / 2 - (largeTickLenPx / 2)), // bottom
-		cv::Scalar(80, 80, 80), 1);
+        { imgCenterX - diamondW / 2 - tickSeparationPx, imgCenterY - largeTickLenPx / 2 },
+        { imgCenterX - diamondW / 2 - tickSeparationPx, imgCenterY + largeTickLenPx / 2 },
+        { 80, 80, 80 }, 2);
 
-	// right
+    // right (vertical)
     cv::line(combined,
-        cv::Point(diamondW - 1 + tickDistancePx, diamondH / 2 + (largeTickLenPx / 2)), // top
-		cv::Point(diamondW - 1 + tickDistancePx, diamondH / 2 - (largeTickLenPx / 2)), // bottom
-		cv::Scalar(80, 80, 80), 1);
-    
-	// top
+        { imgCenterX + diamondW / 2 + tickSeparationPx, imgCenterY - largeTickLenPx / 2 },
+        { imgCenterX + diamondW / 2 + tickSeparationPx, imgCenterY + largeTickLenPx / 2 },
+        { 80, 80, 80 }, 2);
+
+    // top (horizontal)
     cv::line(combined,
-		cv::Point(diamondW / 2 - (largeTickLenPx / 2), 0 + tickDistancePx), // left pt
-		cv::Point(diamondW / 2 + (largeTickLenPx / 2), 0 + tickDistancePx), // right pt
-		cv::Scalar(80, 80, 80), 1);
+        { imgCenterX - largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickSeparationPx },
+        { imgCenterX + largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickSeparationPx },
+        { 80, 80, 80 }, 2);
 
-	// bottom
+    // bottom (horizontal)
     cv::line(combined,
-        cv::Point(diamondW / 2 - (largeTickLenPx / 2), diamondH - 1 - tickDistancePx), // left pt
-        cv::Point(diamondW / 2 + (largeTickLenPx / 2), diamondH - 1 - tickDistancePx), // right pt
-        cv::Scalar(80, 80, 80), 1);
-
-
-    // Offset diamond points for drawing on combined image
-    std::vector<cv::Point> offsetDiamondPts;
-
-    // Create diamond points in local coordinate space (relative to centerROI, not combined)
-    std::vector<cv::Point> localDiamondPts{
-        cv::Point(diamondW / 2, 0),                    // top
-        cv::Point(diamondW - 1, diamondH / 2),         // right
-        cv::Point(diamondW / 2, diamondH - 1),         // bottom
-        cv::Point(0, diamondH / 2)                     // left
-    };
-
-	// Apply offset to diamond points
-    for (const auto& pt : localDiamondPts) {
-        offsetDiamondPts.push_back(cv::Point(pt.x + cx, pt.y + cy));
-    }
-    cv::polylines(combined, std::vector<std::vector<cv::Point>>{offsetDiamondPts}, true, cv::Scalar(80, 80, 80), 2);
-    cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{localDiamondPts}, cv::Scalar(255));
+        { imgCenterX - largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickSeparationPx },
+        { imgCenterX + largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickSeparationPx },
+        { 80, 80, 80 }, 2);
 }
 
 
