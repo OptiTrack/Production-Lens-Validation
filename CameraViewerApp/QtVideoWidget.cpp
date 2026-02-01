@@ -438,6 +438,16 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
     int imgCenterX = combined.cols / 2;
     int imgCenterY = combined.rows / 2;
 
+    int diamondX = imgCenterX - (diamondW / 2);
+    int diamondY = imgCenterY - (diamondH / 2);
+
+    std::vector<cv::Point> diamondPts{
+        {diamondW / 2, 0},
+        {diamondW - 1, diamondH / 2},
+        {diamondW / 2, diamondH - 1},
+        {0, diamondH / 2}
+    };
+
     cv::Mat edges;
     cv::Canny(gray, edges, 100, 300, 3);
 
@@ -470,7 +480,6 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
 
                 //skip center ROI
                 if (static_cast<int>(i) == centerIdx) { 
-
                     continue; 
                 }
 
@@ -486,9 +495,6 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
 
                 resized.copyTo(combined(cv::Rect(x, y, quadW, quadH)));
             }
-
-			int diamondX = imgCenterX - (diamondW / 2);
-			int diamondY = imgCenterY - (diamondH / 2);
 
             // Place center ROI in diamond area with mask
             if (centerIdx >= 0) {
@@ -506,25 +512,18 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
                 cv::resize(cropped, centerResized, cv::Size(diamondW, diamondH));
 
                 cv::Mat diamondMask = cv::Mat::zeros(diamondH, diamondW, CV_8UC1);
-                std::vector<cv::Point> diamondPts{
-                    {diamondW / 2, 0},
-                    {diamondW - 1, diamondH / 2},
-                    {diamondW / 2, diamondH - 1},
-                    {0, diamondH / 2}
-                };
-
                 cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{diamondPts}, cv::Scalar(255));
 
                 centerResized.copyTo(combined(cv::Rect(diamondX, diamondY, diamondW, diamondH)), diamondMask);
-
-                std::vector<cv::Point> diamondPtsOffset;
-                for (auto& p : diamondPts) {
-                    diamondPtsOffset.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
-                }
-                cv::polylines(combined, std::vector<std::vector<cv::Point>>{diamondPtsOffset}, true, cv::Scalar(80, 80, 80), 2);
             }
-            drawMarkerBorderOnMat(combined, quadW, quadH, imgCenterX, imgCenterY, diamondW, diamondH);
         }
+
+        std::vector<cv::Point> diamondPtsOffset;
+        for (auto& p : diamondPts) {
+            diamondPtsOffset.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
+        }
+        cv::polylines(combined, std::vector<std::vector<cv::Point>>{diamondPtsOffset}, true, cv::Scalar(80, 80, 80), 2);
+        drawMarkerBorderOnMat(combined, quadW, quadH, imgCenterX, imgCenterY, diamondW, diamondH);
     }
 
     cv::Mat resizedCombined;
@@ -615,9 +614,10 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
 /// <param name="diamondH">Height of diamond</param>
 void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY, int imgCenterX, int imgCenterY, int diamondW, int diamondH) {
 
-    const int smallTickLenPx = 64;
-    const int largeTickLenPx = 196;
-    const int tickSeparationPx = 60;
+    const int largeTickLenPx = 0.66 * diamondH;
+    const int smallTickLenPx = 0.4 * largeTickLenPx;
+    const int tickHSeparationPx = quadW / 4;
+	const int tickVSeparationPx = quadY / 4;
 
     // =====================
     // quadrant dividing lines
@@ -626,13 +626,13 @@ void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY,
     cv::line(combined,
         cv::Point(0, combined.rows / 2),
         cv::Point(combined.cols - 1, combined.rows / 2),
-        cv::Scalar(80, 80, 80), 2);
+        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
 
     // horizontal center line
     cv::line(combined,
         cv::Point(combined.cols / 2, 0),
         cv::Point(combined.cols / 2, combined.rows - 1),
-        cv::Scalar(80, 80, 80), 2);
+        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
 
     // =====================
     // small tick marks
@@ -641,25 +641,25 @@ void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY,
     cv::line(combined,
         cv::Point(imgCenterX - diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
         cv::Point(imgCenterX - diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
-        cv::Scalar(80, 80, 80), 2);
+        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
 
     // right
     cv::line(combined,
         cv::Point(imgCenterX + diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
         cv::Point(imgCenterX + diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
-        cv::Scalar(80, 80, 80), 2);
+        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
 
     // top (horizontal)
     cv::line(combined,
         { imgCenterX - smallTickLenPx / 2, imgCenterY - diamondH / 2 },
         { imgCenterX + smallTickLenPx / 2, imgCenterY - diamondH / 2 },
-        { 80, 80, 80 }, 2);
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 
     // bottom (horizontal)
     cv::line(combined,
         { imgCenterX - smallTickLenPx / 2, imgCenterY + diamondH / 2 },
         { imgCenterX + smallTickLenPx / 2, imgCenterY + diamondH / 2 },
-        { 80, 80, 80 }, 2);
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 
     // =====================
     // large tick marks
@@ -667,27 +667,27 @@ void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY,
 
     // left (vertical)
     cv::line(combined,
-        { imgCenterX - diamondW / 2 - tickSeparationPx, imgCenterY - largeTickLenPx / 2 },
-        { imgCenterX - diamondW / 2 - tickSeparationPx, imgCenterY + largeTickLenPx / 2 },
-        { 80, 80, 80 }, 2);
+        { (imgCenterX - diamondW / 2) - tickHSeparationPx, imgCenterY - largeTickLenPx / 2 },
+        { (imgCenterX - diamondW / 2) - tickHSeparationPx, imgCenterY + largeTickLenPx / 2 },
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 
     // right (vertical)
     cv::line(combined,
-        { imgCenterX + diamondW / 2 + tickSeparationPx, imgCenterY - largeTickLenPx / 2 },
-        { imgCenterX + diamondW / 2 + tickSeparationPx, imgCenterY + largeTickLenPx / 2 },
-        { 80, 80, 80 }, 2);
+        { imgCenterX + diamondW / 2 + tickHSeparationPx, imgCenterY - largeTickLenPx / 2 },
+        { imgCenterX + diamondW / 2 + tickHSeparationPx, imgCenterY + largeTickLenPx / 2 },
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 
     // top (horizontal)
     cv::line(combined,
-        { imgCenterX - largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickSeparationPx },
-        { imgCenterX + largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickSeparationPx },
-        { 80, 80, 80 }, 2);
+        { imgCenterX - largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickVSeparationPx },
+        { imgCenterX + largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickVSeparationPx },
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 
     // bottom (horizontal)
     cv::line(combined,
-        { imgCenterX - largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickSeparationPx },
-        { imgCenterX + largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickSeparationPx },
-        { 80, 80, 80 }, 2);
+        { imgCenterX - largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickVSeparationPx },
+        { imgCenterX + largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickVSeparationPx },
+        { 80, 80, 80 }, 2, cv::LINE_AA);
 }
 
 

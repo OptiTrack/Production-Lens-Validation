@@ -258,9 +258,7 @@ void CameraControlPanel::buildUi() {
         }
 
         // Handle ROI marker zoom case with grayscale mode
-        if (mode == Core::GrayscaleMode) {
-            emit onMarkerZoomToggled(markerZoom);
-        }
+        emit onMarkerZoomToggled(markerZoom);
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
