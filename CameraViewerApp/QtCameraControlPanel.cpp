@@ -3,22 +3,28 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QScreen>
 #include <QGroupBox>
 #include <QCheckBox>
 #include <QMessageBox>
+#include <QFileDialog>
+#include <QDateTime>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
 
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
+#include "QtCameraViewer.h"
+#include "QtVideoWidget.h"
 #include "CameraHelpers.h"
+#include "MetricsExporter.h"
 
 using namespace CameraLibrary;
 
 // Specialized collection of widgets for camera controls
 
-CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent)
-    : QWidget(parent), camera_manager(mgr) {
+CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent)
+    : QWidget(parent), camera_manager(mgr), metrics_exporter(metricsExporter) {
     buildUi();
     connect(this, &CameraControlPanel::showWarning, this, [](const QString& t, const QString& m){
         QMessageBox::warning(nullptr, t, m);
@@ -406,6 +412,70 @@ void CameraControlPanel::buildUi() {
 
     leftTabWidget->addTab(tabStats, "Statistics");
 
+	// Tab for Exporter ----------------------------------------------------------
+    auto* tabExpo = new QWidget(this);
+    auto* vExpo = new QVBoxLayout(tabExpo);
+
+	// Serial number input
+	serial_input = new QLineEdit(tabExpo);
+	serial_input->setPlaceholderText("Serial #");
+	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
+		metrics_exporter.setLensSerial(text.toStdString());
+	});
+	vExpo->addWidget(serial_input);
+
+	// Browse button for screenshot directory
+	auto* browseDirLayout = new QHBoxLayout();
+	browse_label = new QLabel("Screenshot Dir: " + screenshotDirectory, tabExpo);
+	browse_button = new QPushButton("Browse...", tabExpo);
+	connect(browse_button, &QPushButton::clicked, this, [this]() {
+		QString dir = QFileDialog::getExistingDirectory(
+			this,
+			"Select Screenshot Directory",
+			screenshotDirectory
+		);
+		if (!dir.isEmpty()) {
+			screenshotDirectory = dir;
+			browse_label->setText("Screenshot Dir: " + screenshotDirectory);
+		}
+	});
+	browseDirLayout->addWidget(browse_label);
+	browseDirLayout->addWidget(browse_button);
+	browseDirLayout->addStretch();
+	vExpo->addLayout(browseDirLayout);
+
+	// Screenshot button
+	QPushButton* screenshot_button = new QPushButton("Screenshot", tabExpo);
+	screenshot_button->setProperty("primary", true);
+	screenshot_button->setToolTip("Take Screenshot");
+	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
+		takeScreenshot();
+		emit showWarning("Screenshot", "Screenshot saved!");
+	});
+	vExpo->addWidget(screenshot_button);
+
+	// Export metrics button
+	metrics_export_button = new QPushButton("Export Data", tabExpo);
+	metrics_export_button->setProperty("primary", true);
+	metrics_export_button->setToolTip("Click to export information about the currently installed lens.");
+	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
+		emit exportMetricsRequested();
+	});
+	vExpo->addWidget(metrics_export_button);
+
+	// Overlay enable/disable checkbox
+	overlay_button = new QCheckBox("Overlay Enabled", tabExpo);
+	overlay_button->setChecked(true);
+	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
+		overlayState = overlay_button->isChecked();
+		overlay_button->setText(overlayState ? "Overlay Enabled" : "Overlay Disabled");
+	});
+	vExpo->addWidget(overlay_button);
+
+	vExpo->addStretch();
+
+    leftTabWidget->addTab(tabExpo, "Exporter");
+
     root->addWidget(leftTabWidget);
 }
 
@@ -517,7 +587,7 @@ void CameraControlPanel::onSetTab0Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(0)) {
         this->leftTabWidget->setTabVisible(0, false);
-        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -531,7 +601,7 @@ void CameraControlPanel::onSetTab1Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(1)) {
         this->leftTabWidget->setTabVisible(1, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -545,7 +615,7 @@ void CameraControlPanel::onSetTab2Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(2)) {
         this->leftTabWidget->setTabVisible(2, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -559,12 +629,26 @@ void CameraControlPanel::onSetTab3Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(3)) {
         this->leftTabWidget->setTabVisible(3, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
     else {
         this->leftTabWidget->setTabVisible(3, true);
+        this->leftTabWidget->setVisible(true);
+    }
+}
+
+void CameraControlPanel::onSetTab4Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(4)) {
+        this->leftTabWidget->setTabVisible(4, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(4, true);
         this->leftTabWidget->setVisible(true);
     }
 }
@@ -579,4 +663,32 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode)
         default:
             return true;
     }
+}
+
+void CameraControlPanel::takeScreenshot()
+{
+	// Check if loaded screen
+	QScreen* screen = QGuiApplication::primaryScreen();
+	if (!screen)
+		return;
+	// Add Serial number of lens if possible, else put #
+	QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text() : "#";
+	// Get the window image
+	QPixmap pix;
+	if (overlayState)
+		//Capture the entire top-level window (the whole application)
+		pix = screen->grabWindow(this->window()->winId());
+	else
+		// Capture just the video widget if overlay is disabled
+		pix = screen->grabWindow(gl_viewer_window->winId());
+	// Assign the time and day, with the serial number for file name
+	QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
+	// File location selection
+	if (screenshotDirectory.isEmpty()) {
+		pix.save(filename);
+	}
+	else {
+		QString fileLocation = QDir(screenshotDirectory).filePath(filename);
+		pix.save(fileLocation);
+	}
 }

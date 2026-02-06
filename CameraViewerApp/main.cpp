@@ -88,14 +88,14 @@ int main(int argc, char *argv[])
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, mExport, nullptr);
 
+    // get instance to camera control panel for metrics updates
+    auto* panel = viewer->getControlPanel();
+
     // set up shared metrics object and make Qt signal connection
-    QObject::connect(viewer, &QtCameraViewer::exportMetricsRequested,
+    QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
         [&mExport]() {
             mExport.ExportMetrics();
         });
-
-	// get instance to camera control panel for metrics updates
-    auto* panel = viewer->getControlPanel();
 
     viewer->resize(1100, 600);
     viewer->show();
