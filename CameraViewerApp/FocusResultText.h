@@ -5,6 +5,7 @@
 #include <QColor>
 #include <QFont>
 #include <algorithm>
+#include "MetricsExporter.h"
 
 class DisplayResults : public QLabel {
 public:
@@ -14,21 +15,25 @@ public:
         setAutoFillBackground(true);
     }
 
-    void updateTextandColor(double score) {
+    void updateTextandColor(double score, MetricsExporter mExport) {
         // change color and text of result depending on success rate
         if ((0 < score) && (score < .65)) {
+			mExport.setFocusOptimal(false);
             this->setText("Failure");
             this->setStyleSheet("color:FireBrick; font-weight:600;");
         }
         else if ((.65 <= score) && (score < .75)) {
+			mExport.setFocusOptimal(true);
             this->setText("Success (Wide Angle Lens)");
             this->setStyleSheet("color:#668b0b; font-weight:600;");
         }
         else if ((.75 <= score) && (score <= 10)) {
+            mExport.setFocusOptimal(true);
             this->setText("Success (All lenses)");
             this->setStyleSheet("color:ForestGreen; font-weight:600;");
         }
         else {
+            mExport.setFocusOptimal(false);
             this->setText("Inconclusive");
             this->setStyleSheet("color:Gold; font-weight:600;");
         }

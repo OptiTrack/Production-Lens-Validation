@@ -18,6 +18,7 @@
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
 #include "FocusEval.h"
+#include "MetricsExporter.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -26,6 +27,8 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
+#include "FocusResultText.h"
+#include <qobject.h>
 
 using namespace CameraLibrary;
 
@@ -79,12 +82,20 @@ int main(int argc, char *argv[])
 
     DisplayResults* focus_result = new DisplayResults("Disabled");
 
+    MetricsExporter mExport;
+
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, focus_result, nullptr);
+                                      fps_calculator, focus_result, mExport, nullptr);
 
-	// get instance to camera control panel for metrics updates
+    // get instance to camera control panel for metrics updates
     auto* panel = viewer->getControlPanel();
+
+    // set up shared metrics object and make Qt signal connection
+    QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
+        [&mExport]() {
+            mExport.ExportMetrics();
+        });
 
     viewer->resize(1100, 600);
     viewer->show();
@@ -188,6 +199,10 @@ int main(int argc, char *argv[])
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
+                    
+                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &mExport]() {
+                        score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+                        qDebug("[dbg] Focus score: %.2f", score);
 
                     QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled]() {
                         int circleCount = 0;
@@ -204,7 +219,7 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, panel, viewer, relativeTime]() {
+                            [focus_result, score, circleCount, panel, viewer, relativeTime, mExport]() {
 
                                 focus_result->updateTextandColor(score);
 

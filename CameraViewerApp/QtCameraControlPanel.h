@@ -9,6 +9,8 @@
 #include <QString>
 #include <QLineEdit>
 #include <QSlider>
+#include "MetricsExporter.h"
+#include <QDir>
 
 class GraphWidget;
 class MetricController;
@@ -19,6 +21,7 @@ class MetricController;
 #include <QGroupBox>
 
 class QLabel;
+class VideoWidget;
 
 struct MetricWidgets {
     QString name;
@@ -46,14 +49,16 @@ class CameraConnectionManager;
 class CameraControlPanel : public QWidget {
     Q_OBJECT
 public:
-    explicit CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent = nullptr);
+    explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
     
     /// @brief Update circle detection count display
     void updateCircleCount(int count);
     bool const returnFocusToolState() { return focusState; }
-	
+    bool const returnOverlayState() { return overlayState; }
+    void setVideoWidget(VideoWidget* widget) { gl_viewer_window = widget; }
+	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle circle detection
@@ -61,10 +66,10 @@ signals:
     // Update circle detection param2 (accumulator threshold)
     void circleParam2Changed(double param2);
     void edgeDetectToggled(bool enabled);
-    // toggle the focus tool
-    void focusToolToggled(bool toggle);
-    // toggle the HUD for the focus tool
-    void focusHUDToggled(bool toggle);
+    void onMarkerZoomToggled(bool enabled);
+    void focusToolToggled(bool enabled);
+    void focusHUDToggled(bool enabled);
+    void exportMetricsRequested();
 
 private:
     void buildUi();
@@ -124,12 +129,24 @@ private:
     QLineEdit* circle_param2_edit{nullptr};
     QSlider* circle_param2_slider{nullptr};
 
+    // Exporter Tab
+    QLineEdit*        serial_input{nullptr};
+    MetricsExporter&  metrics_exporter;
+    VideoWidget*      gl_viewer_window{nullptr};
+    CameraControlPanel* camera_controls{nullptr};
+    bool              overlayState{ true };
+    QString           screenshotDirectory = QDir::currentPath();
+    QLabel*           browse_label{nullptr};
+    QPushButton*      browse_button{nullptr};
+    QPushButton*      metrics_export_button{nullptr};
+    QCheckBox*        overlay_button{nullptr};
 
 public slots:
     void onSetTab0Visibility();
     void onSetTab1Visibility();
     void onSetTab2Visibility();
 	void onSetTab3Visibility();
+    void onSetTab4Visibility();
 
 private slots:
     void onSetExposure();
@@ -140,5 +157,6 @@ private slots:
     void onSetVideoMode(int modeEnum);
     bool isEdgeDetectCompatible(int mode);
     void onCircleParam2Changed(); 
+    void takeScreenshot();
 };
 

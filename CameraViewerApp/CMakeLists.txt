@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(APP_SOURCES
     main.cpp
 	FocusEval.cpp
+	MetricsExporter.cpp
     CircleMarkerDetector.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
@@ -35,6 +36,7 @@ set(APP_SOURCES
     QtCameraControlPanel.cpp
     metricscontroller.cpp
     widgets/graphwidget.cpp
+	FocusEval.h
 )
 
 # Only compile the decoder if FFmpeg is enabled
@@ -50,6 +52,8 @@ qt6_wrap_cpp(MOC_SOURCES
     QtVideoWidget.h
     QtCameraControlPanel.h
     metricscontroller.h
+	FocusEval.h
+	MetricsExporter.h
     widgets/graphwidget.h
     FocusEval.h
 )

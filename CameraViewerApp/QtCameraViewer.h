@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include "FocusResultText.h"
+#include "MetricsExporter.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -27,38 +28,32 @@ namespace CameraHelper { class FrameRateCalculator; }
 
 class QtCameraViewer : public QWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 public:
-    QtCameraViewer(CameraConnectionManager* mgr,
-                   std::mutex& camMutex,
-                   std::shared_ptr<CameraLibrary::Camera>& currentCamera,
-                   std::atomic<uint64_t>& switchEpoch,
-                   std::atomic<unsigned>&  activeSerial,
-                   CameraHelper::FrameRateCalculator& fpsCalc,
-                   DisplayResults* focus_result,
-                   QWidget* parent = nullptr);
+	QtCameraViewer(CameraConnectionManager* mgr,
+		std::mutex& camMutex,
+		std::shared_ptr<CameraLibrary::Camera>& currentCamera,
+		std::atomic<uint64_t>& switchEpoch,
+		std::atomic<unsigned>& activeSerial,
+		CameraHelper::FrameRateCalculator& fpsCalc,
+		DisplayResults* focus_result,
+		MetricsExporter& metricsExporter,
+		QWidget* parent = nullptr);
 
-    static void ApplyAppStyle();
+	static void ApplyAppStyle();
 
-    QWidget*     videoContainer() const { return viewer_container; }
-    VideoWidget* videoWidget()    const { return gl_viewer_window; }
-    CameraControlPanel* getControlPanel() const { return camera_controls; }
-    double focus_score = 0;
+	QWidget* videoContainer() const { return viewer_container; }
+	VideoWidget* videoWidget()    const { return gl_viewer_window; }
+	CameraControlPanel* getControlPanel() const { return camera_controls; }
 
-public slots:
-    void onSetFocusHUDVisibility(bool toggle);
-
+float focus_score{0.0f};
 
 private:
     CameraPicker*   camera_picker{nullptr};
     CameraControlPanel* camera_controls{nullptr};
-    QWidget*          fps_bar{nullptr};
-    QWidget*          focus_result_bar{nullptr};
-    QWidget*          focus_score_bar{nullptr};
-    QWidget*          toggle_tabs_bar{nullptr};
-    QWidget*          browse_bar{nullptr};
-    QWidget*          screenshot_bar{nullptr};
-    QWidget*          overlay_bar{nullptr};
+	QWidget*          status_bar{nullptr};
+    QWidget*          second_status_bar{nullptr};
+    QWidget*          third_status_bar{nullptr};
     QLabel*           fps_label{nullptr};
     QWidget*          center_widget{nullptr};
     QStackedLayout*   stacked_layout{nullptr};
@@ -68,23 +63,19 @@ private:
     QLabel*           focus_result_label{nullptr};
     QLabel*           focus_score_label{nullptr};
     QLabel*           focus_score_display{nullptr};
-    QLineEdit*        serial_input{nullptr};
-    QLabel*           browse_label{nullptr};
-    QString screenshotDirectory = QDir::currentPath();
-    QCheckBox*        overlay_button{nullptr};
-    bool              overlayState{true};
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
-    std::shared_ptr<CameraLibrary::Camera>& current_camera;
+	std::shared_ptr<CameraLibrary::Camera>& current_camera;
     std::atomic<uint64_t>&   switch_epoch;
     std::atomic<unsigned>&   active_serial;
-    CameraHelper::FrameRateCalculator& fps_calculator;
-    DisplayResults* focus_result;
+	CameraHelper::FrameRateCalculator& fps_calculator;
+	DisplayResults* focus_result;
+	MetricsExporter& metrics_exporter;
 
-    void buildUi();
-    void wireSignals();
-    void setEmptyState(bool anyCamerasPresent);
-    void handleSerialSelected(std::optional<unsigned> serialOpt);
-    void takeScreenshot();
+	void buildUi();
+	void wireSignals();
+	void setEmptyState(bool anyCamerasPresent);
+	void handleSerialSelected(std::optional<unsigned> serialOpt);
+	void onSetFocusHUDVisibility(bool toggle);
 };
