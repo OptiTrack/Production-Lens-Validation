@@ -46,10 +46,14 @@ public:
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	CameraControlPanel* getControlPanel() const { return camera_controls; }
 
+float focus_score{0.0f};
 
 private:
     CameraPicker*   camera_picker{nullptr};
     CameraControlPanel* camera_controls{nullptr};
+	QWidget*          status_bar{nullptr};
+    QWidget*          second_status_bar{nullptr};
+    QWidget*          third_status_bar{nullptr};
     QWidget*          fps_bar{nullptr};
     QWidget*          focus_result_bar{nullptr};
     QWidget*          focus_score_bar{nullptr};
@@ -86,6 +90,7 @@ private:
 	void setEmptyState(bool anyCamerasPresent);
 	void handleSerialSelected(std::optional<unsigned> serialOpt);
 	void takeScreenshot();
+	void onSetFocusHUDVisibility(bool toggle);
 
 signals:
 	void exportMetricsRequested();
