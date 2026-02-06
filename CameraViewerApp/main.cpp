@@ -199,12 +199,8 @@ int main(int argc, char *argv[])
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
-                    
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &mExport]() {
-                        score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                        qDebug("[dbg] Focus score: %.2f", score);
 
-                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled]() {
+                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mExport]() {
                         int circleCount = 0;
                         if (circleDetectionEnabled.load(std::memory_order_acquire)) {
                             auto circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
@@ -212,6 +208,7 @@ int main(int argc, char *argv[])
                         }
 
                         double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+                        qDebug("[dbg] Focus score: %.2f", score);
 
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
@@ -219,9 +216,9 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, panel, viewer, relativeTime, mExport]() {
+                            [focus_result, score, circleCount, panel, viewer, relativeTime, &mExport]() {
 
-                                focus_result->updateTextandColor(score);
+                                focus_result->updateTextandColor(score, mExport);
 
                                 if (panel) {
                                     panel->updateCircleCount(circleCount);

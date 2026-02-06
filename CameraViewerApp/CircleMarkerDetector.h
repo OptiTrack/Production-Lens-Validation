@@ -12,14 +12,12 @@
  */
 class CircleMarkerDetector {
 public:
-    /// @brief Represents a detected circular marker
     struct CircleMarker {
-        cv::Point2f center;      ///< Center coordinates
-        float radius;            ///< Radius in pixels
-        bool isValid;            ///< Always true for detected circles
+        cv::Point2f center;
+        float radius;
+        bool isValid;
     };
 
-    /// @brief Configuration parameters for circle detection
     struct DetectionParams {
         double dp = 1.0;         ///< Inverse ratio of accumulator resolution
         double minDist = 10.0;   ///< Minimum distance between circles
@@ -33,19 +31,14 @@ public:
     explicit CircleMarkerDetector(const DetectionParams& params);
     ~CircleMarkerDetector() = default;
 
-    /// @brief Detect circular markers in a bitmap frame
     std::vector<CircleMarker> DetectCircles(CameraLibrary::Bitmap* bmp);
 
-    /// @brief Detect circular markers in an OpenCV Mat
     std::vector<CircleMarker> DetectCirclesFromMat(const cv::Mat& mat);
 
-    /// @brief Update detection parameters
     void SetDetectionParams(const DetectionParams& params);
 
-    /// @brief Get current detection parameters
     const DetectionParams& GetDetectionParams() const { return m_params; }
 
-    /// @brief Get detection count from last run
     int GetLastDetectionCount() const { return m_lastDetectionCount; }
 
 private:

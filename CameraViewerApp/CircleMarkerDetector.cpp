@@ -53,7 +53,6 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         gray = mat;
     }
 
-    // Apply median blur to reduce noise
     cv::Mat blurred;
     cv::medianBlur(gray, blurred, 5);
 
