@@ -16,7 +16,7 @@ public:
         setAutoFillBackground(true);
     }
 
-    void updateTextandColor(double score) {
+    void updateTextandColor(double score, MetricsExporter mExport) {
         // score will be -1 during condition when the focus tool was on and
         // updating at first, but was eventually turned off by the user
         // (hence not just the text change but also color change)
