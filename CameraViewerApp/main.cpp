@@ -302,11 +302,11 @@ int main(int argc, char *argv[])
                 }
                 // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
                 if (!fe.focusToolEnabled) {
-                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer]() {
+                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer, &mExport]() {
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, viewer]() {
-                                focus_result->updateTextandColor(-1);
+                            [focus_result, score, viewer, mExport]() {
+                                focus_result->updateTextandColor(-1, mExport);
                                 viewer->focus_score = 0;
                             },
                             Qt::QueuedConnection
