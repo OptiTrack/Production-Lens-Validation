@@ -190,111 +190,10 @@ void CameraControlPanel::buildUi() {
     camLayout->addWidget(gainWidget);
 	camLayout->addWidget(zoomWidget);
 
-    // Group: Focus Tool
-
-    focus_tool_group = new QGroupBox(this);
-    auto* focusToolLayout = new QVBoxLayout(this); focusToolLayout->setContentsMargins(6,6,6,6);
-    focus_tool_group->setLayout(focusToolLayout);
-
-    // Focus Tool enable/disable checkbox
-    focus_button = new QCheckBox(focus_tool_group);
-    focus_button->setChecked(true);
-    connect(focus_button, &QCheckBox::clicked, this, [this]() {
-        focusState = !focusState;
-        if (focusState) {
-            updateFocusButtonText();
-            emit focusToolToggled(true);
-        }
-        else {
-            updateFocusButtonText();
-            emit focusToolToggled(false);
-        }
-    });
-
-    // Focus HUD enable/disable checkbox
-    focusHUD_button = new QCheckBox(focus_tool_group);
-    focusHUD_button->setChecked(true);
-    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() { 
-        focusHUDState = !focusHUDState;
-        if (focusHUDState) {
-            updateFocusHudButtonText();
-            emit focusHUDToggled(true);
-        }
-        else {
-            updateFocusHudButtonText();
-            emit focusHUDToggled(false);
-        }
-    });
-
-    focusToolLayout->addWidget(focus_button);
-    focusToolLayout->addWidget(focusHUD_button);
-
-    // Group: Circle Detection Tool
-    auto* circleDetectionGroup = new QGroupBox("Circle Detection Tool");
-    auto* circleDetectionLayout = new QVBoxLayout(this); circleDetectionLayout->setContentsMargins(6,6,6,6);
-    circleDetectionGroup->setLayout(circleDetectionLayout);
-
-    // Circle Detection enable/disable checkbox
-    circle_detect_button = new QPushButton("Circle Detection", circleDetectionGroup);
-    circle_detect_button->setCheckable(true);
-    circle_detect_button->setProperty("secondary", true);
-    circle_detect_button->setToolTip("Enable Hough Circle detection to identify circular markers");
-    
-    connect(circle_detect_button, &QPushButton::toggled, this, [this](bool checked){
-        if (checked) {
-            if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); circle_detect_button->setChecked(false); return; }
-        }
-        emit circleDetectionToggled(checked);
-    });
-    
-    circle_count_label = new QLabel("Circles Detected: ?", circleDetectionGroup);
-    circle_count_label->setStyleSheet("QLabel { font-weight: bold; }");
-    
-    // Accumulator Threshold (param2) slider and edit box
-    auto* param2Layout = new QHBoxLayout();
-    auto* param2Label = new QLabel("Param2 (Threshold):", circleDetectionGroup);
-    circle_param2_slider = new QSlider(Qt::Horizontal, circleDetectionGroup);
-    circle_param2_slider->setRange(5, 100);
-    circle_param2_slider->setValue(20);
-    circle_param2_slider->setToolTip("Accumulator threshold - higher = fewer detections");
-    
-    circle_param2_edit = new QLineEdit(circleDetectionGroup);
-    circle_param2_edit->setText("20");
-    circle_param2_edit->setMaximumWidth(50);
-    
-    param2Layout->addWidget(param2Label);
-    param2Layout->addWidget(circle_param2_slider);
-    param2Layout->addWidget(circle_param2_edit);
-    
-    connect(circle_param2_slider, &QSlider::valueChanged, this, [this](int value){
-        circle_param2_edit->setText(QString::number(value));
-        onCircleParam2Changed();
-    });
-    
-    connect(circle_param2_edit, &QLineEdit::returnPressed, this, &CameraControlPanel::onCircleParam2Changed);
-
-    circleDetectionLayout->addWidget(circle_detect_button);
-    circleDetectionLayout->addWidget(circle_count_label);
-    circleDetectionLayout->addLayout(param2Layout);
-
-    leftTabWidget->addTab(tab0, QString());
-
-    // add camera controls and focus tool to tab
-    v0->addWidget(cam_group);
-    v0->addWidget(focus_tool_group);
-    v0->addStretch();
-    h1->addWidget(leftTabWidget);
-    
-
-    // Tab: Video Modes ----------------------------------------------------------
-
-    // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
-    auto* tab1 = new QWidget(this);
-    auto* v1 = new QVBoxLayout(tab1);
 
     // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
     // Add a Video Mode dropdown next to existing controls so modes appear with other controls
-    video_mode_combo = new QComboBox(tab1);
+    video_mode_combo = new QComboBox(tab0);
     repopulateVideoModes();
 
     // Selecting any regular mode should disable Edge Detect if it was enabled
@@ -341,9 +240,9 @@ void CameraControlPanel::buildUi() {
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
-    video_group = new QGroupBox(this);
-    auto* videoLayout = new QVBoxLayout(video_group); videoLayout->setContentsMargins(6,6,6,6);
-    video_group->setLayout(videoLayout);
+    auto* videoGroup = new QGroupBox("Video Modes");
+    auto* videoLayout = new QVBoxLayout(videoGroup); videoLayout->setContentsMargins(6,6,6,6);
+    videoGroup->setLayout(videoLayout);
     videoLayout->addWidget(video_mode_combo);
     edge_button = new QPushButton(video_group);
     edge_button->setCheckable(true);
@@ -361,9 +260,66 @@ void CameraControlPanel::buildUi() {
     });
     edge_button->setToolTip(QString());
 
-    leftTabWidget->addTab(tab1, QString());
+
+    leftTabWidget->addTab(tab0, QString("Controls"));
+
+    // add camera controls and focus tool to tab
+    v0->addWidget(camGroup);
+    v0->addWidget(videoGroup);
+    v0->addStretch();
+    h1->addWidget(leftTabWidget);
+    
+
+    // Tab: Focus Tool and Lens Inspection ----------------------------------------------------------
+
+    // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
+    auto* tab1 = new QWidget(this);
+    auto* v1 = new QVBoxLayout(tab1);
+
+    // Group: Focus Tool
+
+    auto* focusToolGroup = new QGroupBox("Focus Tool");
+    auto* focusToolLayout = new QVBoxLayout(this); focusToolLayout->setContentsMargins(6,6,6,6);
+    focusToolGroup->setLayout(focusToolLayout);
+
+    // Focus Tool enable/disable checkbox
+    focus_button = new QCheckBox(focusToolGroup);
+    focus_button->setText("Focus Enabled");
+    focus_button->setChecked(true);
+    connect(focus_button, &QCheckBox::clicked, this, [this]() {
+        focusState = !focusState;
+        if (focusState) {
+            focus_button->setText("Focus Enabled");
+            emit focusToolToggled(true);
+        }
+        else {
+            focus_button->setText("Focus Disabled" );
+            emit focusToolToggled(false);
+        }
+    });
+
+    // Focus HUD enable/disable checkbox
+    focusHUD_button = new QCheckBox(focusToolGroup);
+    focusHUD_button->setText("Focus HUD Enabled");
+    focusHUD_button->setChecked(true);
+    connect(focusHUD_button, &QCheckBox::clicked, this, [this]() { 
+        focusHUDState = !focusHUDState;
+        if (focusHUDState) {
+            focusHUD_button->setText("Focus HUD Enabled");
+            emit focusHUDToggled(true);
+        }
+        else {
+            focusHUD_button->setText("Focus HUD Disabled" );
+            emit focusHUDToggled(false);
+        }
+    });
+
+    focusToolLayout->addWidget(focus_button);
+    focusToolLayout->addWidget(focusHUD_button);
+
+    leftTabWidget->addTab(tab1, QString("Lens"));
     videoLayout->addWidget(edge_button);
-    v1->addWidget(video_group);
+    v1->addWidget(focusToolGroup);
     v1->addStretch();
 
     // Tab: Color compression / gamma
