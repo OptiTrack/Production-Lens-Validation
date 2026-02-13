@@ -7,6 +7,8 @@
 #include <QLabel>
 #include <QVector>
 #include <QString>
+#include <QLineEdit>
+#include <QSlider>
 #include "MetricsExporter.h"
 #include <QDir>
 
@@ -50,13 +52,19 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
+    
+    /// @brief Update circle detection count display
+    void updateCircleCount(int count);
     bool const returnFocusToolState() { return focusState; }
     bool const returnOverlayState() { return overlayState; }
     void setVideoWidget(VideoWidget* widget) { gl_viewer_window = widget; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 signals:
     void showWarning(const QString& title, const QString& message);
-    // Toggle edge-detect overlay in the viewer (does not change camera codec beyond selecting grayscale)
+    // Toggle circle detection
+    void circleDetectionToggled(bool enabled);
+    // Update circle detection param2 (accumulator threshold)
+    void circleParam2Changed(double param2);
     void edgeDetectToggled(bool enabled);
     void onMarkerZoomToggled(bool enabled);
     void focusToolToggled(bool enabled);
@@ -114,6 +122,12 @@ private:
     // Droplist for selecting the video mode (replaces multiple mode buttons)
     QComboBox* video_mode_combo{nullptr};
     QPushButton* edge_button{nullptr};
+    
+    // Hough Circle detection controls
+    QPushButton* circle_detect_button{nullptr};
+    QLabel* circle_count_label{nullptr};
+    QLineEdit* circle_param2_edit{nullptr};
+    QSlider* circle_param2_slider{nullptr};
 
     // Exporter Tab
     QLineEdit*        serial_input{nullptr};
@@ -142,6 +156,7 @@ private slots:
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
     bool isEdgeDetectCompatible(int mode);
+    void onCircleParam2Changed(); 
     void takeScreenshot();
 };
 
