@@ -3,22 +3,28 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QScreen>
 #include <QGroupBox>
 #include <QCheckBox>
 #include <QMessageBox>
+#include <QFileDialog>
+#include <QDateTime>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
 
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
+#include "QtCameraViewer.h"
+#include "QtVideoWidget.h"
 #include "CameraHelpers.h"
+#include "MetricsExporter.h"
 
 using namespace CameraLibrary;
 
 // Specialized collection of widgets for camera controls
 
-CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, QWidget* parent)
-    : QWidget(parent), camera_manager(mgr) {
+CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent)
+    : QWidget(parent), camera_manager(mgr), metrics_exporter(metricsExporter) {
     buildUi();
     connect(this, &CameraControlPanel::showWarning, this, [](const QString& t, const QString& m){
         QMessageBox::warning(nullptr, t, m);
@@ -185,12 +191,60 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focus_button);
     focusToolLayout->addWidget(focusHUD_button);
 
+    // Group: Circle Detection Tool
+    auto* circleDetectionGroup = new QGroupBox("Circle Detection Tool");
+    auto* circleDetectionLayout = new QVBoxLayout(this); circleDetectionLayout->setContentsMargins(6,6,6,6);
+    circleDetectionGroup->setLayout(circleDetectionLayout);
+
+    // Circle Detection enable/disable checkbox
+    circle_detect_button = new QPushButton("Circle Detection", circleDetectionGroup);
+    circle_detect_button->setCheckable(true);
+    circle_detect_button->setProperty("secondary", true);
+    circle_detect_button->setToolTip("Enable Hough Circle detection to identify circular markers");
+    
+    connect(circle_detect_button, &QPushButton::toggled, this, [this](bool checked){
+        if (checked) {
+            if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); circle_detect_button->setChecked(false); return; }
+        }
+        emit circleDetectionToggled(checked);
+    });
+    
+    circle_count_label = new QLabel("Circles Detected: ?", circleDetectionGroup);
+    circle_count_label->setStyleSheet("QLabel { font-weight: bold; }");
+    
+    // Accumulator Threshold (param2) slider and edit box
+    auto* param2Layout = new QHBoxLayout();
+    auto* param2Label = new QLabel("Param2 (Threshold):", circleDetectionGroup);
+    circle_param2_slider = new QSlider(Qt::Horizontal, circleDetectionGroup);
+    circle_param2_slider->setRange(5, 100);
+    circle_param2_slider->setValue(20);
+    circle_param2_slider->setToolTip("Accumulator threshold - higher = fewer detections");
+    
+    circle_param2_edit = new QLineEdit(circleDetectionGroup);
+    circle_param2_edit->setText("20");
+    circle_param2_edit->setMaximumWidth(50);
+    
+    param2Layout->addWidget(param2Label);
+    param2Layout->addWidget(circle_param2_slider);
+    param2Layout->addWidget(circle_param2_edit);
+    
+    connect(circle_param2_slider, &QSlider::valueChanged, this, [this](int value){
+        circle_param2_edit->setText(QString::number(value));
+        onCircleParam2Changed();
+    });
+    
+    connect(circle_param2_edit, &QLineEdit::returnPressed, this, &CameraControlPanel::onCircleParam2Changed);
+
+    circleDetectionLayout->addWidget(circle_detect_button);
+    circleDetectionLayout->addWidget(circle_count_label);
+    circleDetectionLayout->addLayout(param2Layout);
 
     leftTabWidget->addTab(tab0, QString("Controls"));
 
     // add camera controls and focus tool to tab
     v0->addWidget(camGroup);
     v0->addWidget(focusToolGroup);
+    v0->addWidget(circleDetectionGroup);
     v0->addStretch();
     h1->addWidget(leftTabWidget);
     
@@ -404,6 +458,70 @@ void CameraControlPanel::buildUi() {
 
     leftTabWidget->addTab(tabStats, "Statistics");
 
+	// Tab for Exporter ----------------------------------------------------------
+    auto* tabExpo = new QWidget(this);
+    auto* vExpo = new QVBoxLayout(tabExpo);
+
+	// Serial number input
+	serial_input = new QLineEdit(tabExpo);
+	serial_input->setPlaceholderText("Serial #");
+	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
+		metrics_exporter.setLensSerial(text.toStdString());
+	});
+	vExpo->addWidget(serial_input);
+
+	// Browse button for screenshot directory
+	auto* browseDirLayout = new QHBoxLayout();
+	browse_label = new QLabel("Screenshot Dir: " + screenshotDirectory, tabExpo);
+	browse_button = new QPushButton("Browse...", tabExpo);
+	connect(browse_button, &QPushButton::clicked, this, [this]() {
+		QString dir = QFileDialog::getExistingDirectory(
+			this,
+			"Select Screenshot Directory",
+			screenshotDirectory
+		);
+		if (!dir.isEmpty()) {
+			screenshotDirectory = dir;
+			browse_label->setText("Screenshot Dir: " + screenshotDirectory);
+		}
+	});
+	browseDirLayout->addWidget(browse_label);
+	browseDirLayout->addWidget(browse_button);
+	browseDirLayout->addStretch();
+	vExpo->addLayout(browseDirLayout);
+
+	// Screenshot button
+	QPushButton* screenshot_button = new QPushButton("Screenshot", tabExpo);
+	screenshot_button->setProperty("primary", true);
+	screenshot_button->setToolTip("Take Screenshot");
+	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
+		takeScreenshot();
+		emit showWarning("Screenshot", "Screenshot saved!");
+	});
+	vExpo->addWidget(screenshot_button);
+
+	// Export metrics button
+	metrics_export_button = new QPushButton("Export Data", tabExpo);
+	metrics_export_button->setProperty("primary", true);
+	metrics_export_button->setToolTip("Click to export information about the currently installed lens.");
+	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
+		emit exportMetricsRequested();
+	});
+	vExpo->addWidget(metrics_export_button);
+
+	// Overlay enable/disable checkbox
+	overlay_button = new QCheckBox("Overlay Enabled", tabExpo);
+	overlay_button->setChecked(true);
+	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
+		overlayState = overlay_button->isChecked();
+		overlay_button->setText(overlayState ? "Overlay Enabled" : "Overlay Disabled");
+	});
+	vExpo->addWidget(overlay_button);
+
+	vExpo->addStretch();
+
+    leftTabWidget->addTab(tabExpo, "Exporter");
+
     root->addWidget(leftTabWidget);
 }
 
@@ -515,7 +633,7 @@ void CameraControlPanel::onSetTab0Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(0)) {
         this->leftTabWidget->setTabVisible(0, false);
-        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -529,7 +647,7 @@ void CameraControlPanel::onSetTab1Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(1)) {
         this->leftTabWidget->setTabVisible(1, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -543,7 +661,7 @@ void CameraControlPanel::onSetTab2Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(2)) {
         this->leftTabWidget->setTabVisible(2, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
@@ -557,12 +675,26 @@ void CameraControlPanel::onSetTab3Visibility() {
     // check if first tab in widget is visible
     if (this->leftTabWidget->isTabVisible(3)) {
         this->leftTabWidget->setTabVisible(3, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2))) {
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(4))) {
             this->leftTabWidget->setVisible(false);
         }
     }
     else {
         this->leftTabWidget->setTabVisible(3, true);
+        this->leftTabWidget->setVisible(true);
+    }
+}
+
+void CameraControlPanel::onSetTab4Visibility() {
+    // check if first tab in widget is visible
+    if (this->leftTabWidget->isTabVisible(4)) {
+        this->leftTabWidget->setTabVisible(4, false);
+        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
+            this->leftTabWidget->setVisible(false);
+        }
+    }
+    else {
+        this->leftTabWidget->setTabVisible(4, true);
         this->leftTabWidget->setVisible(true);
     }
 }
@@ -577,4 +709,48 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode)
         default:
             return true;
     }
+}
+
+void CameraControlPanel::updateCircleCount(int count)
+{
+    if (circle_count_label) {
+        circle_count_label->setText(QString("Circles Detected: %1").arg(count));
+    }
+}
+
+void CameraControlPanel::onCircleParam2Changed()
+{
+    bool ok;
+    double param2 = circle_param2_edit->text().toDouble(&ok);
+    if (ok && param2 >= 5.0 && param2 <= 100.0) {
+        emit circleParam2Changed(param2);
+    }
+}
+
+void CameraControlPanel::takeScreenshot()
+{
+	// Check if loaded screen
+	QScreen* screen = QGuiApplication::primaryScreen();
+	if (!screen)
+		return;
+	// Add Serial number of lens if possible, else put #
+	QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text() : "#";
+	// Get the window image
+	QPixmap pix;
+	if (overlayState)
+		//Capture the entire top-level window (the whole application)
+		pix = screen->grabWindow(this->window()->winId());
+	else
+		// Capture just the video widget if overlay is disabled
+		pix = screen->grabWindow(gl_viewer_window->winId());
+	// Assign the time and day, with the serial number for file name
+	QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
+	// File location selection
+	if (screenshotDirectory.isEmpty()) {
+		pix.save(filename);
+	}
+	else {
+		QString fileLocation = QDir(screenshotDirectory).filePath(filename);
+		pix.save(fileLocation);
+	}
 }

@@ -17,6 +17,7 @@
 
 
 #include "FocusEval.h"
+#include "CircleMarkerDetector.h"
 
 using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
@@ -230,6 +231,37 @@ using frameScore = FocusEvaluator::frameScore;
 		addFrameScore(fs);
 
 		return score;
+	}
+
+	/// <summary>
+	/// Detects circular markers in the bitmap frame using Hough Circle detection
+	/// </summary>
+	/// <param name="bmp">Input frame bitmap from camera</param>
+	/// <returns>Vector of detected circle markers</returns>
+	std::vector<CircleMarkerDetector::CircleMarker> FocusEvaluator::DetectCircleMarkers(CameraLibrary::Bitmap* bmp) {
+		if (!m_circleDetector) {
+			qWarning("[dbg] Circle detector not initialized");
+			return std::vector<CircleMarkerDetector::CircleMarker>();
+		}
+
+		try {
+			auto circles = m_circleDetector->DetectCircles(bmp);
+			
+			if (!circles.empty()) {
+				qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
+				for (size_t i = 0; i < circles.size(); ++i) {
+					const auto& circle = circles[i];
+					qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f",
+						i, circle.center.x, circle.center.y, circle.radius);
+				}
+			}
+
+			return circles;
+		}
+		catch (const std::exception& e) {
+			qWarning("[dbg] Circle detection failed: %s", e.what());
+			return std::vector<CircleMarkerDetector::CircleMarker>();
+		}
 	}
 
 	/// <summary>

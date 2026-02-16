@@ -88,14 +88,14 @@ int main(int argc, char *argv[])
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, mExport, nullptr);
 
+    // get instance to camera control panel for metrics updates
+    auto* panel = viewer->getControlPanel();
+
     // set up shared metrics object and make Qt signal connection
-    QObject::connect(viewer, &QtCameraViewer::exportMetricsRequested,
+    QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
         [&mExport]() {
             mExport.ExportMetrics();
         });
-
-	// get instance to camera control panel for metrics updates
-    auto* panel = viewer->getControlPanel();
 
     viewer->resize(1100, 600);
     viewer->show();
@@ -112,22 +112,39 @@ int main(int argc, char *argv[])
 
     // ==== Main Application Thread ===============================================
     std::atomic_bool running(true);
-    std::atomic_bool focusToolEnabled(true);    // changed by focus UI control
+    std::atomic_bool focusToolEnabled(true); // changed by focus UI control
+    std::atomic_bool circleDetectionEnabled(false); // changed by circle detection UI control
+    //std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
 
     FocusEvaluator fe;
     fe.focusToolEnabled = true; // changed by focus UI control; set True by default
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
 
+    // Wire UI signals after creating evaluator and panel
+    if (panel) {
+        QObject::connect(panel, &CameraControlPanel::circleDetectionToggled, &app, [&](bool enabled){
+            circleDetectionEnabled.store(enabled, std::memory_order_release);
+        });
+
+        QObject::connect(panel, &CameraControlPanel::circleParam2Changed, &app, [&](double param2){
+            try {
+                auto det = fe.GetCircleDetector();
+                if (det) {
+                    auto params = det->GetDetectionParams();
+                    params.param2 = param2;
+                    det->SetDetectionParams(params);
+                }
+            } catch (...) {}
+        });
+    }
+
     // Start time for relative timestamps in metrics
     auto startTime = std::chrono::steady_clock::now();
-
-    // Implement Edge-Detection Width Metric Here (Bernardo)
-
     // change whether focus tool is enabled via it's toggle button
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
 
-    std::thread capture([&](){
+    std::thread capture([&]() {
         for (;;) {
             if (!running) break;
 
@@ -175,34 +192,44 @@ int main(int argc, char *argv[])
 
                 // if focus evaluation enabled, do so now
                 if (fe.focusToolEnabled && frameCount == 0) {
-                    // clone bitmap for thread-safe focus evaluation (was competing with edge-detection)
                     auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
                     std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
-                    
+
                     auto bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
-                    
-                    QFuture<void> result = QtConcurrent::run([&fe, &focus_result, bmp_clone_shared, &score, panel, &startTime, &mExport]() {
-                        score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+
+                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mExport]() {
+                        int circleCount = 0;
+                        if (circleDetectionEnabled.load(std::memory_order_acquire)) {
+                            auto circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
+                            circleCount = static_cast<int>(circles.size());
+                        }
+
+                        double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
                         qDebug("[dbg] Focus score: %.2f", score);
 
-                        // Calculate relative time in seconds since app start
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
                         qreal relativeTime = elapsed.count() / 1000.0;
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, panel, relativeTime, mExport]() {
+                            [focus_result, score, circleCount, panel, viewer, relativeTime, &mExport]() {
 
                                 focus_result->updateTextandColor(score, mExport);
 
-                                // Update Focus Metrics
+                                if (panel) {
+                                    panel->updateCircleCount(circleCount);
+                                }
+
+                                viewer->focus_score = score;
+
                                 if (panel && panel->getFocusMetricsController()) {
                                     QHash<QString, qreal> focusMetrics;
                                     focusMetrics["FocusQuality"] = score;
+                                    focusMetrics["CircleCount"] = circleCount;
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
                                     //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
@@ -236,6 +263,19 @@ int main(int argc, char *argv[])
     });
     std::atexit([](){
         try { CameraManager::X().Shutdown(); } catch (...) {}
+    });
+
+    // Wire up circle detection controls
+    QObject::connect(panel, &CameraControlPanel::circleDetectionToggled, [&circleDetectionEnabled](bool enabled){
+        circleDetectionEnabled.store(enabled, std::memory_order_release);
+        qDebug("[ui] Circle detection %s", enabled ? "enabled" : "disabled");
+    });
+
+    QObject::connect(panel, &CameraControlPanel::circleParam2Changed, [&fe](double param2){
+        auto params = fe.GetCircleDetector()->GetDetectionParams();
+        params.param2 = param2;
+        fe.GetCircleDetector()->SetDetectionParams(params);
+        qDebug("[ui] Circle param2 changed to %.1f", param2);
     });
 
     const int rc = app.exec();
