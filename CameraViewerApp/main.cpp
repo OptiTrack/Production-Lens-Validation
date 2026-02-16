@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
                                     QHash<QString, qreal> focusMetrics;
                                     focusMetrics["FocusQuality"] = score;
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                                    qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
+                                    //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
                             },
                             Qt::QueuedConnection

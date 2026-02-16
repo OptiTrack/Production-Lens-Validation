@@ -66,6 +66,44 @@ private:
     std::atomic<bool> edge_detect_enabled{false};
     std::atomic<bool> roiZoomEnabled{ false };
 
+    // Temporal smoothing for ROI centroids to prevent glitching
+    std::vector<cv::Point2f> prev_roi_centroids;
+    const float centroid_smoothing_alpha = 0.05f; 		// Lower = more smoothing (0.1-0.3)
+    const float centroid_matching_threshold = 10000.0f; // Max distance squared for tracking
+
+    // ROI detection parameters
+    const int roi_extraction_margin = 30; 		// Margin around detected contours (pixels)
+    const size_t roi_max_count = 5; 			// Maximum number of ROIs to detect
+
+    // Edge detection parameters
+    const double canny_low_threshold = 100.0; 	// Canny low threshold
+    const double canny_high_threshold = 300.0; 	// Canny high threshold (ratio: 3:1)
+    const int canny_kernel_size = 3; 			// Canny aperture size
+
+    // Cached parameters for drawing shapes after edge detection
+    struct ShapeDrawParams {
+        int quadW = 0;
+        int quadH = 0;
+        int imgCenterX = 0;
+        int imgCenterY = 0;
+        int diamondX = 0;
+        int diamondY = 0;
+        int diamondW = 0;
+        int diamondH = 0;
+        int combinedW = 0;
+        int combinedH = 0; // Original combined image dimensions
+        std::vector<cv::Point> diamondPts;
+        bool isValid = false;
+
+        // Default constructor (optional since we initialized above)
+        ShapeDrawParams() = default;
+
+        // Optional constructor to set some values at creation
+        ShapeDrawParams(int qw, int qh, int cx, int cy)
+            : quadW(qw), quadH(qh), imgCenterX(cx), imgCenterY(cy), isValid(false) {
+        }
+    } shapeParams;
+
     // Swizzle cache to avoid re-setting every frame
     enum class SwizzleMode { DefaultRGBA, RedToRGB };
     SwizzleMode swizzle_mode = SwizzleMode::DefaultRGBA;
@@ -79,9 +117,9 @@ private:
     void ensureVaoVbo();
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
-    void applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride);
-	void applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
-	void drawMarkerBorderOnMat(cv::Mat& combined, int cx, int cy, int imgCenterX, int imgCenterY, int diamondW, int diamondH);
+    void applyEdgeDetection(cv::Mat& gray, int w, int h);
+	cv::Mat applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
+	void drawShapesOverlay(float dstX, float dstY, float dstW, float dstH);
     std::vector<RoiInfo> extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs);
 	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom);
 

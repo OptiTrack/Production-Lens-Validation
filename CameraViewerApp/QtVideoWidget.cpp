@@ -2,11 +2,21 @@
 #include <algorithm>
 #include <cstring>
 // OpenCV for simple image processing (edge detection)
-#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include <QVector3D>
+#include <opencv2/core/cvdef.h>
+#include <opencv2/core/hal/interface.h>
+#include <opencv2/core/mat.hpp>
+#include <bitmap.h>
+#include <gl/GL.h>
+#include <cstddef>
+#include <memory>
+#include <qopenglext.h>
+#include <qsurfaceformat.h>
+#include <qvectornd.h>
+#include <qopenglbuffer.h>
+#include <qopenglshaderprogram.h>
+#include <qopenglwindow.h>
 #include <vector>
-#include <string>
 #include <opencv2/core/types.hpp>
 #include <limits>
 
@@ -219,9 +229,14 @@ void VideoWidget::paintGL() {
     
     vertex_array.release();
     program_shader->release();
-    
+
     // Explicitly ensure shader is unbound
     glUseProgram(0);
+
+    // Draw shapes on top of textures if in ROI mode
+    if (roiZoomEnabled.load(std::memory_order_relaxed) && shapeParams.isValid) {
+        drawShapesOverlay(dstX, dstY, dstW, dstH);
+    }
 }
 
 
@@ -279,21 +294,38 @@ void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
             gray = sourceMat;
         }
 
-        // modify base texture if ROI Zoom is enabled
         if (roiEnabled) {
-            applyRoiZoomToFrame(bmp->GetBits(), gray, w, h, srcStride);
-        }
+            // find and organize ROIs into mat (no shapes)
+            cv::Mat combined = applyRoiZoomToFrame(bmp->GetBits(), gray, w, h, srcStride);
+            if (!combined.empty()) {
+                // Run edge detection on clean quadrant-ized (no shapes) image
+                if (edgeDetectEnabled) {
+                    cv::Mat combinedCopy = combined.clone();
+                    cv::Mat resizedCombined;
+                    cv::resize(combinedCopy, resizedCombined, cv::Size(w, h));
+                    applyEdgeDetection(resizedCombined, w, h); // true = use ROI mask
+                }
 
-        // Always copy the original source bytes into the staging buffer for the base texture
-        for (int row = 0; row < h; ++row) {
-            const unsigned char* s = src + size_t(row) * size_t(srcStride);
-            unsigned char* d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
-            std::memcpy(d, s, size_t(dstStride));
+                // Resize and copy combined image (WITHOUT shapes) to staging buffer
+                cv::Mat resizedFinal;
+                cv::resize(combined, resizedFinal, cv::Size(w, h));
+                for (int y = 0; y < h; ++y) {
+                    unsigned char* d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + y * dstStride;
+                    std::memcpy(d, resizedFinal.ptr(y), w);
+                }
+            }
         }
+        else {
+            // No ROI zoom - copy original source and optionally detect edges
+            for (int row = 0; row < h; ++row) {
+                const unsigned char* s = src + size_t(row) * size_t(srcStride);
+                unsigned char* d = reinterpret_cast<unsigned char*>(byte_array_staging.data()) + size_t(row) * size_t(dstStride);
+                std::memcpy(d, s, size_t(dstStride));
+            }
 
-        // Then compute and upload the edge mask if we successfully formed a grayscale image
-        if (edgeDetectEnabled && !gray.empty()) {
-            applyEdgeDetection(gray, w, h, srcStride);
+            if (edgeDetectEnabled && !gray.empty()) {
+                applyEdgeDetection(gray, w, h);
+            }
         }
     }
 
@@ -419,13 +451,14 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
 /// <param name="w">image width</param>
 /// <param name="h">image height</param>
 /// <param name="stride">Bitmap stride</param>
-void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride) {
+/// <returns>Combined image WITHOUT shapes (for edge detection), shapes are drawn afterward</returns>
+cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride) {
 
     // some constants defining the viewing area
     const int diamondW = 600;
     const int diamondH = 0.8 * diamondW;    // approximation from Git issue screenshot
 
-    const float ROIZoomScale = 2.5f;        // zoom amount
+    const float ROIZoomScale = 5.f;        // zoom amount
 
     int combinedW = gray.cols + diamondW;   // original image width + diamond width
     int combinedH = gray.rows + diamondH;   // original image height + diamond height
@@ -449,12 +482,46 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
     };
 
     cv::Mat edges;
-    cv::Canny(gray, edges, 100, 300, 3);
+    cv::Canny(gray, edges, canny_low_threshold, canny_high_threshold, canny_kernel_size);
 
     if (!edges.empty()) {
-        auto rois = extractROIs(gray, edges, 15, 5);
+        auto rois = extractROIs(gray, edges, roi_extraction_margin, roi_max_count);
 
         if (!rois.empty()) {
+
+            // Apply EWM smoothing to prevent glitching when subject moves
+            if (!prev_roi_centroids.empty() && prev_roi_centroids.size() == rois.size()) {
+                for (size_t i = 0; i < rois.size(); ++i) {
+
+                    // Find closest previous centroid to current ROI
+                    float minDistSq = std::numeric_limits<float>::max();
+                    int bestMatch = -1;
+
+                    for (size_t j = 0; j < prev_roi_centroids.size(); ++j) {
+                        float dx = rois[i].centroid.x - prev_roi_centroids[j].x;
+                        float dy = rois[i].centroid.y - prev_roi_centroids[j].y;
+                        float distSq = dx * dx + dy * dy;
+                        if (distSq < minDistSq) {
+                            minDistSq = distSq;
+                            bestMatch = static_cast<int>(j);
+                        }
+                    }
+
+                    // Apply exponential smoothing if match found and close enough
+                    if (bestMatch >= 0 && minDistSq < centroid_matching_threshold) {
+                        rois[i].centroid.x = centroid_smoothing_alpha * rois[i].centroid.x +
+                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].x;
+                        rois[i].centroid.y = centroid_smoothing_alpha * rois[i].centroid.y +
+                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].y;
+                    }
+                }
+            }
+
+            // Update cache for next frame
+            prev_roi_centroids.clear();
+            for (const auto& roi : rois) {
+                prev_roi_centroids.push_back(roi.centroid);
+            }
 
             // Find center-most ROI
             cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
@@ -518,20 +585,29 @@ void VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, 
             }
         }
 
-        std::vector<cv::Point> diamondPtsOffset;
+        // Save parameters for drawing shapes AFTER edge detection
+        shapeParams.quadW = quadW;
+        shapeParams.quadH = quadH;
+        shapeParams.imgCenterX = imgCenterX;
+        shapeParams.imgCenterY = imgCenterY;
+        shapeParams.diamondX = diamondX;
+        shapeParams.diamondY = diamondY;
+        shapeParams.diamondW = diamondW;
+        shapeParams.diamondH = diamondH;
+        shapeParams.combinedW = combinedW;
+        shapeParams.combinedH = combinedH;
+        shapeParams.diamondPts.clear();
         for (auto& p : diamondPts) {
-            diamondPtsOffset.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
+            shapeParams.diamondPts.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
         }
-        cv::polylines(combined, std::vector<std::vector<cv::Point>>{diamondPtsOffset}, true, cv::Scalar(80, 80, 80), 2);
-        drawMarkerBorderOnMat(combined, quadW, quadH, imgCenterX, imgCenterY, diamondW, diamondH);
+        shapeParams.isValid = true;
+
+        return combined;
     }
 
-    cv::Mat resizedCombined;
-    cv::resize(combined, resizedCombined, cv::Size(w, h));
-
-    for (int y = 0; y < h; ++y) {
-        memcpy(src + y * stride, resizedCombined.ptr(y), w);
-    }
+    // If no edges detected, return empty Mat
+    shapeParams.isValid = false;
+    return cv::Mat();
 }
 
 /// <summary>
@@ -584,8 +660,6 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
 
 		double circularity = 0.0;
 
-        // Filter out noise / tiny fragments
-		// This is a bit useless right now since we're not drawing text on the image, but keeping for future plans
         if (perimeter > 0 && area > 10.0) {
             circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
         }
@@ -603,95 +677,113 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
 }
 
 /// <summary>
-/// For the ROI zoom mode, draws shapes on the combined image mat
+/// Draws shapes as OpenGL overlays on top of rendered textures
 /// </summary>
-/// <param name="combined">Combined image to draw on</param>
-/// <param name="cx">X offset for diamond in combined image</param>
-/// <param name="cy">Y offset for diamond in combined image</param>
-/// <param name="imgCenterX">Center X of combined image</param>
-/// <param name="imgCenterY">Center Y of combined image</param>
-/// <param name="diamondW">Width of diamond</param>
-/// <param name="diamondH">Height of diamond</param>
-void VideoWidget::drawMarkerBorderOnMat(cv::Mat& combined, int quadW, int quadY, int imgCenterX, int imgCenterY, int diamondW, int diamondH) {
+void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW, float dstH) {
+    if (!shapeParams.isValid) return;
 
-    const int largeTickLenPx = 0.66 * diamondH;
-    const int smallTickLenPx = 0.4 * largeTickLenPx;
-    const int tickHSeparationPx = quadW / 4;
-	const int tickVSeparationPx = quadY / 4;
+    const float W = float(width());
+    const float H = float(height());
 
-    // =====================
-    // quadrant dividing lines
-    // =====================
-    // vertical center line
-    cv::line(combined,
-        cv::Point(0, combined.rows / 2),
-        cv::Point(combined.cols - 1, combined.rows / 2),
-        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
+    // Coordinate mapping: Combined space → Frame space → Screen space → NDC
+    // 1. Combined image (combinedW x combinedH) was resized to (frame_width x frame_height)
+    // 2. Frame is fitted into screen rect (dstX, dstY, dstW, dstH)
 
-    // horizontal center line
-    cv::line(combined,
-        cv::Point(combined.cols / 2, 0),
-        cv::Point(combined.cols / 2, combined.rows - 1),
-        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
+    const float resizeScaleX = float(frame_width) / float(shapeParams.combinedW);
+    const float resizeScaleY = float(frame_height) / float(shapeParams.combinedH);
+    const float screenScaleX = dstW / float(frame_width);
+    const float screenScaleY = dstH / float(frame_height);
 
-    // =====================
-    // small tick marks
-    // =====================
-    // left
-    cv::line(combined,
-        cv::Point(imgCenterX - diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
-        cv::Point(imgCenterX - diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
-        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
+    // Convert from combined image coords to screen coords
+    auto toScreenX = [&](float x) { return dstX + x * resizeScaleX * screenScaleX; };
+    auto toScreenY = [&](float y) { return dstY + y * resizeScaleY * screenScaleY; };
 
-    // right
-    cv::line(combined,
-        cv::Point(imgCenterX + diamondW / 2, imgCenterY + smallTickLenPx / 2), // top
-        cv::Point(imgCenterX + diamondW / 2, imgCenterY - smallTickLenPx / 2), // bottom
-        cv::Scalar(80, 80, 80), 2, cv::LINE_AA);
+    // Set up OpenGL for line drawing
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLineWidth(2.0f);
 
-    // top (horizontal)
-    cv::line(combined,
-        { imgCenterX - smallTickLenPx / 2, imgCenterY - diamondH / 2 },
-        { imgCenterX + smallTickLenPx / 2, imgCenterY - diamondH / 2 },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    // Color: gray (80, 80, 80) normalized to 0-1
+    glColor4f(80.0f/255.0f, 80.0f/255.0f, 80.0f/255.0f, 1.0f);
 
-    // bottom (horizontal)
-    cv::line(combined,
-        { imgCenterX - smallTickLenPx / 2, imgCenterY + diamondH / 2 },
-        { imgCenterX + smallTickLenPx / 2, imgCenterY + diamondH / 2 },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    // Draw quadrant dividers (use imgCenter from combined space)
+    glBegin(GL_LINES);
 
-    // =====================
-    // large tick marks
-    // =====================
+    // Vertical center line
+    float x = toScreenX(shapeParams.imgCenterX);
+    glVertex2f(toNdcX(x, W), toNdcY(toScreenY(0), H));
+    glVertex2f(toNdcX(x, W), toNdcY(toScreenY(shapeParams.combinedH), H));
 
-    // left (vertical)
-    cv::line(combined,
-        { (imgCenterX - diamondW / 2) - tickHSeparationPx, imgCenterY - largeTickLenPx / 2 },
-        { (imgCenterX - diamondW / 2) - tickHSeparationPx, imgCenterY + largeTickLenPx / 2 },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    // Horizontal center line
+    float y = toScreenY(shapeParams.imgCenterY);
+    glVertex2f(toNdcX(toScreenX(0), W), toNdcY(y, H));
+    glVertex2f(toNdcX(toScreenX(shapeParams.combinedW), W), toNdcY(y, H));
 
-    // right (vertical)
-    cv::line(combined,
-        { imgCenterX + diamondW / 2 + tickHSeparationPx, imgCenterY - largeTickLenPx / 2 },
-        { imgCenterX + diamondW / 2 + tickHSeparationPx, imgCenterY + largeTickLenPx / 2 },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    glEnd();
 
-    // top (horizontal)
-    cv::line(combined,
-        { imgCenterX - largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickVSeparationPx },
-        { imgCenterX + largeTickLenPx / 2, imgCenterY - diamondH / 2 - tickVSeparationPx },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    // Draw diamond outline
+    if (!shapeParams.diamondPts.empty()) {
+        glBegin(GL_LINE_LOOP);
+        for (const auto& pt : shapeParams.diamondPts) {
+            float sx = toScreenX(pt.x);
+            float sy = toScreenY(pt.y);
+            glVertex2f(toNdcX(sx, W), toNdcY(sy, H));
+        }
+        glEnd();
+    }
 
-    // bottom (horizontal)
-    cv::line(combined,
-        { imgCenterX - largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickVSeparationPx },
-        { imgCenterX + largeTickLenPx / 2, imgCenterY + diamondH / 2 + tickVSeparationPx },
-        { 80, 80, 80 }, 2, cv::LINE_AA);
+    // Draw tick marks
+    const float largeTickLenPx = 0.66f * shapeParams.diamondH;
+    const float smallTickLenPx = 0.4f * largeTickLenPx;
+    const float tickHSeparationPx = shapeParams.quadW / 4.0f;
+    const float tickVSeparationPx = shapeParams.quadH / 4.0f;
+
+    const float centerX = shapeParams.imgCenterX;
+    const float centerY = shapeParams.imgCenterY;
+    const float diamondLeft = centerX - shapeParams.diamondW / 2.0f;
+    const float diamondRight = centerX + shapeParams.diamondW / 2.0f;
+    const float diamondTop = centerY - shapeParams.diamondH / 2.0f;
+    const float diamondBottom = centerY + shapeParams.diamondH / 2.0f;
+
+    glBegin(GL_LINES);
+
+    // Small tick marks (at diamond edges)
+    // Left (vertical)
+    glVertex2f(toNdcX(toScreenX(diamondLeft), W), toNdcY(toScreenY(centerY - smallTickLenPx / 2), H));
+    glVertex2f(toNdcX(toScreenX(diamondLeft), W), toNdcY(toScreenY(centerY + smallTickLenPx / 2), H));
+    // Right (vertical)
+    glVertex2f(toNdcX(toScreenX(diamondRight), W), toNdcY(toScreenY(centerY - smallTickLenPx / 2), H));
+    glVertex2f(toNdcX(toScreenX(diamondRight), W), toNdcY(toScreenY(centerY + smallTickLenPx / 2), H));
+    // Top (horizontal)
+    glVertex2f(toNdcX(toScreenX(centerX - smallTickLenPx / 2), W), toNdcY(toScreenY(diamondTop), H));
+    glVertex2f(toNdcX(toScreenX(centerX + smallTickLenPx / 2), W), toNdcY(toScreenY(diamondTop), H));
+    // Bottom (horizontal)
+    glVertex2f(toNdcX(toScreenX(centerX - smallTickLenPx / 2), W), toNdcY(toScreenY(diamondBottom), H));
+    glVertex2f(toNdcX(toScreenX(centerX + smallTickLenPx / 2), W), toNdcY(toScreenY(diamondBottom), H));
+
+    // Large tick marks (further out)
+    // Left (vertical)
+    glVertex2f(toNdcX(toScreenX(diamondLeft - tickHSeparationPx), W), toNdcY(toScreenY(centerY - largeTickLenPx / 2), H));
+    glVertex2f(toNdcX(toScreenX(diamondLeft - tickHSeparationPx), W), toNdcY(toScreenY(centerY + largeTickLenPx / 2), H));
+    // Right (vertical)
+    glVertex2f(toNdcX(toScreenX(diamondRight + tickHSeparationPx), W), toNdcY(toScreenY(centerY - largeTickLenPx / 2), H));
+    glVertex2f(toNdcX(toScreenX(diamondRight + tickHSeparationPx), W), toNdcY(toScreenY(centerY + largeTickLenPx / 2), H));
+    // Top (horizontal)
+    glVertex2f(toNdcX(toScreenX(centerX - largeTickLenPx / 2), W), toNdcY(toScreenY(diamondTop - tickVSeparationPx), H));
+    glVertex2f(toNdcX(toScreenX(centerX + largeTickLenPx / 2), W), toNdcY(toScreenY(diamondTop - tickVSeparationPx), H));
+    // Bottom (horizontal)
+    glVertex2f(toNdcX(toScreenX(centerX - largeTickLenPx / 2), W), toNdcY(toScreenY(diamondBottom + tickVSeparationPx), H));
+    glVertex2f(toNdcX(toScreenX(centerX + largeTickLenPx / 2), W), toNdcY(toScreenY(diamondBottom + tickVSeparationPx), H));
+
+    glEnd();
+
+    // Restore OpenGL state
+    glDisable(GL_BLEND);
+    glLineWidth(1.0f);
 }
 
-
-void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
+void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h)
 {
     cv::Mat smoothed;
     cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
@@ -704,7 +796,7 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h, int srcStride)
 
     // make this windows's GL context current
     makeCurrent();
-    
+
     // Ensure edges data is contiguous for GL upload
     cv::Mat edgesC = edges.clone();
         glActiveTexture(GL_TEXTURE1);
