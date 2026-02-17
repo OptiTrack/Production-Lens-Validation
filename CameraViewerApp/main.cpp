@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
 
     // change whether focus tool is enabled via it's toggle button
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
+    QObject::connect(panel, &CameraControlPanel::zoomValueChanged, viewer, &QtCameraViewer::setViewerZoomValue);
 
     std::thread capture([&](){
         for (;;) {
