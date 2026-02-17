@@ -259,3 +259,9 @@ void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
         this->second_status_bar->setVisible(toggle);
     }
 }
+
+void QtCameraViewer::setViewerZoomValue(float val) {
+    if (gl_viewer_window) {
+        gl_viewer_window->setNewZoomValue(val);
+    }
+}
