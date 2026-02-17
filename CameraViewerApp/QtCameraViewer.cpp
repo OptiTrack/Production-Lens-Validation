@@ -81,7 +81,7 @@ void QtCameraViewer::buildUi()
 	v->addWidget(camera_picker);
 
 	// controls panel that later comes in Row 5
-	camera_controls = new CameraControlPanel(camera_manager, this);
+	camera_controls = new CameraControlPanel(camera_manager, metrics_exporter, this);
 
 	// Row 2: Status bar with FPS
 	status_bar = new QWidget(this);
@@ -93,25 +93,6 @@ void QtCameraViewer::buildUi()
 	sh->addStretch(1);
 
 	v->addWidget(status_bar);
-
-	// Screenshot directory label and browse button on the right of row 2
-	browse_label = new QLabel("Screenshot Dir:" + screenshotDirectory, status_bar);
-	sh->addWidget(browse_label);
-	QPushButton* browse_button = new QPushButton(status_bar);
-	browse_button->setText("Browse...");
-	sh->addWidget(browse_button);
-
-	connect(browse_button, &QPushButton::clicked, this, [this]() {
-		QString dir = QFileDialog::getExistingDirectory(
-			this,
-			"Select Screenshot Directory",
-			screenshotDirectory
-		);
-
-		if (!dir.isEmpty())
-			screenshotDirectory = dir;
-		browse_label->setText("Screenshot Dir: " + screenshotDirectory);
-		});
 
 	// Row 3: Another status bar, this time with focus eval results
 	second_status_bar = new QWidget(this);
@@ -125,37 +106,6 @@ void QtCameraViewer::buildUi()
 	second_box->addStretch(1);
 
 	v->addWidget(second_status_bar);
-
-
-	// Add Screenshot button to the right of row 3
-	QPushButton* screenshot_button = new QPushButton(second_status_bar);
-	// Add a text box to input lens serial number to the left of the button
-	serial_input = new QLineEdit(second_status_bar);
-	serial_input->setPlaceholderText("Serial #");
-
-	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
-		metrics_exporter.setLensSerial(text.toStdString());
-	});
-
-	second_box->addWidget(serial_input);
-	screenshot_button->setText("Screenshot");
-	screenshot_button->setToolTip("Take Screenshot");
-	second_box->addWidget(screenshot_button);
-	screenshot_button->setProperty("primary", true);
-	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
-		takeScreenshot();
-		emit camera_controls->showWarning("Screenshot", "Screenshot saved!");
-		});
-
-	// Export metrics button
-	QPushButton* metrics_export_button = new QPushButton(second_status_bar);
-	metrics_export_button->setText("Export Data");
-	metrics_export_button->setToolTip("Click to export information about the currently installed lens.");
-	second_box->addWidget(metrics_export_button);
-	metrics_export_button->setProperty("primary", true);
-	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
-		emit exportMetricsRequested();
-	});
 
 	auto* fpsTimer = new QTimer(this);
 	fpsTimer->setInterval(500);
@@ -179,26 +129,16 @@ void QtCameraViewer::buildUi()
 	connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
 	auto* tab3_visibility_button = new QPushButton("Statistics", third_status_bar);
 	connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
+	auto* tab4_visibility_button = new QPushButton("Exporter Tab", third_status_bar);
+    connect(tab4_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab4Visibility);
 
 	third_box->addWidget(toggle_label);
 	third_box->addWidget(tab0_visibility_button);
 	third_box->addWidget(tab1_visibility_button);
 	third_box->addWidget(tab2_visibility_button);
 	third_box->addWidget(tab3_visibility_button);
+	third_box->addWidget(tab4_visibility_button);
 	third_box->addStretch(1);
-
-	// Overlay enable/disable checkbox far right of row 4
-	overlay_button = new QCheckBox(third_status_bar);
-	overlay_button->setText("Overlay Enabled");
-	third_box->addWidget(overlay_button);
-	overlay_button->setChecked(true);
-	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
-		overlayState = !overlayState;
-		if (overlayState)
-			overlay_button->setText("Overlay Enabled");
-		else
-			overlay_button->setText("Overlay Disabled");
-		});
 
 	v->addWidget(third_status_bar);
 
@@ -226,6 +166,9 @@ void QtCameraViewer::buildUi()
 
 	viewer_container = QWidget::createWindowContainer(gl_viewer_window, center_widget);
 	viewer_container->setFocusPolicy(Qt::StrongFocus);
+
+	// Set the video widget in the control panel so it can capture it for screenshots
+	camera_controls->setVideoWidget(gl_viewer_window);
 
 	stacked_layout->addWidget(empty_pane);
 	stacked_layout->addWidget(viewer_container);
@@ -309,38 +252,6 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
 			break;
 		}
 	}
-}
-
-// Take the screen shot and save to file
-void QtCameraViewer::takeScreenshot()
-{
-	// Check if loaded screen
-	QScreen* screen = QGuiApplication::primaryScreen();
-	if (!screen)
-		return;
-	// Add Serial number of lens if possible, else put #
-	QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text() : "#";
-	// Get the window image
-	QPixmap pix;
-	if (overlayState)
-		pix = screen->grabWindow(this->winId());
-	else
-		pix = screen->grabWindow(gl_viewer_window->winId());
-	// Assign the time and day, with the serial number for file name
-	QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
-	// File location selection
-	if (screenshotDirectory.isEmpty()) {
-		pix.save(filename);
-	}
-	else {
-		QString fileLocation = QDir(screenshotDirectory).filePath(filename);
-		pix.save(fileLocation);
-	}
-}
-
-void QtCameraViewer::setViewerZoomValue(float val)
-{
-	this->gl_viewer_window->setNewZoomValue(val);	
 }
 
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {

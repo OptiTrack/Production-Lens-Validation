@@ -91,7 +91,6 @@ private:
 	void wireSignals();
 	void setEmptyState(bool anyCamerasPresent);
 	void handleSerialSelected(std::optional<unsigned> serialOpt);
-	void takeScreenshot();
 	void onSetFocusHUDVisibility(bool toggle);
 
 signals:
