@@ -443,6 +443,12 @@ void VideoWidget::setSwizzleIfNeeded(SwizzleMode want) {
     swizzle_mode = want;
 }
 
+void VideoWidget::setNewZoomValue(float value) {
+    if (value > 0) {
+        this->ROIZoomScale = value;
+    }
+}
+
 /// <summary>
 /// Focuses the view onto the outermost four markers and center marker by zooming into each region
 /// </summary>
@@ -457,8 +463,6 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
     // some constants defining the viewing area
     const int diamondW = 600;
     const int diamondH = 0.8 * diamondW;    // approximation from Git issue screenshot
-
-    const float ROIZoomScale = 5.f;        // zoom amount
 
     int combinedW = gray.cols + diamondW;   // original image width + diamond width
     int combinedH = gray.rows + diamondH;   // original image height + diamond height

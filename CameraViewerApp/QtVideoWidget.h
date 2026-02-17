@@ -31,6 +31,7 @@ public:
 
 public slots:
     void updateFrameFromBitmap(CameraLibrary::Bitmap* bmp);
+    void setNewZoomValue(float zoom);
 
 protected:
     void initializeGL() override;
@@ -65,6 +66,8 @@ private:
     std::atomic<bool> has_pending{false};
     std::atomic<bool> edge_detect_enabled{false};
     std::atomic<bool> roiZoomEnabled{ false };
+
+    float ROIZoomScale = 1.f; // degree of zoom for ROI quadrants
 
     // Temporal smoothing for ROI centroids to prevent glitching
     std::vector<cv::Point2f> prev_roi_centroids;

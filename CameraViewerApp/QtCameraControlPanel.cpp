@@ -63,7 +63,7 @@ void CameraControlPanel::buildUi() {
     exposure_slider->setRange(1, 200);
     exposure_slider->setValue(50);
     exposure_slider->setMaximumWidth(150);
-    exposure_label = new QLabel("50", camGroup);
+    exposure_label = new QLabel("50 ms", camGroup);
     exposure_label->setMaximumWidth(75);
     exposure_label->setMinimumWidth(75);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
@@ -80,7 +80,7 @@ void CameraControlPanel::buildUi() {
     fps_slider->setRange(1, 1000);
     fps_slider->setValue(30);
     fps_slider->setMaximumWidth(150);
-    fps_label = new QLabel("30", camGroup);
+    fps_label = new QLabel("30 fps", camGroup);
     fps_label->setMaximumWidth(80);
     fps_label->setMinimumWidth(80);
     connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
@@ -97,7 +97,7 @@ void CameraControlPanel::buildUi() {
     gain_slider->setRange(0, 7);
     gain_slider->setValue(0);
     gain_slider->setMaximumWidth(100);
-    gain_label = new QLabel("0", camGroup);
+    gain_label = new QLabel("0 dB", camGroup);
     gain_label->setMaximumWidth(60);
     gain_label->setMinimumWidth(60);
     connect(gain_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
@@ -108,6 +108,29 @@ void CameraControlPanel::buildUi() {
     connect(gain_button, &QPushButton::clicked, this, [this](){
         onSetGain();
     });
+
+    // Zoom Slider (1x to 20x)
+    zoom_slider = new QSlider(Qt::Horizontal, camGroup);
+    zoom_slider->setRange(1, 20);
+    zoom_slider->setValue(1);
+    zoom_slider->setMaximumWidth(100);
+    zoom_label = new QLabel("1x", camGroup);
+    zoom_label->setMaximumWidth(60);
+    zoom_label->setMinimumWidth(60);
+
+    // Sliders output an int, but the implicit conversion to float is safe.
+    connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
+        zoom_label->setText(QString::number(val) + "x");
+        onSetZoom(false);
+        });
+    zoom_button = new QPushButton("Reset", camGroup);
+    zoom_button->setProperty("primary", true);
+    connect(zoom_button, &QPushButton::clicked, this, [this]() {
+        zoom_slider->setValue(1.0);
+    });
+    zoom_button->setEnabled(false);
+	zoom_slider->setEnabled(false);
+
 
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(camGroup);
@@ -140,9 +163,22 @@ void CameraControlPanel::buildUi() {
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
 
+    auto* zoomWidget = new QWidget(camGroup);
+    zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
+    auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
+    auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
+    zoomLbl->setMinimumWidth(80);
+    zoomLbl->setMaximumWidth(80);
+    zoomLayoutW->addWidget(zoomLbl, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_slider);
+    zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_button);
+    
+
     camLayout->addWidget(exposureWidget);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
+	camLayout->addWidget(zoomWidget);
 
     // Group: Focus Tool
 
@@ -249,9 +285,17 @@ void CameraControlPanel::buildUi() {
 
         onSetVideoMode(mode);
 
-        // Disable edge button for incompatible modes (Segment, Object, Duplex)
+        // Disable edge button and Zoom controls for incompatible modes (Segment, Object, Duplex)
         const bool isCompatible = isEdgeDetectCompatible(mode);
         edge_button->setEnabled(isCompatible);
+
+        // handle ROI-Zoom UI behavior
+        zoom_button->setEnabled(markerZoom);
+        zoom_slider->setEnabled(markerZoom);
+        if (!markerZoom) {
+            zoom_slider->setValue(1.0);
+        }
+
         if (!isCompatible && edge_button->isChecked()) {
             edge_button->setChecked(false);
             emit edgeDetectToggled(false);
@@ -481,6 +525,15 @@ void CameraControlPanel::onSetGain() {
     if (!camera_manager->SetImagerGain(selected_serial, v)) {
         emit showWarning("Failed", "Could not set imager gain on the selected camera.");
     }
+}
+
+void CameraControlPanel::onSetZoom(bool reset) {
+    if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
+    int v = zoom_slider->value();
+    if (reset) {
+        v = 1;
+    }
+    emit zoomValueChanged(v);
 }
 
 void CameraControlPanel::onSetGamma() {

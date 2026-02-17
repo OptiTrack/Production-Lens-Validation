@@ -222,6 +222,8 @@ void QtCameraViewer::buildUi()
 
 	// Video pane
 	gl_viewer_window = new VideoWidget();
+	gl_viewer_window->setNewZoomValue(1.f);
+
 	viewer_container = QWidget::createWindowContainer(gl_viewer_window, center_widget);
 	viewer_container->setFocusPolicy(Qt::StrongFocus);
 
@@ -334,6 +336,11 @@ void QtCameraViewer::takeScreenshot()
 		QString fileLocation = QDir(screenshotDirectory).filePath(filename);
 		pix.save(fileLocation);
 	}
+}
+
+void QtCameraViewer::setViewerZoomValue(float val)
+{
+	this->gl_viewer_window->setNewZoomValue(val);	
 }
 
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
