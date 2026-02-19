@@ -295,7 +295,6 @@ void CameraControlPanel::buildUi() {
 
     leftTabWidget->addTab(tab1, QString("Lens"));
     v1->addWidget(focusToolGroup);
-    v1->addStretch();
 
     // Group: Lens Inspection
 
@@ -336,6 +335,7 @@ void CameraControlPanel::buildUi() {
 
     lensInspectionLayout->addWidget(zoomWidget);
     v1->addWidget(lensInspectionGroup);
+    v1->addStretch();
 
 
     /*
