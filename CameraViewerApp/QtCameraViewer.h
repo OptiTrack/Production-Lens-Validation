@@ -45,30 +45,44 @@ public:
 	QWidget* videoContainer() const { return viewer_container; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	CameraControlPanel* getControlPanel() const { return camera_controls; }
+	float focus_score{ 0.0f };
 
-float focus_score{0.0f};
+public slots:
+	void setViewerZoomValue(float val);
 
 private:
-    CameraPicker*   camera_picker{nullptr};
-    CameraControlPanel* camera_controls{nullptr};
-	QWidget*          status_bar{nullptr};
-    QWidget*          second_status_bar{nullptr};
-    QWidget*          third_status_bar{nullptr};
-    QLabel*           fps_label{nullptr};
-    QWidget*          center_widget{nullptr};
-    QStackedLayout*   stacked_layout{nullptr};
-    QWidget*          empty_pane{nullptr};
-    QWidget*          viewer_container{nullptr};
-    VideoWidget*      gl_viewer_window{nullptr};
-    QLabel*           focus_result_label{nullptr};
-    QLabel*           focus_score_label{nullptr};
-    QLabel*           focus_score_display{nullptr};
+	CameraPicker* camera_picker{ nullptr };
+	CameraControlPanel* camera_controls{ nullptr };
+	QWidget* status_bar{ nullptr };
+	QWidget* second_status_bar{ nullptr };
+	QWidget* third_status_bar{ nullptr };
+	QWidget* fps_bar{ nullptr };
+	QWidget* focus_result_bar{ nullptr };
+	QWidget* focus_score_bar{ nullptr };
+	QWidget* toggle_tabs_bar{ nullptr };
+	QWidget* browse_bar{ nullptr };
+	QWidget* screenshot_bar{ nullptr };
+	QWidget* overlay_bar{ nullptr };
+	QLabel* fps_label{ nullptr };
+	QWidget* center_widget{ nullptr };
+	QStackedLayout* stacked_layout{ nullptr };
+	QWidget* empty_pane{ nullptr };
+	QWidget* viewer_container{ nullptr };
+	VideoWidget* gl_viewer_window{ nullptr };
+	QLabel* focus_result_label{ nullptr };
+	QLabel* focus_score_label{ nullptr };
+	QLabel* focus_score_display{ nullptr };
+	QLineEdit* serial_input{ nullptr };
+	QLabel* browse_label{ nullptr };
+	QString screenshotDirectory = QDir::currentPath();
+	QCheckBox* overlay_button{ nullptr };
+	bool              overlayState{ true };
 
-    CameraConnectionManager* camera_manager{nullptr};
-    std::mutex&              camera_mutex;
+	CameraConnectionManager* camera_manager{ nullptr };
+	std::mutex& camera_mutex;
 	std::shared_ptr<CameraLibrary::Camera>& current_camera;
-    std::atomic<uint64_t>&   switch_epoch;
-    std::atomic<unsigned>&   active_serial;
+	std::atomic<uint64_t>& switch_epoch;
+	std::atomic<unsigned>& active_serial;
 	CameraHelper::FrameRateCalculator& fps_calculator;
 	DisplayResults* focus_result;
 	MetricsExporter& metrics_exporter;
@@ -78,4 +92,8 @@ private:
 	void setEmptyState(bool anyCamerasPresent);
 	void handleSerialSelected(std::optional<unsigned> serialOpt);
 	void onSetFocusHUDVisibility(bool toggle);
-};
+
+signals:
+	void exportMetricsRequested();
+}
+;

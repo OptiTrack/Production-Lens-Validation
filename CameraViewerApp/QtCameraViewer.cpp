@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QComboBox>
 #include <QTimer>
 #include <QStackedLayout>
@@ -161,6 +162,8 @@ void QtCameraViewer::buildUi()
 
 	// Video pane
 	gl_viewer_window = new VideoWidget();
+	gl_viewer_window->setNewZoomValue(1.f);
+
 	viewer_container = QWidget::createWindowContainer(gl_viewer_window, center_widget);
 	viewer_container->setFocusPolicy(Qt::StrongFocus);
 
@@ -254,5 +257,11 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
     if (this->second_status_bar) {
         this->second_status_bar->setVisible(toggle);
+    }
+}
+
+void QtCameraViewer::setViewerZoomValue(float val) {
+    if (gl_viewer_window) {
+        gl_viewer_window->setNewZoomValue(val);
     }
 }

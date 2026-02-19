@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
     auto startTime = std::chrono::steady_clock::now();
     // change whether focus tool is enabled via it's toggle button
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
+    QObject::connect(panel, &CameraControlPanel::zoomValueChanged, viewer, &QtCameraViewer::setViewerZoomValue);
 
     std::thread capture([&]() {
         for (;;) {
@@ -231,6 +232,7 @@ int main(int argc, char *argv[])
                                     focusMetrics["FocusQuality"] = score;
                                     focusMetrics["CircleCount"] = circleCount;
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                                    //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
                             },
                             Qt::QueuedConnection

@@ -68,6 +68,7 @@ signals:
     void edgeDetectToggled(bool enabled);
     void onMarkerZoomToggled(bool enabled);
     void focusToolToggled(bool enabled);
+    void zoomValueChanged(float val);
     void focusHUDToggled(bool enabled);
     void exportMetricsRequested();
 
@@ -99,6 +100,11 @@ private:
     QSlider* gain_slider{nullptr};
     QLabel* gain_label{nullptr};
     QPushButton* gain_button{nullptr};
+
+    QLineEdit* zoom_edit{ nullptr };
+    QSlider* zoom_slider{ nullptr };
+    QLabel* zoom_label{ nullptr };
+    QPushButton* zoom_button{ nullptr };
 
     QCheckBox*        focus_button{nullptr};
     bool              focusState{true};
@@ -152,6 +158,7 @@ private slots:
     void onSetExposure();
     void onSetFps();
     void onSetGain();
+	void onSetZoom(bool reset);
     void onSetGamma();
     void onSetCompression();
     void onSetVideoMode(int modeEnum);
