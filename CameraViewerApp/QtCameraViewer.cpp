@@ -276,6 +276,12 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
 	}
 }
 
+void QtCameraViewer::setViewerZoomValue(float val) {
+	if (gl_viewer_window) {
+		gl_viewer_window->setNewZoomValue(val);
+	}
+}
+
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
     if (this->second_status_bar) {
         this->second_status_bar->setVisible(toggle);
