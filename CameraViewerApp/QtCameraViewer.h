@@ -47,6 +47,7 @@ public:
 	QWidget* videoContainer() const { return viewer_container; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	CameraControlPanel* getControlPanel() const { return camera_controls; }
+	float focus_score{ 0.0f };
 	void retranslateUi();
 	QString currentLanguage() const;
 
