@@ -13,6 +13,7 @@
 #include <QLineEdit>
 #include <QFileDialog>
 #include <QCheckBox>
+#include <QCoreApplication>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
@@ -80,17 +81,33 @@ void QtCameraViewer::buildUi()
 	camera_picker = new CameraPicker(camera_manager, this);
 	v->addWidget(camera_picker);
 
-	// controls panel that later comes in Row 5
+	// Controls panel that later comes in Row 5
 	camera_controls = new CameraControlPanel(camera_manager, metrics_exporter, this);
 
 	// Row 2: Status bar with FPS
 	status_bar = new QWidget(this);
+
 	auto* sh = new QHBoxLayout(status_bar);
     sh->setContentsMargins(6,0,6,0);
-	fps_label = new QLabel("FPS: —", status_bar);
+	fps_label = new QLabel(status_bar);
 	fps_label->setStyleSheet("color:#ddd; font-weight:600;");
 	sh->addWidget(fps_label);
 	sh->addStretch(1);
+
+	language_label = new QLabel(status_bar);
+	language_combo = new QComboBox(status_bar);
+	language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
+	language_combo->addItem(QStringLiteral("Simplified Chinese"), QStringLiteral("zh_CN"));
+	connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+
+		this, [this](int idx) {
+			if (!language_combo || idx < 0) return;
+
+			emit languageChanged(language_combo->itemData(idx).toString());
+		});
+
+	sh->addWidget(language_label);
+	sh->addWidget(language_combo);
 
 	v->addWidget(status_bar);
 
@@ -98,7 +115,7 @@ void QtCameraViewer::buildUi()
 	second_status_bar = new QWidget(this);
 	auto* second_box = new QHBoxLayout(second_status_bar);
     second_box->setContentsMargins(6,0,6,0);
-	focus_result_label = new QLabel("Focus Result:", second_status_bar);
+	focus_result_label = new QLabel(second_status_bar);
 	focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
 	focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
 	second_box->addWidget(focus_result_label);
@@ -110,7 +127,10 @@ void QtCameraViewer::buildUi()
 	auto* fpsTimer = new QTimer(this);
 	fpsTimer->setInterval(500);
 	connect(fpsTimer, &QTimer::timeout, this, [this]() {
-		fps_label->setText(QString("FPS: %1").arg(fps_calculator.current(), 0, 'f', 1));
+		const QString fmt = fps_format.isEmpty()
+			? QStringLiteral("FPS: %1")
+			: fps_format;
+		fps_label->setText(fmt.arg(fps_calculator.current(), 0, 'f', 1));
 		});
 	fpsTimer->start();
 
@@ -118,18 +138,18 @@ void QtCameraViewer::buildUi()
 	third_status_bar = new QWidget(this);
 	auto* third_box = new QHBoxLayout(third_status_bar);
 	third_box->setContentsMargins(6, 0, 6, 0);
-	auto* toggle_label = new QLabel("Toggle Tabs:", third_status_bar);
-	auto* tab0_visibility_button = new QPushButton("Control Tab", third_status_bar);
+	toggle_label = new QLabel(third_status_bar);
+	tab0_visibility_button = new QPushButton(third_status_bar);
 
 	// tab0_visibility_button->setMaximumSize(50, 50);
 	connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
-	auto* tab1_visibility_button = new QPushButton("Video Modes Tab", third_status_bar);
+	tab1_visibility_button = new QPushButton(third_status_bar);
 	connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-	auto* tab2_visibility_button = new QPushButton("Color Tab", third_status_bar);
+	tab2_visibility_button = new QPushButton(third_status_bar);
 	connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
-	auto* tab3_visibility_button = new QPushButton("Statistics", third_status_bar);
+	tab3_visibility_button = new QPushButton(third_status_bar);
 	connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
-	auto* tab4_visibility_button = new QPushButton("Exporter Tab", third_status_bar);
+	tab4_visibility_button = new QPushButton(third_status_bar);
     connect(tab4_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab4Visibility);
 
 	third_box->addWidget(toggle_label);
@@ -154,11 +174,11 @@ void QtCameraViewer::buildUi()
 	empty_pane = new QWidget(center_widget);
 	auto* emptyLayout = new QVBoxLayout(empty_pane);
 	emptyLayout->setAlignment(Qt::AlignCenter);
-	auto* emptyLabel = new QLabel("No Cameras Connected", empty_pane);
-	QFont f = emptyLabel->font(); f.setPointSize(f.pointSize() + 6); f.setBold(true);
-	emptyLabel->setFont(f);
-	emptyLabel->setAlignment(Qt::AlignCenter);
-	emptyLayout->addWidget(emptyLabel);
+	empty_label = new QLabel(empty_pane);
+	QFont f = empty_label->font(); f.setPointSize(f.pointSize() + 6); f.setBold(true);
+	empty_label->setFont(f);
+	empty_label->setAlignment(Qt::AlignCenter);
+	emptyLayout->addWidget(empty_label);
 
 	// Video pane
 	gl_viewer_window = new VideoWidget();
@@ -180,6 +200,8 @@ void QtCameraViewer::buildUi()
 
 	mainLayout->addLayout(v);
 	mainLayout->addLayout(h2);
+
+	retranslateUi();
 }
 
 void QtCameraViewer::wireSignals()
@@ -260,8 +282,59 @@ void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
     }
 }
 
-void QtCameraViewer::setViewerZoomValue(float val) {
-    if (gl_viewer_window) {
-        gl_viewer_window->setNewZoomValue(val);
-    }
+void QtCameraViewer::retranslateUi()
+{
+	fps_format = QCoreApplication::translate("QtCameraViewer", "FPS: %1");
+	if (fps_label) {
+		fps_label->setText(QCoreApplication::translate("QtCameraViewer", "FPS: —"));
+	}
+	if (focus_result_label) {
+		focus_result_label->setText(QCoreApplication::translate("QtCameraViewer", "Focus Result:"));
+	}
+	if (toggle_label) {
+		toggle_label->setText(QCoreApplication::translate("QtCameraViewer", "Toggle Tabs:"));
+	}
+	if (tab0_visibility_button) {
+		tab0_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Control Tab"));
+	}
+	if (tab1_visibility_button) {
+		tab1_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Video Modes Tab"));
+	}
+	if (tab2_visibility_button) {
+		tab2_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Color Tab"));
+	}
+	if (tab3_visibility_button) {
+		tab3_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Statistics"));
+	}
+	if (tab4_visibility_button) {
+		tab4_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Exporter Tab"));
+	}
+	if (empty_label) {
+		empty_label->setText(QCoreApplication::translate("QtCameraViewer", "No Cameras Connected"));
+	}
+	if (language_label) {
+		language_label->setText(QCoreApplication::translate("QtCameraViewer", "Language:"));
+	}
+	if (language_combo && language_combo->count() >= 2) {
+		language_combo->setItemText(0, QCoreApplication::translate("QtCameraViewer", "English"));
+		language_combo->setItemText(1, QCoreApplication::translate("QtCameraViewer", "Simplified Chinese"));
+	}
+	if (camera_picker) {
+		camera_picker->retranslateUi();
+	}
+	if (camera_controls) {
+		const QString locale = currentLanguage();
+		camera_controls->setExportLanguage(locale == QLatin1String("zh_CN")
+			? MetricsExporter::Chinese
+			: MetricsExporter::English);
+		camera_controls->retranslateUi();
+	}
+}
+
+QString QtCameraViewer::currentLanguage() const
+{
+	if (!language_combo || language_combo->currentIndex() < 0) {
+		return QStringLiteral("en");
+	}
+	return language_combo->itemData(language_combo->currentIndex()).toString();
 }

@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="zh_CN">
+
+<context>
+    <name>CameraPicker</name>
+    <message>
+        <source>Camera:</source>
+        <translation>相机：</translation>
+    </message>
+</context>
+<context>
+    <name>QtCameraViewer</name>
+    <message>
+        <source>FPS: %1</source>
+        <translation>帧率：%1</translation>
+    </message>
+    <message>
+        <source>FPS: —</source>
+        <translation>帧率：—</translation>
+    </message>
+    <message>
+        <source>Focus Result:</source>
+        <translation>对焦结果：</translation>
+    </message>
+    <message>
+        <source>Toggle Tabs:</source>
+        <translation>切换选项卡：</translation>
+    </message>
+    <message>
+        <source>Control Tab</source>
+        <translation>控制选项卡</translation>
+    </message>
+    <message>
+        <source>Video Modes Tab</source>
+        <translation>视频模式选项卡</translation>
+    </message>
+    <message>
+        <source>Color Tab</source>
+        <translation>颜色选项卡</translation>
+    </message>
+    <message>
+        <source>Statistics</source>
+        <translation>统计</translation>
+    </message>
+    <message>
+        <source>Exporter Tab</source>
+        <translation>导出选项卡</translation>
+    </message>
+    <message>
+        <source>No Cameras Connected</source>
+        <translation>未连接相机</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>语言：</translation>
+    </message>
+    <message>
+        <source>English</source>
+        <translation>英语</translation>
+    </message>
+    <message>
+        <source>Simplified Chinese</source>
+        <translation>简体中文</translation>
+    </message>
+
+    <message>
+        <source>Traditional Chinese</source>
+        <translation>繁体中文</translation>
+    </message>
+</context>
+<context>
+    <name>CameraControlPanel</name>
+    <message>
+        <source>General Camera Controls</source>
+        <translation>通用相机控制</translation>
+    </message>
+    <message>
+        <source>Focus Tool</source>
+        <translation>对焦工具</translation>
+    </message>
+    <message>
+        <source>Video Mode</source>
+        <translation>视频模式</translation>
+    </message>
+    <message>
+        <source>Color Compression</source>
+        <translation>色彩压缩</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>伽马</translation>
+    </message>
+    <message>
+        <source>Exposure:</source>
+        <translation>曝光：</translation>
+    </message>
+    <message>
+        <source>FPS:</source>
+        <translation>帧率：</translation>
+    </message>
+    <message>
+        <source>Gain:</source>
+        <translation>增益：</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>质量：</translation>
+    </message>
+    <message>
+        <source>Bitrate:</source>
+        <translation>码率：</translation>
+    </message>
+    <message>
+        <source>Gamma:</source>
+        <translation>伽马：</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>应用</translation>
+    </message>
+    <message>
+        <source>ms</source>
+        <translation>毫秒</translation>
+    </message>
+    <message>
+        <source>fps</source>
+        <translation>帧/秒</translation>
+    </message>
+    <message>
+        <source>dB</source>
+        <translation>dB</translation>
+    </message>
+    <message>
+        <source>Focus Enabled</source>
+        <translation>对焦已启用</translation>
+    </message>
+    <message>
+        <source>Focus Disabled</source>
+        <translation>对焦已禁用</translation>
+    </message>
+    <message>
+        <source>Focus HUD Enabled</source>
+        <translation>对焦HUD已启用</translation>
+    </message>
+    <message>
+        <source>Focus HUD Disabled</source>
+        <translation>对焦HUD已禁用</translation>
+    </message>
+    <message>
+        <source>Overlay Enabled</source>
+        <translation>叠加已启用</translation>
+    </message>
+    <message>
+        <source>Overlay Disabled</source>
+        <translation>叠加已禁用</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>边缘检测</translation>
+    </message>
+    <message>
+        <source>Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes</source>
+        <translation>启用边缘叠加：适用于灰度、精度和MJPEG模式</translation>
+    </message>
+    <message>
+        <source>Controls</source>
+        <translation>控制</translation>
+    </message>
+    <message>
+        <source>Video Modes</source>
+        <translation>视频模式</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>颜色</translation>
+    </message>
+    <message>
+        <source>Statistics</source>
+        <translation>统计</translation>
+    </message>
+    <message>
+        <source>Exporter</source>
+        <translation>导出</translation>
+    </message>
+    <message>
+        <source>Focus Statistics</source>
+        <translation>对焦统计</translation>
+    </message>
+    <message>
+        <source>Lens Statistics</source>
+        <translation>镜头统计</translation>
+    </message>
+    <message>
+        <source>Serial #</source>
+        <translation>序列号</translation>
+    </message>
+    <message>
+        <source>Screenshot Dir: %1</source>
+        <translation>截图目录：%1</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>浏览...</translation>
+    </message>
+    <message>
+        <source>Select Screenshot Directory</source>
+        <translation>选择截图目录</translation>
+    </message>
+    <message>
+        <source>Screenshot</source>
+        <translation>截图</translation>
+    </message>
+    <message>
+        <source>Take Screenshot</source>
+        <translation>截图</translation>
+    </message>
+    <message>
+        <source>Screenshot saved!</source>
+        <translation>截图已保存！</translation>
+    </message>
+    <message>
+        <source>Export Data</source>
+        <translation>导出数据</translation>
+    </message>
+    <message>
+        <source>Click to export information about the currently installed lens.</source>
+        <translation>点击导出当前安装镜头的信息。</translation>
+    </message>
+    <message>
+        <source>No Camera</source>
+        <translation>无相机</translation>
+    </message>
+    <message>
+        <source>No camera is currently selected.</source>
+        <translation>当前未选择相机。</translation>
+    </message>
+    <message>
+        <source>Failed</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <source>Could not set exposure on the selected camera.</source>
+        <translation>无法设置所选相机的曝光。</translation>
+    </message>
+    <message>
+        <source>Could not set frame rate on the selected camera.</source>
+        <translation>无法设置所选相机的帧率。</translation>
+    </message>
+    <message>
+        <source>Could not set imager gain on the selected camera.</source>
+        <translation>无法设置所选相机的增益。</translation>
+    </message>
+    <message>
+        <source>Unsupported Camera</source>
+        <translation>不支持的相机</translation>
+    </message>
+    <message>
+        <source>Color gamma is only supported on Prime Color cameras.</source>
+        <translation>色彩伽马仅支持Prime Color相机。</translation>
+    </message>
+    <message>
+        <source>Color compression is only supported on Prime Color cameras.</source>
+        <translation>色彩压缩仅支持Prime Color相机。</translation>
+    </message>
+    <message>
+        <source>Unsupported Mode</source>
+        <translation>不支持的模式</translation>
+    </message>
+    <message>
+        <source>Segment</source>
+        <translation>分段</translation>
+    </message>
+    <message>
+        <source>5-segment view (center+corners)</source>
+        <translation>五分区视图（中心+四角）</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>灰度</translation>
+    </message>
+    <message>
+        <source>8bpp camera preview</source>
+        <translation>8位灰度预览</translation>
+    </message>
+    <message>
+        <source>Grayscale with ROI Zoom</source>
+        <translation>灰度+ROI缩放</translation>
+    </message>
+    <message>
+        <source>8bpp camera preview with center/edge marker focus</source>
+        <translation>8位灰度预览（中心/边缘标记对焦）</translation>
+    </message>
+    <message>
+        <source>Object</source>
+        <translation>对象</translation>
+    </message>
+    <message>
+        <source>Object mode: runs detection pipeline</source>
+        <translation>对象模式：运行检测流程</translation>
+    </message>
+    <message>
+        <source>Precision</source>
+        <translation>精度</translation>
+    </message>
+    <message>
+        <source>Precision view: tighter quality metrics</source>
+        <translation>精度视图：更严格的质量指标</translation>
+    </message>
+    <message>
+        <source>MJPEG</source>
+        <translation>MJPEG</translation>
+    </message>
+    <message>
+        <source>MJPEG streaming mode</source>
+        <translation>MJPEG流模式</translation>
+    </message>
+    <message>
+        <source>Duplex</source>
+        <translation>双工</translation>
+    </message>
+    <message>
+        <source>Duplex: two-stream capture</source>
+        <translation>双工：双流采集</translation>
+    </message>
+    <message>
+        <source>Variable Bitrate</source>
+        <translation>可变码率</translation>
+    </message>
+    <message>
+        <source>Constant Bitrate</source>
+        <translation>恒定码率</translation>
+    </message>
+</context>
+<context>
+    <name>DisplayResults</name>
+    <message>
+        <source>Failure</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <source>Success (Wide Angle Lens)</source>
+        <translation>成功（广角镜头）</translation>
+    </message>
+    <message>
+        <source>Success (All lenses)</source>
+        <translation>成功（所有镜头）</translation>
+    </message>
+    <message>
+        <source>Inconclusive</source>
+        <translation>不确定</translation>
+    </message>
+</context>
+<context>
+    <name>MetricsExporter</name>
+    <message>
+        <source>Export Data</source>
+        <translation>导出数据</translation>
+    </message>
+    <message>
+        <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
+        <translation>CSV文件 (*.csv);;文本文件 (*.txt);;所有文件 (*)</translation>
+    </message>
+</context>
+</TS>

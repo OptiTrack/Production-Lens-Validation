@@ -59,6 +59,8 @@ public:
     bool const returnOverlayState() { return overlayState; }
     void setVideoWidget(VideoWidget* widget) { gl_viewer_window = widget; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
+	void retranslateUi();
+	void setExportLanguage(MetricsExporter::OutputLanguage lang);
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle circle detection
@@ -76,11 +78,24 @@ private:
     void buildUi();
     bool currentSerialValid() const;
     MetricWidgets* createMetricWidgets(const QString name, const QString units, QVector<QString> labels, QVector<QString> descriptions, QVector<bool> graphs);
+    void updateFocusButtonText();
+    void updateFocusHudButtonText();
+    void updateOverlayButtonText();
+    void updateSliderLabels();
+    void repopulateVideoModes();
+    void repopulateCompressionModes();
 
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
 
     QTabWidget* leftTabWidget{nullptr};
+    QGroupBox* cam_group{nullptr};
+    QGroupBox* focus_tool_group{nullptr};
+    QGroupBox* video_group{nullptr};
+    QGroupBox* compression_group{nullptr};
+    QGroupBox* gamma_group{nullptr};
+    MetricWidgets* focus_metrics_widgets{nullptr};
+    MetricWidgets* lens_metrics_widgets{nullptr};
 
     // Metrics controllers for Statistics tab
     MetricController* focusMetricsController{nullptr};
@@ -89,16 +104,19 @@ private:
     QLineEdit* exposure_edit{nullptr};
     QSlider* exposure_slider{nullptr};
     QLabel* exposure_label{nullptr};
+    QLabel* exposure_title_label{nullptr};
     QPushButton* exposure_button{nullptr};
 
     QLineEdit* fps_edit{nullptr};
     QSlider* fps_slider{nullptr};
     QLabel* fps_label{nullptr};
+    QLabel* fps_title_label{nullptr};
     QPushButton* fps_button{nullptr};
 
     QLineEdit* gain_edit{nullptr};
     QSlider* gain_slider{nullptr};
     QLabel* gain_label{nullptr};
+    QLabel* gain_title_label{nullptr};
     QPushButton* gain_button{nullptr};
 
     QLineEdit* zoom_edit{ nullptr };
@@ -114,15 +132,18 @@ private:
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};
     QLabel* quality_label{nullptr};
+    QLabel* quality_title_label{nullptr};
     QLineEdit* bitrate_edit{nullptr};
     QSlider* bitrate_slider{nullptr};
     QLabel* bitrate_label{nullptr};
+    QLabel* bitrate_title_label{nullptr};
     QComboBox* mode_combo{nullptr};
     QPushButton* set_compression_button{nullptr};
 
     QLineEdit* gamma_edit{nullptr};
     QSlider* gamma_slider{nullptr};
     QLabel* gamma_label{nullptr};
+    QLabel* gamma_title_label{nullptr};
     QPushButton* gamma_button{nullptr};
 
     // Droplist for selecting the video mode (replaces multiple mode buttons)
@@ -144,8 +165,13 @@ private:
     QString           screenshotDirectory = QDir::currentPath();
     QLabel*           browse_label{nullptr};
     QPushButton*      browse_button{nullptr};
+    QPushButton*      screenshot_button{nullptr};
     QPushButton*      metrics_export_button{nullptr};
     QCheckBox*        overlay_button{nullptr};
+
+	QString           exposure_unit_ms;
+	QString           fps_unit;
+	QString           gain_unit_db;
 
 public slots:
     void onSetTab0Visibility();

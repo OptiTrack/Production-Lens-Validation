@@ -10,6 +10,11 @@
 #include <QDateTime>
 #include <qfile.h>
 
+// For chinese translation support
+#include <QTranslator>
+#include <QLibraryInfo>
+
+#include <QCoreApplication>
 #include "QtCameraConnectionManager.h"
 #include "QtVideoWidget.h"
 #include "QtCameraViewer.h"
@@ -46,12 +51,15 @@ int main(int argc, char *argv[])
             if (!done.compare_exchange_strong(expected, true)) {
                 return;
             }
+
             if (runningFlag) {
                 runningFlag->store(false, std::memory_order_release);
             }
+
             if (captureThread && captureThread->joinable()) {
                 captureThread->join();
             }
+
             CameraManager::X().Shutdown();
         }
         ~ShutdownGuard() { finalize(); }
@@ -59,15 +67,27 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
 
+    // Declare a QTranslator to load translations for the application and Qt's built-in strings
+    // This will load app_en.ts and app_zh_CN.ts from the i18n directory, as well as the corresponding Qt translations if locale is Chinese
+    // appTranslator and qtTranslator are declared here to ensure they remain in scope for the duration of the application, as QTranslator must not be destroyed while installed in the application
+
+
+    // for our application's custom translations
+    QTranslator appTranslator; 
+
+    // for Qt's built-in translations (e.g. file dialog buttons)
+    QTranslator qtTranslator; 
+
     QFile file("motive.css");
+
     if (file.open(QFile::ReadOnly | QFile::Text)) {
         QString styleSheet = file.readAll();
         app.setStyleSheet(styleSheet);
         file.close();
     }
-    else {
+
+    else 
         qWarning() << "[!] Could not open stylesheet file.";
-    }
 
     // ==== Camera manager ========================================================
     auto* mgr = new CameraConnectionManager(); 
@@ -87,6 +107,47 @@ int main(int argc, char *argv[])
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, mExport, nullptr);
+
+   
+    // Remove any current installed translators to ensure a clean slate, then install the appropriate ones based on the current locale
+    // use [&] to capture the app and translators by reference so they remain in scope and can be modified inside the lambda
+    auto applyLanguage = [&](const QString& localeName) {
+        app.removeTranslator(&appTranslator);
+        app.removeTranslator(&qtTranslator);
+
+        const QString i18nDir = QCoreApplication::applicationDirPath() + "/i18n";
+        const QString qtTrDir = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
+
+        if (localeName == QLatin1String("zh_CN")) {
+
+            if (!appTranslator.load("app_zh_CN", i18nDir))
+                qWarning() << "[i18n] Failed to load app_zh_CN from" << i18nDir;
+            
+            else
+                app.installTranslator(&appTranslator);
+
+            // Try qtbase first, then qt (covers more Qt6 installs)
+            QLocale loc(QLocale::Chinese, QLocale::China);
+
+            bool ok = qtTranslator.load(loc, "qtbase", "_", qtTrDir)
+                || qtTranslator.load(loc, "qt", "_", qtTrDir);
+
+            if (!ok)
+                qWarning() << "[i18n] Failed to load Qt zh_CN translations from" << qtTrDir;
+
+            else 
+                app.installTranslator(&qtTranslator);
+        }
+
+        if (viewer) 
+            viewer->retranslateUi();
+    };
+
+
+    QObject::connect(viewer, &QtCameraViewer::languageChanged,
+        &app, [applyLanguage](const QString& locale) { applyLanguage(locale); });
+
+    applyLanguage(viewer->currentLanguage());
 
     // get instance to camera control panel for metrics updates
     auto* panel = viewer->getControlPanel();
@@ -256,12 +317,14 @@ int main(int argc, char *argv[])
     guard.captureThread = &capture;
     guard.runningFlag   = &running;
     guard.mgr           = mgr;
+
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&](){
-        if (viewer) {
+        if (viewer)
             viewer->close();
-        }
+
         guard.finalize();
     });
+
     std::atexit([](){
         try { CameraManager::X().Shutdown(); } catch (...) {}
     });

@@ -12,6 +12,7 @@ class CameraPicker : public QWidget
     Q_OBJECT
 public:
     explicit CameraPicker(CameraConnectionManager* mgr, QWidget* parent=nullptr);
+	void retranslateUi();
 
     std::optional<unsigned> selectedSerial() const { return selected_serial; }
     void setSelectedSerial(std::optional<unsigned> s);
