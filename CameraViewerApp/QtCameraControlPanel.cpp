@@ -10,10 +10,9 @@
 #include <QFileDialog>
 #include <QDateTime>
 #include <QCoreApplication>
-#include <QGuiApplication.h>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
-#include <QGuiApplication.h>
+
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
 #include "QtCameraViewer.h"
@@ -121,11 +120,11 @@ void CameraControlPanel::buildUi() {
     });
 
     // Zoom Slider (1x to 20x)
-    zoom_slider = new QSlider(Qt::Horizontal, cam_group);
+    zoom_slider = new QSlider(Qt::Horizontal, camGroup);
     zoom_slider->setRange(1, 20);
     zoom_slider->setValue(1);
     zoom_slider->setMaximumWidth(100);
-    zoom_label = new QLabel("1x", cam_group);
+    zoom_label = new QLabel("1x", camGroup);
     zoom_label->setMaximumWidth(60);
     zoom_label->setMinimumWidth(60);
 
@@ -134,7 +133,7 @@ void CameraControlPanel::buildUi() {
         zoom_label->setText(QString::number(val) + "x");
         onSetZoom(false);
         });
-    zoom_button = new QPushButton("Reset", cam_group);
+    zoom_button = new QPushButton("Reset", camGroup);
     zoom_button->setProperty("primary", true);
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
         zoom_slider->setValue(1.0);
@@ -174,7 +173,7 @@ void CameraControlPanel::buildUi() {
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
 
-    auto* zoomWidget = new QWidget(cam_group);
+    auto* zoomWidget = new QWidget(camGroup);
     zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
     auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
     auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
