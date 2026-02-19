@@ -22,6 +22,8 @@ class QStackedLayout;
 class CameraPicker;
 class CameraControlPanel;
 class VideoWidget;
+class QComboBox;
+class QPushButton;
 class CameraConnectionManager;
 namespace CameraLibrary { class Camera; }
 namespace CameraHelper { class FrameRateCalculator; }
@@ -45,8 +47,13 @@ public:
 	QWidget* videoContainer() const { return viewer_container; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	CameraControlPanel* getControlPanel() const { return camera_controls; }
+	void retranslateUi();
+	QString currentLanguage() const;
 
 float focus_score{0.0f};
+
+signals:
+	void languageChanged(const QString& locale);
 
 private:
     CameraPicker*   camera_picker{nullptr};
@@ -55,6 +62,15 @@ private:
     QWidget*          second_status_bar{nullptr};
     QWidget*          third_status_bar{nullptr};
     QLabel*           fps_label{nullptr};
+	QLabel*           toggle_label{nullptr};
+	QLabel*           empty_label{nullptr};
+	QLabel*           language_label{nullptr};
+	QComboBox*        language_combo{nullptr};
+	QPushButton*      tab0_visibility_button{nullptr};
+	QPushButton*      tab1_visibility_button{nullptr};
+	QPushButton*      tab2_visibility_button{nullptr};
+	QPushButton*      tab3_visibility_button{nullptr};
+	QPushButton*      tab4_visibility_button{nullptr};
     QWidget*          center_widget{nullptr};
     QStackedLayout*   stacked_layout{nullptr};
     QWidget*          empty_pane{nullptr};
@@ -63,6 +79,8 @@ private:
     QLabel*           focus_result_label{nullptr};
     QLabel*           focus_score_label{nullptr};
     QLabel*           focus_score_display{nullptr};
+
+	QString           fps_format;
 
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;

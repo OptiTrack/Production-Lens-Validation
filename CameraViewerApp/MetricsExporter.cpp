@@ -7,6 +7,7 @@
 #include <iterator>
 #include <qstring.h>
 #include <qobject.h>
+#include <QCoreApplication>
 
 const char* ENHeaders[] = {
 	"Serial number",
@@ -38,9 +39,9 @@ bool MetricsExporter::ExportMetrics() {
 
 	QString filePath = QFileDialog::getSaveFileName(
 		nullptr,
-		QObject::tr("Export Data"),
+		QCoreApplication::translate("MetricsExporter", "Export Data"),
 		defaultFileName,
-		QObject::tr("CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
+		QCoreApplication::translate("MetricsExporter", "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
 	);
 
 	if (filePath.isEmpty()) {

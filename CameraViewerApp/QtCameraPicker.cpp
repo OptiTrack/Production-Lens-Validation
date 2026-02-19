@@ -4,6 +4,7 @@
 #include <QVariant>
 #include <QSignalBlocker>
 #include <QSet>
+#include <QCoreApplication>
 
 #include "QtCameraPicker.h"
 #include "QtCameraConnectionManager.h" 
@@ -16,7 +17,7 @@ CameraPicker::CameraPicker(CameraConnectionManager* mgr, QWidget* parent)
     auto* h = new QHBoxLayout(this);
     h->setContentsMargins(0,0,0,0);
 
-    picker_label = new QLabel(tr("Camera:"), this);
+    picker_label = new QLabel(this);
     combo_box = new QComboBox(this);
 
     h->addWidget(picker_label);
@@ -33,6 +34,15 @@ CameraPicker::CameraPicker(CameraConnectionManager* mgr, QWidget* parent)
     }
 
     emit camerasPresentChanged(combo_box->count() > 0);
+
+    retranslateUi();
+}
+
+void CameraPicker::retranslateUi()
+{
+    if (picker_label) {
+        picker_label->setText(QCoreApplication::translate("CameraPicker", "Camera:"));
+    }
 }
 
 void CameraPicker::setSelectedSerial(std::optional<unsigned> s)

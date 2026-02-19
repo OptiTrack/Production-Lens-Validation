@@ -16,7 +16,7 @@ endif()
 find_package(CameraLibrary REQUIRED HINTS ${CAMERA_SDK_PATH})
 
 # Qt & OpenGL
-find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent LinguistTools)
 find_package(OpenGL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -60,6 +60,15 @@ qt6_wrap_cpp(MOC_SOURCES
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
 target_include_directories(CameraViewerApp PRIVATE widgets)
 
+# Translations
+set(TS_FILES
+    i18n/app_en.ts
+    i18n/app_zh_CN.ts
+)
+qt6_add_translation(QM_FILES ${TS_FILES})
+add_custom_target(translations ALL DEPENDS ${QM_FILES})
+add_dependencies(CameraViewerApp translations)
+
 # Copy Motive CSS to output folder
 set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
 
@@ -68,6 +77,15 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DESIGNS_DIR}/motive.css"
             "$<TARGET_FILE_DIR:CameraViewerApp>/motive.css"
+)
+
+add_custom_command(
+    TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${QM_FILES}
+        "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
 )
 
 # ------------------------------------------
