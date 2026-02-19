@@ -50,7 +50,8 @@ public:
 	void retranslateUi();
 	QString currentLanguage() const;
 
-float focus_score{0.0f};
+public slots:
+	void setViewerZoomValue(float val);
 
 signals:
 	void languageChanged(const QString& locale);
@@ -85,8 +86,8 @@ private:
     CameraConnectionManager* camera_manager{nullptr};
     std::mutex&              camera_mutex;
 	std::shared_ptr<CameraLibrary::Camera>& current_camera;
-    std::atomic<uint64_t>&   switch_epoch;
-    std::atomic<unsigned>&   active_serial;
+	std::atomic<uint64_t>& switch_epoch;
+	std::atomic<unsigned>& active_serial;
 	CameraHelper::FrameRateCalculator& fps_calculator;
 	DisplayResults* focus_result;
 	MetricsExporter& metrics_exporter;
@@ -96,4 +97,8 @@ private:
 	void setEmptyState(bool anyCamerasPresent);
 	void handleSerialSelected(std::optional<unsigned> serialOpt);
 	void onSetFocusHUDVisibility(bool toggle);
-};
+
+signals:
+	void exportMetricsRequested();
+}
+;

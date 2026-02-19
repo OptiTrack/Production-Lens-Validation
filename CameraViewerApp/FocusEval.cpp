@@ -1,21 +1,23 @@
 #pragma once
 
 #include <atomic>
-#include <thread>
-#include <mutex>
-#include <chrono>
-#include <optional>
-#include <memory>
 #include <vector>
-#include <cstdlib>
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/cvdef.h>
+#include <opencv2/core/hal/interface.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/matx.hpp>
+#include <opencv2/core/types.hpp>
+#include <opencv2/imgproc.hpp>
+#include <bitmap.h>
+#include <algorithm>
+#include <deque>
+#include <stdexcept>
+#include <qlogging.h>
 
-#include <QApplication>
-#include <QMetaObject>
 
-#include "cameralibrary.h"
 #include "FocusEval.h"
+#include "CircleMarkerDetector.h"
 
 using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
@@ -191,7 +193,7 @@ using frameScore = FocusEvaluator::frameScore;
 		// decay max slowly in case we grabbed a transient peak
 		double oldMax = maxInstanceScore;
 		maxInstanceScore = std::max(curr, maxInstanceScore * decayRate);
-		qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
+		//qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
 
 		return ratio;
 	}
@@ -217,16 +219,49 @@ using frameScore = FocusEvaluator::frameScore;
 		
 		frameScore fs = gradeFrame(bmp);
 
+		/*
 		qDebug("\n");
 		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
 		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
 		qDebug("[dbg] Contours: %d", fs.contourCount);
 		qDebug("\n");
-
+		*/
+		
 		double score = compareScoreToMax(fs);
 		addFrameScore(fs);
 
 		return score;
+	}
+
+	/// <summary>
+	/// Detects circular markers in the bitmap frame using Hough Circle detection
+	/// </summary>
+	/// <param name="bmp">Input frame bitmap from camera</param>
+	/// <returns>Vector of detected circle markers</returns>
+	std::vector<CircleMarkerDetector::CircleMarker> FocusEvaluator::DetectCircleMarkers(CameraLibrary::Bitmap* bmp) {
+		if (!m_circleDetector) {
+			qWarning("[dbg] Circle detector not initialized");
+			return std::vector<CircleMarkerDetector::CircleMarker>();
+		}
+
+		try {
+			auto circles = m_circleDetector->DetectCircles(bmp);
+			
+			if (!circles.empty()) {
+				qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
+				for (size_t i = 0; i < circles.size(); ++i) {
+					const auto& circle = circles[i];
+					qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f",
+						i, circle.center.x, circle.center.y, circle.radius);
+				}
+			}
+
+			return circles;
+		}
+		catch (const std::exception& e) {
+			qWarning("[dbg] Circle detection failed: %s", e.what());
+			return std::vector<CircleMarkerDetector::CircleMarker>();
+		}
 	}
 
 	/// <summary>

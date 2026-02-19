@@ -119,6 +119,29 @@ void CameraControlPanel::buildUi() {
         onSetGain();
     });
 
+    // Zoom Slider (1x to 20x)
+    zoom_slider = new QSlider(Qt::Horizontal, camGroup);
+    zoom_slider->setRange(1, 20);
+    zoom_slider->setValue(1);
+    zoom_slider->setMaximumWidth(100);
+    zoom_label = new QLabel("1x", camGroup);
+    zoom_label->setMaximumWidth(60);
+    zoom_label->setMinimumWidth(60);
+
+    // Sliders output an int, but the implicit conversion to float is safe.
+    connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
+        zoom_label->setText(QString::number(val) + "x");
+        onSetZoom(false);
+        });
+    zoom_button = new QPushButton("Reset", camGroup);
+    zoom_button->setProperty("primary", true);
+    connect(zoom_button, &QPushButton::clicked, this, [this]() {
+        zoom_slider->setValue(1.0);
+    });
+    zoom_button->setEnabled(false);
+	zoom_slider->setEnabled(false);
+
+
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(cam_group);
     auto* expLayout = new QVBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
@@ -150,9 +173,22 @@ void CameraControlPanel::buildUi() {
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
 
+    auto* zoomWidget = new QWidget(camGroup);
+    zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
+    auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
+    auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
+    zoomLbl->setMinimumWidth(80);
+    zoomLbl->setMaximumWidth(80);
+    zoomLayoutW->addWidget(zoomLbl, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_slider);
+    zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_button);
+    
+
     camLayout->addWidget(exposureWidget);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
+	camLayout->addWidget(zoomWidget);
 
     // Group: Focus Tool
 
@@ -193,6 +229,53 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focus_button);
     focusToolLayout->addWidget(focusHUD_button);
 
+    // Group: Circle Detection Tool
+    auto* circleDetectionGroup = new QGroupBox("Circle Detection Tool");
+    auto* circleDetectionLayout = new QVBoxLayout(this); circleDetectionLayout->setContentsMargins(6,6,6,6);
+    circleDetectionGroup->setLayout(circleDetectionLayout);
+
+    // Circle Detection enable/disable checkbox
+    circle_detect_button = new QPushButton("Circle Detection", circleDetectionGroup);
+    circle_detect_button->setCheckable(true);
+    circle_detect_button->setProperty("secondary", true);
+    circle_detect_button->setToolTip("Enable Hough Circle detection to identify circular markers");
+    
+    connect(circle_detect_button, &QPushButton::toggled, this, [this](bool checked){
+        if (checked) {
+            if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); circle_detect_button->setChecked(false); return; }
+        }
+        emit circleDetectionToggled(checked);
+    });
+    
+    circle_count_label = new QLabel("Circles Detected: ?", circleDetectionGroup);
+    circle_count_label->setStyleSheet("QLabel { font-weight: bold; }");
+    
+    // Accumulator Threshold (param2) slider and edit box
+    auto* param2Layout = new QHBoxLayout();
+    auto* param2Label = new QLabel("Param2 (Threshold):", circleDetectionGroup);
+    circle_param2_slider = new QSlider(Qt::Horizontal, circleDetectionGroup);
+    circle_param2_slider->setRange(5, 100);
+    circle_param2_slider->setValue(20);
+    circle_param2_slider->setToolTip("Accumulator threshold - higher = fewer detections");
+    
+    circle_param2_edit = new QLineEdit(circleDetectionGroup);
+    circle_param2_edit->setText("20");
+    circle_param2_edit->setMaximumWidth(50);
+    
+    param2Layout->addWidget(param2Label);
+    param2Layout->addWidget(circle_param2_slider);
+    param2Layout->addWidget(circle_param2_edit);
+    
+    connect(circle_param2_slider, &QSlider::valueChanged, this, [this](int value){
+        circle_param2_edit->setText(QString::number(value));
+        onCircleParam2Changed();
+    });
+    
+    connect(circle_param2_edit, &QLineEdit::returnPressed, this, &CameraControlPanel::onCircleParam2Changed);
+
+    circleDetectionLayout->addWidget(circle_detect_button);
+    circleDetectionLayout->addWidget(circle_count_label);
+    circleDetectionLayout->addLayout(param2Layout);
 
     leftTabWidget->addTab(tab0, QString());
 
@@ -237,18 +320,24 @@ void CameraControlPanel::buildUi() {
 
         onSetVideoMode(mode);
 
-        // Disable edge button for incompatible modes (Segment, Object, Duplex)
+        // Disable edge button and Zoom controls for incompatible modes (Segment, Object, Duplex)
         const bool isCompatible = isEdgeDetectCompatible(mode);
         edge_button->setEnabled(isCompatible);
+
+        // handle ROI-Zoom UI behavior
+        zoom_button->setEnabled(markerZoom);
+        zoom_slider->setEnabled(markerZoom);
+        if (!markerZoom) {
+            zoom_slider->setValue(1.0);
+        }
+
         if (!isCompatible && edge_button->isChecked()) {
             edge_button->setChecked(false);
             emit edgeDetectToggled(false);
         }
 
         // Handle ROI marker zoom case with grayscale mode
-        if (mode == Core::GrayscaleMode) {
-            emit onMarkerZoomToggled(markerZoom);
-        }
+        emit onMarkerZoomToggled(markerZoom);
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -740,6 +829,15 @@ void CameraControlPanel::onSetGain() {
     }
 }
 
+void CameraControlPanel::onSetZoom(bool reset) {
+    if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
+    int v = zoom_slider->value();
+    if (reset) {
+        v = 1;
+    }
+    emit zoomValueChanged(v);
+}
+
 void CameraControlPanel::onSetGamma() {
     if (!currentSerialValid()) { emit showWarning(tr("No Camera"), tr("No camera is currently selected.")); return; }
     const float g = gamma_slider->value() / 10.0f;
@@ -847,6 +945,22 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode)
             return false;
         default:
             return true;
+    }
+}
+
+void CameraControlPanel::updateCircleCount(int count)
+{
+    if (circle_count_label) {
+        circle_count_label->setText(QString("Circles Detected: %1").arg(count));
+    }
+}
+
+void CameraControlPanel::onCircleParam2Changed()
+{
+    bool ok;
+    double param2 = circle_param2_edit->text().toDouble(&ok);
+    if (ok && param2 >= 5.0 && param2 <= 100.0) {
+        emit circleParam2Changed(param2);
     }
 }
 
