@@ -8,6 +8,7 @@
 #include <QCheckBox>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QScrollArea>
 #include <QDateTime>
 #include <QCoreApplication>
 #include "widgets/graphwidget.h"
@@ -55,8 +56,14 @@ void CameraControlPanel::buildUi() {
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
 
-    // Tab: Camera Controls and Focus Tool ----------------------------------------------------------
+
+    /*
+    ********** Tab: Camera Controls and Video Modes ***************
+    */
+
     auto* tab0 = new QWidget(this);
+    auto* scrollArea = new QScrollArea;
+    scrollArea->setWidget(tab0);
     auto* v0 = new QVBoxLayout(tab0);
 
     // Group: Camera Controls (exposure, fps, gain)
@@ -119,28 +126,6 @@ void CameraControlPanel::buildUi() {
         onSetGain();
     });
 
-    // Zoom Slider (1x to 20x)
-    zoom_slider = new QSlider(Qt::Horizontal, camGroup);
-    zoom_slider->setRange(1, 20);
-    zoom_slider->setValue(1);
-    zoom_slider->setMaximumWidth(100);
-    zoom_label = new QLabel("1x", camGroup);
-    zoom_label->setMaximumWidth(60);
-    zoom_label->setMinimumWidth(60);
-
-    // Sliders output an int, but the implicit conversion to float is safe.
-    connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
-        zoom_label->setText(QString::number(val) + "x");
-        onSetZoom(false);
-        });
-    zoom_button = new QPushButton("Reset", camGroup);
-    zoom_button->setProperty("primary", true);
-    connect(zoom_button, &QPushButton::clicked, this, [this]() {
-        zoom_slider->setValue(1.0);
-    });
-    zoom_button->setEnabled(false);
-	zoom_slider->setEnabled(false);
-
 
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(cam_group);
@@ -172,23 +157,11 @@ void CameraControlPanel::buildUi() {
     gainLayoutW->addWidget(gain_slider);
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
-
-    auto* zoomWidget = new QWidget(camGroup);
-    zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
-    auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
-    auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
-    zoomLbl->setMinimumWidth(80);
-    zoomLbl->setMaximumWidth(80);
-    zoomLayoutW->addWidget(zoomLbl, 0, Qt::AlignLeft);
-    zoomLayoutW->addWidget(zoom_slider);
-    zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
-    zoomLayoutW->addWidget(zoom_button);
     
 
     camLayout->addWidget(exposureWidget);
     camLayout->addWidget(fpsWidget);
     camLayout->addWidget(gainWidget);
-	camLayout->addWidget(zoomWidget);
 
 
     // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
@@ -267,10 +240,13 @@ void CameraControlPanel::buildUi() {
     v0->addWidget(camGroup);
     v0->addWidget(videoGroup);
     v0->addStretch();
+    videoLayout->addWidget(edge_button);
     h1->addWidget(leftTabWidget);
     
 
-    // Tab: Focus Tool and Lens Inspection ----------------------------------------------------------
+    /*
+    ********** Tab: Focus Tool and Lens Inspection ***************
+    */
 
     // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
     auto* tab1 = new QWidget(this);
@@ -318,11 +294,54 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focusHUD_button);
 
     leftTabWidget->addTab(tab1, QString("Lens"));
-    videoLayout->addWidget(edge_button);
     v1->addWidget(focusToolGroup);
     v1->addStretch();
 
-    // Tab: Color compression / gamma
+    // Group: Lens Inspection
+
+    auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
+    auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
+    // Zoom Slider (1x to 20x)
+    zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
+    zoom_slider->setRange(1, 20);
+    zoom_slider->setValue(1);
+    zoom_slider->setMaximumWidth(100);
+    zoom_label = new QLabel("1x", lensInspectionGroup);
+    zoom_label->setMaximumWidth(60);
+    zoom_label->setMinimumWidth(60);
+
+    // Sliders output an int, but the implicit conversion to float is safe.
+    connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
+        zoom_label->setText(QString::number(val) + "x");
+        onSetZoom(false);
+        });
+    zoom_button = new QPushButton("Reset", lensInspectionGroup);
+    zoom_button->setProperty("primary", true);
+    connect(zoom_button, &QPushButton::clicked, this, [this]() {
+        zoom_slider->setValue(1.0);
+    });
+    zoom_button->setEnabled(false);
+	zoom_slider->setEnabled(false);
+
+    auto* zoomWidget = new QWidget(lensInspectionGroup);
+    zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
+    auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
+    auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
+    zoomLbl->setMinimumWidth(80);
+    zoomLbl->setMaximumWidth(80);
+    zoomLayoutW->addWidget(zoomLbl, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_slider);
+    zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
+    zoomLayoutW->addWidget(zoom_button);
+
+    lensInspectionLayout->addWidget(zoomWidget);
+    v1->addWidget(lensInspectionGroup);
+
+
+    /*
+    *************** Tab: Color compression / gamma ***************
+    */
+
     auto* tab2 = new QWidget(this);
     auto* v2   = new QVBoxLayout(tab2);
 
@@ -410,12 +429,16 @@ void CameraControlPanel::buildUi() {
     compLayout->addWidget(compressionCtrlsWidget);
     gammaLayout->addWidget(gammaCtrlsWidget);
 
-    leftTabWidget->addTab(tab2, QString());
-    v2->addWidget(compression_group);
-    v2->addWidget(gamma_group);
+    leftTabWidget->addTab(tab2, QString("Quality"));
+    v2->addWidget(compGroup);
+    v2->addWidget(gammaGroup);
     v2->addStretch();
 
-	// Tab for statistics graphs with MetricController integration
+
+	/*
+    ********** Tab for statistics graphs with MetricController integration ***************
+    */
+
     auto* tabStats = new QWidget(this);
     auto* vStats = new QVBoxLayout(tabStats);
 
@@ -436,9 +459,13 @@ void CameraControlPanel::buildUi() {
     vStats->addWidget(lens_metrics_widgets->groupBox);
     vStats->addStretch();
 
-    leftTabWidget->addTab(tabStats, QString());
+    leftTabWidget->addTab(tabStats, "Statistics");
 
-	// Tab for Exporter ----------------------------------------------------------
+
+	/*
+    *************** Tab for Exporter ***************
+    */
+   
     auto* tabExpo = new QWidget(this);
     auto* vExpo = new QVBoxLayout(tabExpo);
 
