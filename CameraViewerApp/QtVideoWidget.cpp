@@ -7,7 +7,7 @@
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
 #include <bitmap.h>
-#include <gl/GL.h>
+#include <GL/gl.h>
 #include <cstddef>
 #include <memory>
 #include <qopenglext.h>
