@@ -10,3 +10,4 @@
 /CameraViewerApp/BuildCameraApp.bat
 /CameraViewerApp/buildLog.txt
 /CameraViewerApp/out
+/CameraViewerApp/CMakeLists.txt
