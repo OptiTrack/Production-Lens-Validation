@@ -213,10 +213,10 @@ void CameraControlPanel::buildUi() {
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
-    auto* videoGroup = new QGroupBox("Video Modes");
-    auto* videoLayout = new QVBoxLayout(videoGroup); videoLayout->setContentsMargins(6,6,6,6);
-    videoGroup->setLayout(videoLayout);
-    videoLayout->addWidget(video_mode_combo);
+    video_group = new QGroupBox(this);
+    auto* video_layout = new QVBoxLayout(video_group); video_layout->setContentsMargins(6,6,6,6);
+    video_group->setLayout(video_layout);
+    video_layout->addWidget(video_mode_combo);
     edge_button = new QPushButton(video_group);
     edge_button->setCheckable(true);
     edge_button->setProperty("secondary", true);
@@ -234,13 +234,13 @@ void CameraControlPanel::buildUi() {
     edge_button->setToolTip(QString());
 
 
-    leftTabWidget->addTab(tab0, QString("Controls"));
+    leftTabWidget->addTab(tab0, QString());
 
-    // add camera controls and focus tool to tab
-    v0->addWidget(camGroup);
-    v0->addWidget(videoGroup);
+    // add camera controls and video modes to tab
+    v0->addWidget(cam_group);
+    v0->addWidget(video_group);
     v0->addStretch();
-    videoLayout->addWidget(edge_button);
+    video_layout->addWidget(edge_button);
     h1->addWidget(leftTabWidget);
     
 
@@ -293,7 +293,7 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focus_button);
     focusToolLayout->addWidget(focusHUD_button);
 
-    leftTabWidget->addTab(tab1, QString("Lens"));
+    leftTabWidget->addTab(tab1, QString());
     v1->addWidget(focusToolGroup);
 
     // Group: Lens Inspection
@@ -429,9 +429,9 @@ void CameraControlPanel::buildUi() {
     compLayout->addWidget(compressionCtrlsWidget);
     gammaLayout->addWidget(gammaCtrlsWidget);
 
-    leftTabWidget->addTab(tab2, QString("Quality"));
-    v2->addWidget(compGroup);
-    v2->addWidget(gammaGroup);
+    leftTabWidget->addTab(tab2, QString());
+    v2->addWidget(compression_group);
+    v2->addWidget(gamma_group);
     v2->addStretch();
 
 
@@ -760,8 +760,8 @@ void CameraControlPanel::retranslateUi()
 
     if (leftTabWidget) {
         leftTabWidget->setTabText(0, tr("Controls"));
-        leftTabWidget->setTabText(1, tr("Video Modes"));
-        leftTabWidget->setTabText(2, tr("Color"));
+        leftTabWidget->setTabText(1, tr("Lens"));
+        leftTabWidget->setTabText(2, tr("Quality"));
         leftTabWidget->setTabText(3, tr("Statistics"));
         leftTabWidget->setTabText(4, tr("Exporter"));
     }

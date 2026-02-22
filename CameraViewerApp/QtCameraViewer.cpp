@@ -93,8 +93,8 @@ void QtCameraViewer::buildUi()
 	sh->addWidget(fps_label);
 	sh->addStretch(1);
 
-	language_label = new QLabel(status_bar);
-	language_combo = new QComboBox(status_bar);
+	language_label = new QLabel(fps_bar);
+	language_combo = new QComboBox(fps_bar);
 	language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
 	language_combo->addItem(QStringLiteral("Simplified Chinese"), QStringLiteral("zh_CN"));
 	connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -293,10 +293,16 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt)
 	}
 }
 
+void QtCameraViewer::setViewerZoomValue(float val) {
+	if (gl_viewer_window) {
+		gl_viewer_window->setNewZoomValue(val);
+	}
+}
+
+
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
-    if (this->focus_result_bar) {
-        this->focus_result_bar->setVisible(toggle);
-    }
+    this->focus_result_bar->setVisible(toggle);
+    this->focus_score_bar->setVisible(toggle);
 }
 
 void QtCameraViewer::retranslateUi()
