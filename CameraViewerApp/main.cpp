@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
     fe.focusToolEnabled = true; // changed by focus UI control; set True by default
     const int focusEvalFrameGap = 10;
     int frameCount = 0;
+    double score = 0;
 
     // Wire UI signals after creating evaluator and panel
     if (panel) {
@@ -309,11 +310,11 @@ int main(int argc, char *argv[])
                 }
                 // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
                 if (!fe.focusToolEnabled) {
-                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer, &mExport]() {
+                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer, &mMgr]() {
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, viewer, mExport]() {
-                                focus_result->updateTextandColor(-1, mExport);
+                            [focus_result, score, viewer, mMgr]() {
+                                focus_result->updateTextandColor(-1, mMgr);
                                 viewer->focus_score = 0;
                             },
                             Qt::QueuedConnection

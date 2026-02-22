@@ -16,7 +16,7 @@ public:
         setAutoFillBackground(true);
     }
 
-    void updateTextandColor(double score, MetricsExporter mExport) {
+    void updateTextandColor(double score, MetricsManager mMgr) {
 
         // score will be -1 during condition when the focus tool was on and
         // updating at first, but was eventually turned off by the user
@@ -28,7 +28,7 @@ public:
 
         // change color and text of result depending on success rate
         else if ((0 < score) && (score < .65)) {
-			mExport.setFocusOptimal(false);
+			mMgr.setFocusOptimal(false);
 			this->setText(QCoreApplication::translate("DisplayResults", "Failure"));
             this->setStyleSheet("color:FireBrick; font-weight:600;");
         }

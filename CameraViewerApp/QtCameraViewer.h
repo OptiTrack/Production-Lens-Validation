@@ -83,6 +83,8 @@ private:
     VideoWidget*      gl_viewer_window{nullptr};
     QLabel*           focus_result_label{nullptr};
 	QLabel*			  lens_result_label{ nullptr };
+    QLabel*           focus_score_label{nullptr};
+    QLabel*           focus_score_display{nullptr};
 	QString           fps_format;
 
     CameraConnectionManager* camera_manager{nullptr};
