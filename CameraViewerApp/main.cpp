@@ -23,7 +23,7 @@
 #include "CameraHelpers.h"
 #include "BitmapPool.h"
 #include "FocusEval.h"
-#include "MetricsExporter.h"
+#include "MetricsManager.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -32,7 +32,8 @@
 #include <qfuture.h>
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
-#include "FocusResultText.h"
+#include "FocusResultLabel.h"
+#include "LensResultLabel.h"
 #include <qobject.h>
 
 using namespace CameraLibrary;
@@ -100,13 +101,14 @@ int main(int argc, char *argv[])
 
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
-    DisplayResults* focus_result = new DisplayResults("Disabled");
+    FocusResultLabel* focus_result = new FocusResultLabel("Disabled");
+    LensResultLabel* lens_result = new LensResultLabel("Unknown");
 
-    MetricsExporter mExport;
+    MetricsManager mMgr;
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, focus_result, mExport, nullptr);
+                                      fps_calculator, focus_result, lens_result, mMgr, nullptr);
 
    
     // Remove any current installed translators to ensure a clean slate, then install the appropriate ones based on the current locale
@@ -154,8 +156,8 @@ int main(int argc, char *argv[])
 
     // set up shared metrics object and make Qt signal connection
     QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
-        [&mExport]() {
-            mExport.ExportMetrics();
+        [&mMgr]() {
+            mMgr.ExportMetrics();
         });
 
     viewer->resize(1100, 600);
@@ -216,7 +218,7 @@ int main(int argc, char *argv[])
             std::shared_ptr<Camera> cam;
             { std::lock_guard<std::mutex> lk(cam_mutex); cam = current_camera; }
             if (!cam) { std::this_thread::sleep_for(std::chrono::milliseconds(50)); continue; }
-            const uint64_t current_epoch  = switch_epoch.load(std::memory_order_acquire);
+            const uint64_t current_epoch = switch_epoch.load(std::memory_order_acquire);
             const unsigned current_serial = active_serial.load(std::memory_order_acquire);
             const unsigned cam_serial = cam->Serial();
 
@@ -235,8 +237,8 @@ int main(int argc, char *argv[])
 
                 const auto ftype = frame->FrameType();
                 unsigned outBpp = (ftype == Core::ObjectMode) || (ftype == Core::SegmentMode) ? 24U
-                                : (ftype == Core::GrayscaleMode) ? 8U
-                                : 32U;
+                    : (ftype == Core::GrayscaleMode) ? 8U
+                    : 32U;
                 const int bytesPerPixel = int(outBpp / 8);
                 const int stride = w * bytesPerPixel;
 
@@ -250,7 +252,12 @@ int main(int argc, char *argv[])
 
                 frame->Rasterize(*cam, raw_bmp);
 
-                double score = 0;
+                // update lens result with current grade
+                QtConcurrent::run([lens_result, &mMgr]() {
+                    QMetaObject::invokeMethod(qApp, [lens_result, &mMgr]() {
+                        lens_result->updateTextandColor(mMgr);
+                        }, Qt::QueuedConnection);
+                });
 
                 // if focus evaluation enabled, do so now
                 if (fe.focusToolEnabled && frameCount == 0) {
@@ -262,7 +269,7 @@ int main(int argc, char *argv[])
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
 
-                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mExport]() {
+                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mMgr]() {
                         int circleCount = 0;
                         if (circleDetectionEnabled.load(std::memory_order_acquire)) {
                             auto circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
@@ -278,9 +285,9 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, panel, viewer, relativeTime, &mExport]() {
+                            [focus_result, score, circleCount, panel, viewer, relativeTime, &mMgr]() {
 
-                                focus_result->updateTextandColor(score, mExport);
+                                focus_result->updateTextandColor(score, mMgr);
 
                                 if (panel) {
                                     panel->updateCircleCount(circleCount);
