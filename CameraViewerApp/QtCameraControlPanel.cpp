@@ -127,29 +127,6 @@ void CameraControlPanel::buildUi() {
         onSetGain();
     });
 
-    // Zoom Slider (1x to 20x)
-    zoom_slider = new QSlider(Qt::Horizontal, cam_group);
-    zoom_slider->setRange(1, 20);
-    zoom_slider->setValue(1);
-    zoom_slider->setMaximumWidth(100);
-    zoom_label = new QLabel("1x", cam_group);
-    zoom_label->setMaximumWidth(60);
-    zoom_label->setMinimumWidth(60);
-
-    // Sliders output an int, but the implicit conversion to float is safe.
-    connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
-        zoom_label->setText(QString::number(val) + "x");
-        onSetZoom(false);
-        });
-    zoom_button = new QPushButton("Reset", cam_group);
-    zoom_button->setProperty("secondary", true);
-    connect(zoom_button, &QPushButton::clicked, this, [this]() {
-        zoom_slider->setValue(1.0);
-    });
-    zoom_button->setEnabled(false);
-	zoom_slider->setEnabled(false);
-
-
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(cam_group);
     auto* expLayout = new QVBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
