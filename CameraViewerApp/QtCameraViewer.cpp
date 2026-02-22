@@ -87,17 +87,16 @@ void QtCameraViewer::buildUi()
 	camera_controls = new CameraControlPanel(camera_manager, metrics_manager, this);
 
 	// Row 2: Status bar with FPS
-	status_bar = new QWidget(this);
-
-	auto* sh = new QHBoxLayout(status_bar);
+	fps_bar = new QWidget(this);
+	auto* sh = new QHBoxLayout(fps_bar);
     sh->setContentsMargins(6,0,6,0);
-	fps_label = new QLabel(status_bar);
+	fps_label = new QLabel("FPS: —", fps_bar);
 	fps_label->setStyleSheet("color:#ddd; font-weight:600;");
 	sh->addWidget(fps_label);
 	sh->addStretch(1);
 
-	language_label = new QLabel(status_bar);
-	language_combo = new QComboBox(status_bar);
+	language_label = new QLabel(fps_bar);
+	language_combo = new QComboBox(fps_bar);
 	language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
 	language_combo->addItem(QStringLiteral("Simplified Chinese"), QStringLiteral("zh_CN"));
 	connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -142,6 +141,7 @@ void QtCameraViewer::buildUi()
 	second_box->addStretch(1);
 
 	v->addWidget(second_status_bar);
+	v->addWidget(fps_bar);
 
 	auto* fpsTimer = new QTimer(this);
 	fpsTimer->setInterval(500);
@@ -153,35 +153,66 @@ void QtCameraViewer::buildUi()
 		});
 	fpsTimer->start();
 
-	// Row 4: Third status bar, this time holding toggle buttons for the tabs' visibility
-	third_status_bar = new QWidget(this);
-	auto* third_box = new QHBoxLayout(third_status_bar);
-	third_box->setContentsMargins(6, 0, 6, 0);
-	toggle_label = new QLabel(third_status_bar);
-	tab0_visibility_button = new QPushButton(third_status_bar);
+    // Row 3: Another status bar, this time with focus eval result (red, green, yellow)
+    focus_result_bar = new QWidget(this);
+    auto* second_box = new QHBoxLayout(focus_result_bar);
+    second_box->setContentsMargins(6,0,6,0);
+    focus_result_label = new QLabel("Focus Result:", focus_result_bar);
+    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+    second_box->addWidget(focus_result_label);
+    second_box->addWidget(focus_result);
+    second_box->addStretch(1);
 
-	// tab0_visibility_button->setMaximumSize(50, 50);
-	connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
-	tab1_visibility_button = new QPushButton(third_status_bar);
-	connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-	tab2_visibility_button = new QPushButton(third_status_bar);
-	connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
-	tab3_visibility_button = new QPushButton(third_status_bar);
-	connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
-	tab4_visibility_button = new QPushButton(third_status_bar);
+    v->addWidget(focus_result_bar);
+
+    // Row 4: Another status bar, this time with focus eval score (actual number)
+    focus_score_bar = new QWidget(this);
+    auto* third_box = new QHBoxLayout(focus_score_bar);
+    third_box->setContentsMargins(6,0,6,0);
+    focus_score_label = new QLabel("Focus Score:", focus_score_bar);
+    focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
+    focus_score_display = new QLabel(focus_score_bar);
+    focus_score_display->setText(QString::number(focus_score));
+    focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
+    third_box->addWidget(focus_score_label);
+    third_box->addWidget(focus_score_display);
+    third_box->addStretch(1);
+
+    v->addWidget(focus_score_bar);
+
+	// change visibility of focus tool HUD
+    connect(camera_controls, &CameraControlPanel::focusHUDToggled, this, &QtCameraViewer::onSetFocusHUDVisibility);
+
+	// Row 5: Contains toggle buttons for the tabs' visibility
+    toggle_tabs_bar = new QWidget(this);
+    auto* toggle_tabs_box = new QHBoxLayout(toggle_tabs_bar);
+    toggle_tabs_box->setContentsMargins(6,0,6,0);
+    auto* toggle_label = new QLabel("Toggle Tabs:", toggle_tabs_bar);
+    auto* tab0_visibility_button = new QPushButton("Controls", toggle_tabs_bar);
+    // tab0_visibility_button->setMaximumSize(50, 50);
+    connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
+    auto* tab1_visibility_button = new QPushButton("Lens", toggle_tabs_bar);
+    connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
+    auto* tab2_visibility_button = new QPushButton("Quality", toggle_tabs_bar);
+    connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
+    auto* tab3_visibility_button = new QPushButton("Statistics", toggle_tabs_bar);
+    connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
+	auto* tab4_visibility_button = new QPushButton("Exporter", toggle_tabs_bar);
     connect(tab4_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab4Visibility);
 
-	third_box->addWidget(toggle_label);
-	third_box->addWidget(tab0_visibility_button);
-	third_box->addWidget(tab1_visibility_button);
-	third_box->addWidget(tab2_visibility_button);
-	third_box->addWidget(tab3_visibility_button);
-	third_box->addWidget(tab4_visibility_button);
-	third_box->addStretch(1);
+    toggle_tabs_box->addWidget(toggle_label);
+    toggle_tabs_box->addWidget(tab0_visibility_button);
+    toggle_tabs_box->addWidget(tab1_visibility_button);
+    toggle_tabs_box->addWidget(tab2_visibility_button);
+    toggle_tabs_box->addWidget(tab3_visibility_button);
+	toggle_tabs_box->addWidget(tab4_visibility_button);
+    toggle_tabs_box->addStretch(1);
 
-	v->addWidget(third_status_bar);
+	
+	v->addWidget(toggle_tabs_bar);
 
-	// Row 5: Another status bar, this time with focus eval results
+
 	// only add camera_controls after all of the other things (camera picker, etc.)
 
 
@@ -301,10 +332,10 @@ void QtCameraViewer::setViewerZoomValue(float val) {
 	}
 }
 
+
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
-    if (this->second_status_bar) {
-        this->second_status_bar->setVisible(toggle);
-    }
+    this->focus_result_bar->setVisible(toggle);
+    this->focus_score_bar->setVisible(toggle);
 }
 
 void QtCameraViewer::retranslateUi()

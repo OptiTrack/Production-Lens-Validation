@@ -62,9 +62,10 @@ signals:
 private:
     CameraPicker*   camera_picker{nullptr};
     CameraControlPanel* camera_controls{nullptr};
-	QWidget*          status_bar{nullptr};
-    QWidget*          second_status_bar{nullptr};
-    QWidget*          third_status_bar{nullptr};
+	QWidget*          fps_bar{nullptr};
+    QWidget*          focus_result_bar{nullptr};
+    QWidget*          focus_score_bar{nullptr};
+	QWidget* 		  toggle_tabs_bar{ nullptr };
     QLabel*           fps_label{nullptr};
 	QLabel*           toggle_label{nullptr};
 	QLabel*           empty_label{nullptr};
