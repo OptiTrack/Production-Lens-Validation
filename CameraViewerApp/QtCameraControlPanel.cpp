@@ -11,9 +11,10 @@
 #include <QScrollArea>
 #include <QDateTime>
 #include <QCoreApplication>
+#include <QGuiApplication.h>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
-
+#include <QGuiApplication.h>
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
 #include "QtCameraViewer.h"
