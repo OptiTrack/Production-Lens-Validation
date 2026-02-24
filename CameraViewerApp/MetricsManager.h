@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 
-class MetricsExporter {
+class MetricsManager {
 public:
 
 	enum lensDisposition {
@@ -11,14 +11,14 @@ public:
 		fail
 	};
 
-	enum defectType {
+	enum markerClass {
 		hook,
 		oval,
-		none
+		circle,
 	};
 
-	struct lensDefect {
-		defectType dType;
+	struct contourData {
+		markerClass mClass;
 		int pxWPosition;
 		int pxHPosition;
 	};
@@ -31,7 +31,7 @@ public:
 	struct lensMetrics {
 		bool lensFocusOptimal = false;
 		lensDisposition lensDisp = check;
-		std::vector<lensDefect> lensDefects;
+		std::vector<contourData> visibleMarkers;
 		std::string lensSerial;
 		OutputLanguage lang = English;
 	};
@@ -47,12 +47,12 @@ public:
 	void setLanguage(OutputLanguage lang) { m_metrics.lang = lang; }
 	void setDisposition(lensDisposition disp) { m_metrics.lensDisp = disp; }
 	void setFocusOptimal(bool optimal) { m_metrics.lensFocusOptimal = optimal; }
-	void addDefect(const lensDefect& defect) { m_metrics.lensDefects.push_back(defect); }
-	void clearDefects() { m_metrics.lensDefects.clear(); }
+	void addMarker(const contourData& marker) { m_metrics.visibleMarkers.push_back(marker); }
+	void clearMarkers() { m_metrics.visibleMarkers.clear(); }
 
 private:
 	lensMetrics m_metrics;
 
-	static const char* DispositionToString(MetricsExporter::lensDisposition ds);
-	static const char* DefectTypeToString(MetricsExporter::defectType dt);
+	static const char* LensDispositionToString(MetricsManager::lensDisposition ds);
+	static const char* MarkerClassifierToString(MetricsManager::markerClass mc);
 };

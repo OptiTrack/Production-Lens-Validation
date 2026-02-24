@@ -9,7 +9,7 @@
 #include <QString>
 #include <QLineEdit>
 #include <QSlider>
-#include "MetricsExporter.h"
+#include "MetricsManager.h"
 #include <QDir>
 
 class GraphWidget;
@@ -49,7 +49,7 @@ class CameraConnectionManager;
 class CameraControlPanel : public QWidget {
     Q_OBJECT
 public:
-    explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent = nullptr);
+    explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsManager& mMgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
     
@@ -60,7 +60,7 @@ public:
     void setVideoWidget(VideoWidget* widget) { gl_viewer_window = widget; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	void retranslateUi();
-	void setExportLanguage(MetricsExporter::OutputLanguage lang);
+	void setExportLanguage(MetricsManager::OutputLanguage lang);
 signals:
     void showWarning(const QString& title, const QString& message);
     // Toggle circle detection
@@ -158,7 +158,7 @@ private:
 
     // Exporter Tab
     QLineEdit*        serial_input{nullptr};
-    MetricsExporter&  metrics_exporter;
+    MetricsManager&   metrics_manager;
     VideoWidget*      gl_viewer_window{nullptr};
     CameraControlPanel* camera_controls{nullptr};
     bool              overlayState{ true };

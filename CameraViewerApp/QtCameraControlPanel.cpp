@@ -20,14 +20,14 @@
 #include "QtCameraViewer.h"
 #include "QtVideoWidget.h"
 #include "CameraHelpers.h"
-#include "MetricsExporter.h"
+#include "MetricsManager.h"
 
 using namespace CameraLibrary;
 
 // Specialized collection of widgets for camera controls
 
-CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, MetricsExporter& metricsExporter, QWidget* parent)
-    : QWidget(parent), camera_manager(mgr), metrics_exporter(metricsExporter) {
+CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, MetricsManager& mMgr, QWidget* parent)
+    : QWidget(parent), camera_manager(mgr), metrics_manager(mMgr) {
     buildUi();
     connect(this, &CameraControlPanel::showWarning, this, [](const QString& t, const QString& m){
         QMessageBox::warning(nullptr, t, m);
@@ -86,7 +86,7 @@ void CameraControlPanel::buildUi() {
         updateSliderLabels();
     });
     exposure_button = new QPushButton(cam_group);
-    exposure_button->setProperty("primary", true);
+    exposure_button->setProperty("secondary", true);
     connect(exposure_button, &QPushButton::clicked, this, [this](){
         onSetExposure();
     });
@@ -104,7 +104,7 @@ void CameraControlPanel::buildUi() {
         updateSliderLabels();
     });
     fps_button  = new QPushButton(cam_group);
-    fps_button->setProperty("primary", true);
+    fps_button->setProperty("secondary", true);
     connect(fps_button, &QPushButton::clicked, this, [this](){
         onSetFps();
     });
@@ -122,11 +122,10 @@ void CameraControlPanel::buildUi() {
         updateSliderLabels();
     });
     gain_button  = new QPushButton(cam_group);
-    gain_button->setProperty("primary", true);
+    gain_button->setProperty("secondary", true);
     connect(gain_button, &QPushButton::clicked, this, [this](){
         onSetGain();
     });
-
 
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(cam_group);
@@ -379,7 +378,7 @@ void CameraControlPanel::buildUi() {
     repopulateCompressionModes();
 
     set_compression_button = new QPushButton(compression_group);
-    set_compression_button->setProperty("primary", true);
+    set_compression_button->setProperty("secondary", true);
     connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
     // Build compression controls widget
@@ -416,7 +415,7 @@ void CameraControlPanel::buildUi() {
     });
 
     gamma_button = new QPushButton(compression_group);
-    gamma_button->setProperty("primary", true);
+    gamma_button->setProperty("secondary", true);
     connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
     auto* gammaCtrlsWidget = new QWidget(compression_group);
@@ -473,7 +472,7 @@ void CameraControlPanel::buildUi() {
 	// Serial number input
 	serial_input = new QLineEdit(tabExpo);
 	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
-		metrics_exporter.setLensSerial(text.toStdString());
+		metrics_manager.setLensSerial(text.toStdString());
 	});
 	vExpo->addWidget(serial_input);
 
@@ -481,6 +480,7 @@ void CameraControlPanel::buildUi() {
 	auto* browseDirLayout = new QHBoxLayout();
     browse_label = new QLabel(tabExpo);
     browse_button = new QPushButton(tabExpo);
+    browse_button->setProperty("secondary", true);
 	connect(browse_button, &QPushButton::clicked, this, [this]() {
 		QString dir = QFileDialog::getExistingDirectory(
 			this,
@@ -499,7 +499,7 @@ void CameraControlPanel::buildUi() {
 
 	// Screenshot button
     screenshot_button = new QPushButton(tabExpo);
-	screenshot_button->setProperty("primary", true);
+	screenshot_button->setProperty("secondary", true);
 	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
 		takeScreenshot();
         emit showWarning(tr("Screenshot"), tr("Screenshot saved!"));
@@ -508,7 +508,7 @@ void CameraControlPanel::buildUi() {
 
 	// Export metrics button
     metrics_export_button = new QPushButton(tabExpo);
-	metrics_export_button->setProperty("primary", true);
+    metrics_export_button->setProperty("secondary", true);
 	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
 		emit exportMetricsRequested();
 	});
@@ -517,6 +517,7 @@ void CameraControlPanel::buildUi() {
 	// Overlay enable/disable checkbox
     overlay_button = new QCheckBox(tabExpo);
 	overlay_button->setChecked(true);
+    overlay_button->setProperty("secondary", true);
 	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
 		overlayState = overlay_button->isChecked();
         updateOverlayButtonText();
@@ -584,9 +585,9 @@ MetricWidgets* CameraControlPanel::createMetricWidgets(const QString name, const
     return metricWidgets;
 }
 
-void CameraControlPanel::setExportLanguage(MetricsExporter::OutputLanguage lang)
+void CameraControlPanel::setExportLanguage(MetricsManager::OutputLanguage lang)
 {
-    metrics_exporter.setLanguage(lang);
+    metrics_manager.setLanguage(lang);
 }
 
 void CameraControlPanel::updateFocusButtonText()

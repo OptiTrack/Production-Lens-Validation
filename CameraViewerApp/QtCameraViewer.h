@@ -9,8 +9,9 @@
 #include <optional>
 #include <atomic>
 #include <mutex>
-#include "FocusResultText.h"
-#include "MetricsExporter.h"
+#include "FocusResultLabel.h"
+#include "LensResultLabel.h"
+#include "MetricsManager.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -38,8 +39,9 @@ public:
 		std::atomic<uint64_t>& switchEpoch,
 		std::atomic<unsigned>& activeSerial,
 		CameraHelper::FrameRateCalculator& fpsCalc,
-		DisplayResults* focus_result,
-		MetricsExporter& metricsExporter,
+		FocusResultLabel* focus_result,
+		LensResultLabel* lens_result,
+		MetricsManager& mMgr,
 		QWidget* parent = nullptr);
 
 	static void ApplyAppStyle();
@@ -80,9 +82,9 @@ private:
     QWidget*          viewer_container{nullptr};
     VideoWidget*      gl_viewer_window{nullptr};
     QLabel*           focus_result_label{nullptr};
+	QLabel*			  lens_result_label{ nullptr };
     QLabel*           focus_score_label{nullptr};
     QLabel*           focus_score_display{nullptr};
-
 	QString           fps_format;
 
     CameraConnectionManager* camera_manager{nullptr};
@@ -91,8 +93,9 @@ private:
 	std::atomic<uint64_t>& switch_epoch;
 	std::atomic<unsigned>& active_serial;
 	CameraHelper::FrameRateCalculator& fps_calculator;
-	DisplayResults* focus_result;
-	MetricsExporter& metrics_exporter;
+	FocusResultLabel* focus_result;
+	LensResultLabel* lens_result;
+	MetricsManager& metrics_manager;
 
 	void buildUi();
 	void wireSignals();

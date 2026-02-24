@@ -21,7 +21,7 @@
 #include "QtCameraControlPanel.h"
 #include "QtVideoWidget.h"
 #include "CameraHelpers.h"
-#include "MetricsExporter.h"
+#include "MetricsManager.h"
 
 // Main Collection of Widgets and layouts for the application
 
@@ -54,8 +54,9 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 	std::atomic<uint64_t>& switchEpoch,
 	std::atomic<unsigned>& activeSerial,
 	CameraHelper::FrameRateCalculator& fpsCalc,
-	DisplayResults* newText,
-	MetricsExporter& metricsExporter,
+	FocusResultLabel* focusResult,
+	LensResultLabel* lensResult,
+	MetricsManager& MetricsManager,
 	QWidget* parent)
 	: QWidget(parent)
 	, camera_manager(mgr)
@@ -64,8 +65,9 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 	, switch_epoch(switchEpoch)
 	, active_serial(activeSerial)
 	, fps_calculator(fpsCalc)
-	, focus_result(newText)
-	, metrics_exporter(metricsExporter)
+	, focus_result(focusResult)
+	, lens_result(lensResult)
+	, metrics_manager(MetricsManager)
 {
 	buildUi();
 	wireSignals();
@@ -82,7 +84,7 @@ void QtCameraViewer::buildUi()
 	v->addWidget(camera_picker);
 
 	// Controls panel that later comes in Row 5
-	camera_controls = new CameraControlPanel(camera_manager, metrics_exporter, this);
+	camera_controls = new CameraControlPanel(camera_manager, metrics_manager, this);
 
 	// Row 2: Status bar with FPS
 	fps_bar = new QWidget(this);
@@ -120,33 +122,49 @@ void QtCameraViewer::buildUi()
 		});
 	fpsTimer->start();
 
-    // Row 3: Another status bar, this time with focus eval result (red, green, yellow)
-    focus_result_bar = new QWidget(this);
-    auto* second_box = new QHBoxLayout(focus_result_bar);
-    second_box->setContentsMargins(6,0,6,0);
-    focus_result_label = new QLabel("Focus Result:", focus_result_bar);
-    focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-    focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-    second_box->addWidget(focus_result_label);
-    second_box->addWidget(focus_result);
-    second_box->addStretch(1);
+	// Row 3: Status bar with focus eval result and lens grade
+	focus_result_bar = new QWidget(this);
+	auto* second_box = new QHBoxLayout(focus_result_bar);
+	second_box->setContentsMargins(6, 0, 6, 0);
 
-    v->addWidget(focus_result_bar);
+	focus_result_label = new QLabel("Focus Result:", focus_result_bar);
+	focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+	focus_result_label->setMinimumWidth(80);
 
-    // Row 4: Another status bar, this time with focus eval score (actual number)
-    focus_score_bar = new QWidget(this);
-    auto* third_box = new QHBoxLayout(focus_score_bar);
-    third_box->setContentsMargins(6,0,6,0);
-    focus_score_label = new QLabel("Focus Score:", focus_score_bar);
-    focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
-    focus_score_display = new QLabel(focus_score_bar);
-    focus_score_display->setText(QString::number(focus_score));
-    focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
-    third_box->addWidget(focus_score_label);
-    third_box->addWidget(focus_score_display);
-    third_box->addStretch(1);
+	lens_result_label = new QLabel("Lens Grade:", focus_result_bar);
+	lens_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+	lens_result_label->setMinimumWidth(80);
 
-    v->addWidget(focus_score_bar);
+	focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+	focus_result->setMinimumWidth(200);
+	focus_result->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+
+	lens_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+	lens_result->setMinimumWidth(80);
+	lens_result->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+
+	second_box->addWidget(focus_result_label);
+	second_box->addWidget(focus_result);
+	second_box->addWidget(lens_result_label);
+	second_box->addWidget(lens_result);
+	second_box->addStretch(1);
+
+	v->addWidget(focus_result_bar);
+
+	// Row 4: Status bar with focus eval score (actual number)
+	focus_score_bar = new QWidget(this);
+	auto* third_box = new QHBoxLayout(focus_score_bar);
+	third_box->setContentsMargins(6,0,6,0);
+	focus_score_label = new QLabel("Focus Score:", focus_score_bar);
+	focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
+	focus_score_display = new QLabel(focus_score_bar);
+	focus_score_display->setText(QString::number(focus_score));
+	focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
+	third_box->addWidget(focus_score_label);
+	third_box->addWidget(focus_score_display);
+	third_box->addStretch(1);
+
+	v->addWidget(focus_score_bar);
 
 	// change visibility of focus tool HUD
     connect(camera_controls, &CameraControlPanel::focusHUDToggled, this, &QtCameraViewer::onSetFocusHUDVisibility);
@@ -314,6 +332,9 @@ void QtCameraViewer::retranslateUi()
 	if (focus_result_label) {
 		focus_result_label->setText(QCoreApplication::translate("QtCameraViewer", "Focus Result:"));
 	}
+	if (lens_result_label) {
+		lens_result_label->setText(QCoreApplication::translate("QtCameraViewer", "Lens Grade:"));
+	}
 	if (toggle_label) {
 		toggle_label->setText(QCoreApplication::translate("QtCameraViewer", "Toggle Tabs:"));
 	}
@@ -348,8 +369,8 @@ void QtCameraViewer::retranslateUi()
 	if (camera_controls) {
 		const QString locale = currentLanguage();
 		camera_controls->setExportLanguage(locale == QLatin1String("zh_CN")
-			? MetricsExporter::Chinese
-			: MetricsExporter::English);
+			? MetricsManager::Chinese
+			: MetricsManager::English);
 		camera_controls->retranslateUi();
 	}
 }

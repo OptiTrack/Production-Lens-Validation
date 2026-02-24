@@ -1,18 +1,17 @@
 #include <fstream>
 #include <string>
 #include <qfiledialog.h>
-#include "MetricsExporter.h"
+#include "MetricsManager.h"
 #include <ios>
 #include <qlogging.h>
 #include <iterator>
 #include <qstring.h>
-#include <qobject.h>
 #include <QCoreApplication>
 
 const char* ENHeaders[] = {
 	"Serial number",
 	"Disposition",
-	"Defect type",
+	"Marker appearance",
 	"X (px)",
 	"Y (px)",
 	"Lens focus optimal",
@@ -27,21 +26,21 @@ const char* CNHeaders[] = {
 	u8"镜头对焦是否最佳？",
 };
 
-using lensMetrics = MetricsExporter::lensMetrics;
+using lensMetrics = MetricsManager::lensMetrics;
 
 /// <summary>
 /// Export the current lens metrics to CSV file
 /// </summary>
 /// <returns>True if export succeeded, false otherwise</returns>
-bool MetricsExporter::ExportMetrics() {
+bool MetricsManager::ExportMetrics() {
 
 	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_metrics.lensSerial.c_str());
 
 	QString filePath = QFileDialog::getSaveFileName(
 		nullptr,
-		QCoreApplication::translate("MetricsExporter", "Export Data"),
+		QCoreApplication::translate("MetricsManager", "Export Data"),
 		defaultFileName,
-		QCoreApplication::translate("MetricsExporter", "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
+		QCoreApplication::translate("MetricsManager", "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
 	);
 
 	if (filePath.isEmpty()) {
@@ -58,7 +57,7 @@ bool MetricsExporter::ExportMetrics() {
 	size_t hCount = 0;
 
 	// language check
-	if (m_metrics.lang == MetricsExporter::English) {
+	if (m_metrics.lang == MetricsManager::English) {
 		hTable = ENHeaders;
 		hCount = std::size(ENHeaders);
 	}
@@ -74,10 +73,10 @@ bool MetricsExporter::ExportMetrics() {
 	}
 	out << "\n";
 
-	for (const auto& d : m_metrics.lensDefects) {
+	for (const auto& d : m_metrics.visibleMarkers) {
 		out << m_metrics.lensSerial << ","
-			<< DispositionToString(m_metrics.lensDisp) << ","
-			<< DefectTypeToString(d.dType) << ","
+			<< LensDispositionToString(m_metrics.lensDisp) << ","
+			<< MarkerClassifierToString(d.mClass) << ","
 			<< d.pxWPosition << ","
 			<< d.pxHPosition << ","
 			<< (m_metrics.lensFocusOptimal ? "true" : "false") << ","
@@ -93,14 +92,14 @@ bool MetricsExporter::ExportMetrics() {
 /// </summary>
 /// <param name="ds"></param>
 /// <returns></returns>
-const char* MetricsExporter::DispositionToString(MetricsExporter::lensDisposition ds)
+const char* MetricsManager::LensDispositionToString(MetricsManager::lensDisposition ds)
 {
 	switch (ds) {
-	case MetricsExporter::lensDisposition::pass:
+	case MetricsManager::lensDisposition::pass:
 		return "Pass";
-	case MetricsExporter::lensDisposition::fail:
+	case MetricsManager::lensDisposition::fail:
 		return "Fail";
-	case MetricsExporter::lensDisposition::check:
+	case MetricsManager::lensDisposition::check:
 		return "Check";
 	default:
 		return "Unknown";
@@ -112,15 +111,15 @@ const char* MetricsExporter::DispositionToString(MetricsExporter::lensDispositio
 /// </summary>
 /// <param name="dt"></param>
 /// <returns></returns>
-const char* MetricsExporter::DefectTypeToString(MetricsExporter::defectType dt)
+const char* MetricsManager::MarkerClassifierToString(MetricsManager::markerClass dt)
 {
 	switch (dt) {
-	case MetricsExporter::defectType::hook:
+	case MetricsManager::markerClass::hook:
 		return "Hook";
-	case MetricsExporter::defectType::oval:
+	case MetricsManager::markerClass::oval:
 		return "Oval";
-	case MetricsExporter::defectType::none:
-		return "None";
+	case MetricsManager::markerClass::circle:
+		return "Circle";
 	default:
 		return "Unknown";
 	}
