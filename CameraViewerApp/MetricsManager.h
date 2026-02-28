@@ -78,8 +78,7 @@ private:
 
 	// lens grading vars
 	double passingScoreThreshold = 0.90;	// minimum score for 'pass'
-	double checkingScoreThreshold = 0.78;	// max 'check' score
-	double failingScoreThreshold = 0.50;	// max failing score
+	double checkingScoreThreshold = 0.78;	// minimum score for 'check'; below this is a fail
 
 	// vars relating to image dimensions
 	cv::Point2f imageCenter;

@@ -175,6 +175,11 @@ void MetricsManager::UpdateLensDisposition() {
 
 			qDebug("\n[dbg] Oval marker at (%.1f, %.1f) with circularity %.2f", m.centroid.x, m.centroid.y, m.circularityScore);
 
+			if (hypotToCenter == 0.0) {
+				qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
+				continue;
+			}
+
 			double markerHypotToCenter = std::hypot(std::abs(imageCenter.x - m.centroid.x),
 													std::abs(imageCenter.y - m.centroid.y));
 
@@ -205,10 +210,10 @@ void MetricsManager::UpdateLensDisposition() {
 	if (scorePct >= passingScoreThreshold) {
 		m_metrics.lensDisp = lensDisposition::pass;
 	}
-	else if (scorePct < passingScoreThreshold && scorePct > failingScoreThreshold) {
+	else if (scorePct >= checkingScoreThreshold) {
 		m_metrics.lensDisp = lensDisposition::check;
 	}
-	else if (scorePct <= failingScoreThreshold) {
+	else {
 		m_metrics.lensDisp = lensDisposition::fail;
 	}
 	m_metrics.lensScore = scorePct;
