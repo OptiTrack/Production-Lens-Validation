@@ -5,7 +5,7 @@
 #include <QSignalBlocker>
 #include <QSet>
 #include <QCoreApplication>
-
+#include <opencv2/core/types.hpp>
 #include "QtCameraPicker.h"
 #include "QtCameraConnectionManager.h" 
 
@@ -70,7 +70,29 @@ void CameraPicker::onComboIndexChanged(int idx)
     }
     const auto serial = combo_box->itemData(idx).value<qulonglong>();
     selected_serial = static_cast<unsigned>(serial);
+
+
     emit serialChanged(selected_serial);
+}
+
+std::optional<cv::Size> CameraPicker::getResolutionBySerial(qulonglong serial)
+{
+    if (!camera_manager)
+        return std::nullopt;
+
+    auto cams = camera_manager->GetCameras();
+
+    for (const auto& cam : cams)
+    {
+        if (static_cast<qulonglong>(cam->Serial()) == serial)
+        {
+            int width = cam->Width();   // active acquisition width
+            int height = cam->Height();  // active acquisition height
+            return cv::Size(width, height);
+        }
+    }
+
+    return std::nullopt;
 }
 
 void CameraPicker::onCamerasChanged()

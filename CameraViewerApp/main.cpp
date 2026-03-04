@@ -106,11 +106,15 @@ int main(int argc, char *argv[])
 
     MetricsManager mMgr;
 
+    //dbg
+    mMgr.testMM();
+
+
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, lens_result, mMgr, nullptr);
 
-   
+    
     // Remove any current installed translators to ensure a clean slate, then install the appropriate ones based on the current locale
     // use [&] to capture the app and translators by reference so they remain in scope and can be modified inside the lambda
     auto applyLanguage = [&](const QString& localeName) {

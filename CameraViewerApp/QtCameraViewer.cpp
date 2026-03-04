@@ -249,6 +249,14 @@ void QtCameraViewer::wireSignals()
 	connect(camera_picker, &CameraPicker::serialChanged,
 		this, &QtCameraViewer::handleSerialSelected);
 
+	// Update MetricsManager with the active camera's resolution on selection change
+	connect(camera_picker, &CameraPicker::serialChanged,
+		this, [this](std::optional<unsigned> serialOpt) {
+			if (!serialOpt) return;
+			auto res = camera_picker->getResolutionBySerial(static_cast<qulonglong>(*serialOpt));
+			if (res) metrics_manager.setActiveResolution(*res);
+		});
+
 	// Forward Edge Detect toggle from control panel to the video widget
 	if (camera_controls) {
 		connect(camera_controls, &CameraControlPanel::edgeDetectToggled,

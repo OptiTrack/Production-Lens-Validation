@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <optional>
+#include <opencv2/core/types.hpp>
 
 class QComboBox;
 class QLabel;
@@ -16,6 +17,7 @@ public:
 
     std::optional<unsigned> selectedSerial() const { return selected_serial; }
     void setSelectedSerial(std::optional<unsigned> s);
+    std::optional<cv::Size> getResolutionBySerial(qulonglong serial);
 
     QComboBox* combo() const { return combo_box; }
 
