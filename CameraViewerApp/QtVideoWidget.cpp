@@ -16,6 +16,10 @@
 #include <qopenglbuffer.h>
 #include <qopenglshaderprogram.h>
 #include <qopenglwindow.h>
+#include <QPainter>
+#include <QImage>
+#include <QFont>
+#include <QFontMetrics>
 #include <vector>
 #include <opencv2/core/types.hpp>
 #include <limits>
@@ -237,7 +241,50 @@ void VideoWidget::paintGL() {
     if (roiZoomEnabled.load(std::memory_order_relaxed) && shapeParams.isValid) {
         drawShapesOverlay(dstX, dstY, dstW, dstH);
     }
+    
+    // Update and composite circle markers overlay on top of the frame
+    {
+        std::lock_guard<std::mutex> lock(circleMarkersMutex);
+        if (!detectedCircleMarkers.empty()) {
+            updateCircleMarkersTexture();
+            
+            // Composite circle markers using simple blend
+            if (circleMarkersTex != 0) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glEnable(GL_TEXTURE_2D);
+                
+                glBindTexture(GL_TEXTURE_2D, circleMarkersTex);
+                glMatrixMode(GL_PROJECTION);
+                glPushMatrix();
+                glLoadIdentity();
+                glOrtho(0, width(), 0, height(), -1, 1);
+                glMatrixMode(GL_MODELVIEW);
+                glPushMatrix();
+                glLoadIdentity();
+                
+                glBegin(GL_QUADS);
+                glTexCoord2f(0, 0); glVertex2f(dstX, dstY + dstH);
+                glTexCoord2f(1, 0); glVertex2f(dstX + dstW, dstY + dstH);
+                glTexCoord2f(1, 1); glVertex2f(dstX + dstW, dstY);
+                glTexCoord2f(0, 1); glVertex2f(dstX, dstY);
+                glEnd();
+                
+                glPopMatrix();
+                glMatrixMode(GL_PROJECTION);
+                glPopMatrix();
+                glMatrixMode(GL_MODELVIEW);
+                
+                glBindTexture(GL_TEXTURE_2D, 0);
+                glDisable(GL_BLEND);
+                glDisable(GL_TEXTURE_2D);
+            }
+        }
+    }
+    // Draw detected circle markers for error checking (simple overlay)
+    drawCircleMarkers(dstX, dstY, dstW, dstH);
 }
+
 
 
 void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap* bmp) {
@@ -819,3 +866,174 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h)
     
     doneCurrent();
 }
+
+void VideoWidget::drawCircleMarkers(float dstX, float dstY, float dstW, float dstH) {
+    // Regenerate texture from current markers before drawing
+    {
+        std::lock_guard<std::mutex> lock(circleMarkersMutex);
+        
+        if (!detectedCircleMarkers.empty()) {
+            updateCircleMarkersTexture();
+        } else {
+            // Clear texture if no markers
+            if (circleMarkersTex != 0) {
+                glDeleteTextures(1, &circleMarkersTex);
+                circleMarkersTex = 0;
+            }
+        }
+    }
+    
+    // If no texture, nothing to draw
+    if (circleMarkersTex == 0) {
+        return;
+    }
+
+    // Bind and render the circle markers texture as an overlay
+    // Similar to how edge mask is rendered
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, circleMarkersTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Use shader if available to blend the markers onto frame
+    if (program_shader) {
+        // The program_shader should have uniforms for circle markers blending
+        // For now, we'll rely on the frame texture itself handling it
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+}
+
+void VideoWidget::updateCircleMarkersTexture() {
+    // NOTE: The caller must hold circleMarkersMutex lock!
+    // This method assumes the lock is already acquired.
+    
+    if (frame_width <= 0 || frame_height <= 0) {
+        return;
+    }
+    
+    if (detectedCircleMarkers.empty()) {
+        // Clear the texture if no markers
+        if (circleMarkersTex != 0) {
+            glDeleteTextures(1, &circleMarkersTex);
+            circleMarkersTex = 0;
+        }
+        return;
+    }
+
+    try {
+        // Sanity check on dimensions
+        if (frame_width > 4096 || frame_height > 4096) {
+            qWarning("[videowidget] Frame dimensions too large for marker texture: %d x %d", frame_width, frame_height);
+            return;
+        }
+
+        // Create RGBA image with transparent background
+        QImage overlay(frame_width, frame_height, QImage::Format_RGBA8888);
+        if (overlay.isNull()) {
+            qWarning("[videowidget] Failed to create QImage for circle markers");
+            return;
+        }
+        
+        overlay.fill(qRgba(0, 0, 0, 0));  // Transparent background
+
+        {
+            QPainter painter(&overlay);
+            if (!painter.isActive()) {
+                qWarning("[videowidget] Failed to create painter for circle markers");
+                return;
+            }
+            
+            painter.setRenderHint(QPainter::Antialiasing, true);
+
+            // Set font for circularity labels
+            QFont font = painter.font();
+            font.setPointSize(8);
+            font.setBold(true);
+            painter.setFont(font);
+
+            // Cyan color for markers and text (light blue)
+            QColor cyanColor(0, 255, 255);  // Cyan RGB
+            QPen circlePen(cyanColor, 2);
+            circlePen.setCapStyle(Qt::RoundCap);
+            painter.setPen(circlePen);
+
+            // Draw each marker
+            for (const auto& marker : detectedCircleMarkers) {
+                int sx = static_cast<int>(marker.center.x);
+                int sy = static_cast<int>(marker.center.y);
+                int sr = static_cast<int>(marker.radius);
+
+                // Clamp to image bounds
+                if (sx < 0 || sy < 0 || sx >= frame_width || sy >= frame_height) {
+                    continue;
+                }
+
+                // Draw circle outline
+                painter.drawEllipse(QPoint(sx, sy), sr, sr);
+
+                // Draw center point (small dot)
+                painter.fillRect(sx - 2, sy - 2, 4, 4, cyanColor);
+
+                // Draw circularity label text
+                QString circularityText = QString("c:%1").arg(marker.circularity * 100.0f, 0, 'f', 1);
+                
+                // Position text above and to the left of the circle
+                int textX = sx - sr - 20;
+                int textY = sy - sr - 8;
+                
+                // Draw text with background for readability
+                QFontMetrics fm(painter.font());
+                QRect textRect = fm.boundingRect(circularityText);
+                textRect.moveTo(textX, textY);
+                textRect.adjust(-2, -1, 2, 1);  // Add padding
+                
+                // Semi-transparent dark background for text
+                painter.fillRect(textRect, QColor(0, 0, 0, 180));
+                
+                // Draw text in cyan
+                painter.setPen(QPen(cyanColor));
+                painter.drawText(textX, textY + fm.ascent(), circularityText);
+                painter.setPen(circlePen);  // Restore circle pen
+            }
+        }  // painter scope ends, painter destroyed
+
+        // Convert QImage to GL texture
+        QImage glImage = overlay.convertToFormat(QImage::Format_RGBA8888);
+        if (glImage.isNull()) {
+            qWarning("[videowidget] Failed to convert image format for GL");
+            return;
+        }
+        
+        glImage = glImage.mirrored(false, true);  // Flip Y for GL coordinates
+
+        // Create or update GL texture
+        if (circleMarkersTex != 0) {
+            glDeleteTextures(1, &circleMarkersTex);
+        }
+
+        glGenTextures(1, &circleMarkersTex);
+        glBindTexture(GL_TEXTURE_2D, circleMarkersTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, frame_width, frame_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, glImage.bits());
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
+    } catch (const std::exception& e) {
+        qWarning("[videowidget] Exception in updateCircleMarkersTexture: %s", e.what());
+        if (circleMarkersTex != 0) {
+            glDeleteTextures(1, &circleMarkersTex);
+            circleMarkersTex = 0;
+        }
+    } catch (...) {
+        qWarning("[videowidget] Unknown exception in updateCircleMarkersTexture");
+        if (circleMarkersTex != 0) {
+            glDeleteTextures(1, &circleMarkersTex);
+            circleMarkersTex = 0;
+        }
+    }
+}
+

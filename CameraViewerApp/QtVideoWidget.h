@@ -9,12 +9,14 @@
 #include <QColor>
 #include <QByteArray>
 #include <atomic>
+#include <mutex>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include "cameralibrary.h"
+#include "CircleMarkerDetector.h"
 #include <vector>
 
 class VideoWidget : public QOpenGLWindow, protected QOpenGLFunctions {
@@ -53,6 +55,10 @@ private:
     int edge_color_uniform = -1;
     int edge_alpha_uniform = -1;
     GLuint edgeMaskTex = 0;
+    
+    // Circle marker overlay texture (for visualization with circularity labels)
+    GLuint circleMarkersTex = 0;
+    
     float last_edge_focus_score = 0.0f; // 0..1 where 1 = sharp
     int   frame_width = 0;
     int   frame_height = 0;
@@ -123,8 +129,22 @@ private:
     void applyEdgeDetection(cv::Mat& gray, int w, int h);
 	cv::Mat applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride);
 	void drawShapesOverlay(float dstX, float dstY, float dstW, float dstH);
+	void drawCircleMarkers(float dstX, float dstY, float dstW, float dstH);
+	void updateCircleMarkersTexture();  ///< Generate texture from detected markers with circularity labels
     std::vector<RoiInfo> extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs);
 	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom);
+
+    // Circle marker detection storage
+    std::vector<CircleMarkerDetector::CircleMarker> detectedCircleMarkers;
+    std::mutex circleMarkersMutex;
+
+public:
+    /// @brief Update detected circle markers for rendering
+    /// @param markers Vector of detected circle markers
+    void setDetectedCircleMarkers(const std::vector<CircleMarkerDetector::CircleMarker>& markers) {
+        std::lock_guard<std::mutex> lock(circleMarkersMutex);
+        detectedCircleMarkers = markers;
+    }
 
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }

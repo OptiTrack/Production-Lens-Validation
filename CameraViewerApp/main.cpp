@@ -276,13 +276,37 @@ int main(int argc, char *argv[])
 
                     QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mMgr]() {
                         int circleCount = 0;
+                        double avgCircularity = 0.0;
+                        bool hasHook = false;
+                        auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+                        
                         if (circleDetectionEnabled.load(std::memory_order_acquire)) {
-                            auto circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
+                            circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
                             circleCount = static_cast<int>(circles.size());
+                            
+                            // Calculate average circularity and check for hooks
+                            if (circleCount > 0) {
+                                double sumCircularity = 0.0;
+                                for (const auto& circle : circles) {
+                                    sumCircularity += circle.circularity;
+                                    // Check if any marker is a hook (auto-fail condition)
+                                    if (circle.shapeType == CircleMarkerDetector::ShapeType::Hook) {
+                                        hasHook = true;
+                                    }
+                                }
+                                avgCircularity = sumCircularity / circleCount;
+                            }
                         }
 
                         double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                        qDebug("[dbg] Focus score: %.2f", score);
+                        
+                        // If hook detected, reduce score to indicate failure
+                        if (hasHook) {
+                            score = -0.5;  // Different from "disabled" (-1.0) but still fails
+                            qDebug("[dbg] HOOK DETECTED - Automatic quality failure");
+                        }
+                        
+                        qDebug("[dbg] Focus score: %.2f, Circles: %d, Avg Circularity: %.2f", score, circleCount, avgCircularity);
 
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
@@ -290,12 +314,17 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, panel, viewer, relativeTime, &mMgr]() {
+                            [focus_result, score, circleCount, avgCircularity, hasHook, circles, panel, viewer, relativeTime, &mMgr]() {
 
                                 focus_result->updateTextandColor(score, mMgr);
 
                                 if (panel) {
                                     panel->updateCircleCount(circleCount);
+                                }
+                                
+                                // Display detected markers for visual error checking
+                                if (viewer && viewer->videoWidget()) {
+                                    viewer->videoWidget()->setDetectedCircleMarkers(circles);
                                 }
 
                                 viewer->focus_score = score;
@@ -304,6 +333,21 @@ int main(int argc, char *argv[])
                                     QHash<QString, qreal> focusMetrics;
                                     focusMetrics["FocusQuality"] = score;
                                     focusMetrics["CircleCount"] = circleCount;
+                                    focusMetrics["CircleCircularity"] = avgCircularity;
+                                    
+                                    // Count shape types
+                                    int circleTypeCount = 0, ovalTypeCount = 0, hookTypeCount = 0;
+                                    for (const auto& c : circles) {
+                                        if (c.shapeType == CircleMarkerDetector::ShapeType::Circle) circleTypeCount++;
+                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Oval) ovalTypeCount++;
+                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Hook) hookTypeCount++;
+                                    }
+                                    
+                                    focusMetrics["ShapeCircles"] = circleTypeCount;
+                                    focusMetrics["ShapeOvals"] = ovalTypeCount;
+                                    focusMetrics["ShapeHooks"] = hookTypeCount;  // Hook count for quality tracking
+                                    focusMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;  // Binary flag for hook detection
+                                    
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
                                     //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
