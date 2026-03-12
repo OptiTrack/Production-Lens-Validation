@@ -349,11 +349,11 @@ void CameraControlPanel::buildUi() {
     // Circle detection param2 (accumulator threshold)
     circle_param2_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
     circle_param2_slider->setRange(1, 100);
-    circle_param2_slider->setValue(30);
+    circle_param2_slider->setValue(10);
     circle_param2_slider->setMaximumWidth(100);
     
     circle_param2_edit = new QLineEdit(lensInspectionGroup);
-    circle_param2_edit->setText("30");
+    circle_param2_edit->setText("10");
     circle_param2_edit->setMaximumWidth(60);
     connect(circle_param2_edit, &QLineEdit::textChanged, this, &CameraControlPanel::onCircleParam2Changed);
     connect(circle_param2_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {

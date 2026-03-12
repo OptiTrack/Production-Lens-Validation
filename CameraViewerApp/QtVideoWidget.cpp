@@ -263,11 +263,17 @@ void VideoWidget::paintGL() {
                 glPushMatrix();
                 glLoadIdentity();
                 
+                // Convert widget Y coords to OpenGL Y coords
+                // glOrtho Y increases upward; widget Y increases downward
+                float glYTop = height() - dstY;
+                float glYBottom = height() - (dstY + dstH);
+                
+                // Mirrored image: texture (0,0) is at bottom-left after mirroring
                 glBegin(GL_QUADS);
-                glTexCoord2f(0, 0); glVertex2f(dstX, dstY + dstH);
-                glTexCoord2f(1, 0); glVertex2f(dstX + dstW, dstY + dstH);
-                glTexCoord2f(1, 1); glVertex2f(dstX + dstW, dstY);
-                glTexCoord2f(0, 1); glVertex2f(dstX, dstY);
+                glTexCoord2f(0, 0); glVertex2f(dstX, glYBottom);              // bottom-left
+                glTexCoord2f(1, 0); glVertex2f(dstX + dstW, glYBottom);       // bottom-right
+                glTexCoord2f(1, 1); glVertex2f(dstX + dstW, glYTop);          // top-right
+                glTexCoord2f(0, 1); glVertex2f(dstX, glYTop);                 // top-left
                 glEnd();
                 
                 glPopMatrix();
@@ -970,21 +976,18 @@ void VideoWidget::updateCircleMarkersTexture() {
                     continue;
                 }
 
-                // Draw circle outline
-                painter.drawEllipse(QPoint(sx, sy), sr, sr);
-
                 // Draw center point (small dot)
                 painter.fillRect(sx - 2, sy - 2, 4, 4, cyanColor);
 
                 // Draw circularity label text
                 QString circularityText = QString("c:%1").arg(marker.circularity * 100.0f, 0, 'f', 1);
                 
-                // Position text above and to the left of the circle
-                int textX = sx - sr - 20;
-                int textY = sy - sr - 8;
+                // Position text below the circle, centered horizontally
+                QFontMetrics fm(painter.font());
+                int textX = sx - (fm.horizontalAdvance(circularityText) / 2);
+                int textY = sy + sr + 12;
                 
                 // Draw text with background for readability
-                QFontMetrics fm(painter.font());
                 QRect textRect = fm.boundingRect(circularityText);
                 textRect.moveTo(textX, textY);
                 textRect.adjust(-2, -1, 2, 1);  // Add padding
