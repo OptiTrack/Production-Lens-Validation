@@ -53,11 +53,9 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         gray = mat;
     }
 
-    // Pre-blur to reduce noise
+    // Detect circles using Hough Circle Transform
     cv::Mat blurred;
     cv::GaussianBlur(gray, blurred, cv::Size(7, 7), 1.5);
-
-    // Detect circles using Hough Circle Transform
     std::vector<cv::Vec3f> circles;
     cv::HoughCircles(
         blurred,
@@ -73,7 +71,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     m_lastDetectionCount = static_cast<int>(circles.size());
 
-    // Detect contours using adaptive thresholding + Canny
+    // Detect contours using Canny surrounding the detected circles
     cv::Mat edges;
     cv::adaptiveThreshold(blurred, edges, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
                          cv::THRESH_BINARY, 11, 2);
@@ -82,7 +80,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(edges.clone(), contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
 
-    // Convert raw detection results to CircleMarker objects
+    // Convert results to CircleMarker objects
     std::vector<CircleMarker> result;
     for (const auto& circle : circles) {
         CircleMarker marker;
@@ -90,19 +88,17 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         marker.radius = circle[2];
         marker.isValid = true;
         
-        // Calculate circularity and get the best contour
+        // Calculate circularity and define shape type based on circularitty
         marker.circularity = CalculateCircularity(marker.center, marker.radius, contours, marker.contour);
-        
-        // Categorize the shape based on circularity
         marker.shapeType = CategorizeShape(marker.circularity);
         
-        // Quality metric based on circularity (how close to ideal shape)
+        // Quality metric based on ideal circularity/shape
         if (marker.shapeType == ShapeType::Circle) {
-            marker.quality = marker.circularity;  // Circle quality is its circularity
+            marker.quality = marker.circularity;
         } else if (marker.shapeType == ShapeType::Oval) {
-            marker.quality = 0.5f;  // Oval is intermediate
+            marker.quality = 0.5f;
         } else {
-            marker.quality = 0.0f;  // Hook is a failure condition
+            marker.quality = 0.0f;
         }
         
         result.push_back(marker);
@@ -118,17 +114,15 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
     outContour.clear();
     
     if (contours.empty() || radius <= 0) {
-        return 1.0f;  // Return perfect circularity if no contours
-    }
+        return 1.0f;
 
     // Find the largest contour by area that is near the circle center
     int bestContourIdx = -1;
     double maxArea = 0.0;
 
     for (size_t i = 0; i < contours.size(); ++i) {
-        if (contours[i].size() < 5) continue;  // Skip too small contours
+        if (contours[i].size() < 5) continue;
         
-        // Calculate contour centroid and area
         cv::Moments m = cv::moments(contours[i]);
         if (m.m00 == 0) continue;
         
@@ -136,8 +130,6 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
         float dist = cv::norm(centroid - center);
         double area = cv::contourArea(contours[i]);
         
-        // Filter by proximity to expected center (within 2x radius)
-        // and select the largest one by area
         if (dist < radius * 2.0f && area > maxArea) {
             maxArea = area;
             bestContourIdx = static_cast<int>(i);
@@ -145,17 +137,16 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
     }
 
     if (bestContourIdx < 0) {
-        return 1.0f;  // Return perfect circularity if no suitable contour
+        return 1.0f;  
     }
 
     const auto& contour = contours[bestContourIdx];
-    outContour = contour;  // Store contour for rendering
+    outContour = contour;  
     
     if (contour.size() < 5) {
         return 1.0f;
     }
 
-    // Fit an ellipse to the contour and calculate circularity
     try {
         cv::RotatedRect ellipse = cv::fitEllipse(contour);
         float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
@@ -165,7 +156,6 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
             return 1.0f;
         }
         
-        // Circularity = minor/major (1.0 for perfect circle, approaches 0 for elongated shapes)
         float circularity = minorAxis / majorAxis;
         return std::clamp(circularity, 0.0f, 1.0f);
     }

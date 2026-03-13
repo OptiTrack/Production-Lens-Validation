@@ -292,6 +292,10 @@ int main(int argc, char *argv[])
                                     // Check if any marker is a hook (auto-fail condition)
                                     if (circle.shapeType == CircleMarkerDetector::ShapeType::Hook) {
                                         hasHook = true;
+                                        qDebug("[dbg] HOOK DETECTED - Automatic quality failure");
+                                    }
+                                    if (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) {
+                                        qDebug("[dbg] OVAL DETECTED - Lens requires closer inspection")
                                     }
                                 }
                                 avgCircularity = sumCircularity / circleCount;
@@ -299,12 +303,7 @@ int main(int argc, char *argv[])
                         }
 
                         double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                        
-                        // If hook detected, reduce score to indicate failure
-                        if (hasHook) {
-                            score = -0.5;  // Different from "disabled" (-1.0) but still fails
-                            qDebug("[dbg] HOOK DETECTED - Automatic quality failure");
-                        }
+                
                         
                         qDebug("[dbg] Focus score: %.2f, Circles: %d, Avg Circularity: %.2f", score, circleCount, avgCircularity);
 

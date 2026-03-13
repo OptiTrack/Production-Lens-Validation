@@ -263,12 +263,9 @@ void VideoWidget::paintGL() {
                 glPushMatrix();
                 glLoadIdentity();
                 
-                // Convert widget Y coords to OpenGL Y coords
-                // glOrtho Y increases upward; widget Y increases downward
                 float glYTop = height() - dstY;
                 float glYBottom = height() - (dstY + dstH);
                 
-                // Mirrored image: texture (0,0) is at bottom-left after mirroring
                 glBegin(GL_QUADS);
                 glTexCoord2f(0, 0); glVertex2f(dstX, glYBottom);              // bottom-left
                 glTexCoord2f(1, 0); glVertex2f(dstX + dstW, glYBottom);       // bottom-right
@@ -901,20 +898,11 @@ void VideoWidget::drawCircleMarkers(float dstX, float dstY, float dstW, float ds
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // Use shader if available to blend the markers onto frame
-    if (program_shader) {
-        // The program_shader should have uniforms for circle markers blending
-        // For now, we'll rely on the frame texture itself handling it
-    }
-
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
 }
 
 void VideoWidget::updateCircleMarkersTexture() {
-    // NOTE: The caller must hold circleMarkersMutex lock!
-    // This method assumes the lock is already acquired.
-    
     if (frame_width <= 0 || frame_height <= 0) {
         return;
     }
@@ -929,7 +917,6 @@ void VideoWidget::updateCircleMarkersTexture() {
     }
 
     try {
-        // Sanity check on dimensions
         if (frame_width > 4096 || frame_height > 4096) {
             qWarning("[videowidget] Frame dimensions too large for marker texture: %d x %d", frame_width, frame_height);
             return;
@@ -960,7 +947,7 @@ void VideoWidget::updateCircleMarkersTexture() {
             painter.setFont(font);
 
             // Cyan color for markers and text (light blue)
-            QColor cyanColor(0, 255, 255);  // Cyan RGB
+            QColor cyanColor(0, 255, 255);
             QPen circlePen(cyanColor, 2);
             circlePen.setCapStyle(Qt::RoundCap);
             painter.setPen(circlePen);
@@ -971,15 +958,10 @@ void VideoWidget::updateCircleMarkersTexture() {
                 int sy = static_cast<int>(marker.center.y);
                 int sr = static_cast<int>(marker.radius);
 
-                // Clamp to image bounds
                 if (sx < 0 || sy < 0 || sx >= frame_width || sy >= frame_height) {
                     continue;
                 }
 
-                // Draw center point (small dot)
-                painter.fillRect(sx - 2, sy - 2, 4, 4, cyanColor);
-
-                // Draw circularity label text
                 QString circularityText = QString("c:%1").arg(marker.circularity * 100.0f, 0, 'f', 1);
                 
                 // Position text below the circle, centered horizontally
@@ -990,9 +972,7 @@ void VideoWidget::updateCircleMarkersTexture() {
                 // Draw text with background for readability
                 QRect textRect = fm.boundingRect(circularityText);
                 textRect.moveTo(textX, textY);
-                textRect.adjust(-2, -1, 2, 1);  // Add padding
-                
-                // Semi-transparent dark background for text
+                textRect.adjust(-2, -1, 2, 1);
                 painter.fillRect(textRect, QColor(0, 0, 0, 180));
                 
                 // Draw text in cyan
@@ -1000,7 +980,7 @@ void VideoWidget::updateCircleMarkersTexture() {
                 painter.drawText(textX, textY + fm.ascent(), circularityText);
                 painter.setPen(circlePen);  // Restore circle pen
             }
-        }  // painter scope ends, painter destroyed
+        }
 
         // Convert QImage to GL texture
         QImage glImage = overlay.convertToFormat(QImage::Format_RGBA8888);
@@ -1009,7 +989,7 @@ void VideoWidget::updateCircleMarkersTexture() {
             return;
         }
         
-        glImage = glImage.mirrored(false, true);  // Flip Y for GL coordinates
+        glImage = glImage.mirrored(false, true);
 
         // Create or update GL texture
         if (circleMarkersTex != 0) {
