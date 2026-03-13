@@ -58,6 +58,9 @@ private:
     
     // Circle marker overlay texture (for visualization with circularity labels)
     GLuint circleMarkersTex = 0;
+
+    // ROI circularity label overlay texture (regenerated each frame when ROI zoom is active)
+    GLuint roiLabelsTex = 0;
     
     float last_edge_focus_score = 0.0f; // 0..1 where 1 = sharp
     int   frame_width = 0;
@@ -103,6 +106,12 @@ private:
         int combinedH = 0; // Original combined image dimensions
         std::vector<cv::Point> diamondPts;
         bool isValid = false;
+
+        struct RoiLabel {
+            cv::Point2f combinedPos; ///< Center position in combined-image coordinates
+            double circularity;      ///< Circularity value (0..100, 100 = perfect circle)
+        };
+        std::vector<RoiLabel> roiLabels; ///< One entry per detected ROI placed this frame
 
         // Default constructor (optional since we initialized above)
         ShapeDrawParams() = default;

@@ -46,6 +46,7 @@ VideoWidget::~VideoWidget() {
     makeCurrent();
     if (gl_texture) glDeleteTextures(1, &gl_texture);
     if (edgeMaskTex) glDeleteTextures(1, &edgeMaskTex); // Delete edge mask texture
+    if (roiLabelsTex) glDeleteTextures(1, &roiLabelsTex);
     vertext_buffer.destroy();
     vertex_array.destroy();
     program_shader.reset();
@@ -542,6 +543,7 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
         auto rois = extractROIs(gray, edges, roi_extraction_margin, roi_max_count);
 
         if (!rois.empty()) {
+            shapeParams.roiLabels.clear();
 
             // Apply EWM smoothing to prevent glitching when subject moves
             if (!prev_roi_centroids.empty() && prev_roi_centroids.size() == rois.size()) {
@@ -615,6 +617,11 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                 cv::resize(cropped, resized, cv::Size(quadW, quadH));
 
                 resized.copyTo(combined(cv::Rect(x, y, quadW, quadH)));
+
+                shapeParams.roiLabels.push_back({
+                    cv::Point2f(float(x + quadW / 2), float(y + quadH / 2)),
+                    roi.circularity
+                });
             }
 
             // Place center ROI in diamond area with mask
@@ -636,6 +643,11 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                 cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{diamondPts}, cv::Scalar(255));
 
                 centerResized.copyTo(combined(cv::Rect(diamondX, diamondY, diamondW, diamondH)), diamondMask);
+
+                shapeParams.roiLabels.push_back({
+                    cv::Point2f(float(diamondX + diamondW / 2), float(diamondY + diamondH / 2)),
+                    rois[static_cast<size_t>(centerIdx)].circularity
+                });
             }
         }
 
@@ -661,6 +673,7 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
 
     // If no edges detected, return empty Mat
     shapeParams.isValid = false;
+    shapeParams.roiLabels.clear();
     return cv::Mat();
 }
 
@@ -835,6 +848,83 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW, float ds
     // Restore OpenGL state
     glDisable(GL_BLEND);
     glLineWidth(1.0f);
+
+    // Draw ROI circularity labels as a QPainter texture overlay
+    if (!shapeParams.roiLabels.empty()) {
+        QImage overlay(width(), height(), QImage::Format_RGBA8888);
+        overlay.fill(Qt::transparent);
+
+        {
+            QPainter painter(&overlay);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            QFont font;
+            font.setPointSize(8);
+            font.setBold(true);
+            painter.setFont(font);
+            QFontMetrics fm(font);
+            QColor cyanColor(0, 255, 255);
+
+            for (const auto& lbl : shapeParams.roiLabels) {
+                float sx = toScreenX(lbl.combinedPos.x);
+                float sy = toScreenY(lbl.combinedPos.y);
+
+                double circPct = std::min(100.0, lbl.circularity);
+                QString text = QString("c:%1%").arg(circPct, 0, 'f', 1);
+                int textW = fm.horizontalAdvance(text);
+                int tx = static_cast<int>(sx) - textW / 2;
+                int ty = static_cast<int>(sy) - fm.height() / 2;
+
+                QRect bgRect(tx - 2, ty - 1, textW + 4, fm.height() + 2);
+                painter.fillRect(bgRect, QColor(0, 0, 0, 160));
+                painter.setPen(cyanColor);
+                painter.drawText(tx, ty + fm.ascent(), text);
+            }
+        }
+
+        // Flip vertically: QPainter y=0 is top, GL y=0 is bottom
+        QImage flipped = overlay.flipped(Qt::Vertical);
+
+        if (roiLabelsTex != 0) {
+            glDeleteTextures(1, &roiLabelsTex);
+            roiLabelsTex = 0;
+        }
+        glGenTextures(1, &roiLabelsTex);
+        glBindTexture(GL_TEXTURE_2D, roiLabelsTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width(), height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, flipped.bits());
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
+        glColor4f(1.f, 1.f, 1.f, 1.f); // reset color so texture isn't modulated by gray line color
+
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, width(), 0, height(), -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+
+        glBegin(GL_QUADS);
+        glTexCoord2f(0.f, 0.f); glVertex2i(0,        0);
+        glTexCoord2f(1.f, 0.f); glVertex2i(width(),  0);
+        glTexCoord2f(1.f, 1.f); glVertex2i(width(),  height());
+        glTexCoord2f(0.f, 1.f); glVertex2i(0,        height());
+        glEnd();
+
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDisable(GL_TEXTURE_2D);
+        glDisable(GL_BLEND);
+    }
 }
 
 void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h)
