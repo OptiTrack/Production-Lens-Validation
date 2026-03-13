@@ -4,6 +4,7 @@
 #include <chrono>
 #include <memory>
 #include <cstdlib>
+#include <cstring>
 #include <QFuture>
 #include <QApplication>
 #include <QLabel>
@@ -295,7 +296,7 @@ int main(int argc, char *argv[])
                                         qDebug("[dbg] HOOK DETECTED - Automatic quality failure");
                                     }
                                     if (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) {
-                                        qDebug("[dbg] OVAL DETECTED - Lens requires closer inspection")
+                                        qDebug("[dbg] OVAL DETECTED - Lens requires closer inspection");
                                     }
                                 }
                                 avgCircularity = sumCircularity / circleCount;
@@ -344,8 +345,8 @@ int main(int argc, char *argv[])
                                     
                                     focusMetrics["ShapeCircles"] = circleTypeCount;
                                     focusMetrics["ShapeOvals"] = ovalTypeCount;
-                                    focusMetrics["ShapeHooks"] = hookTypeCount;  // Hook count for quality tracking
-                                    focusMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;  // Binary flag for hook detection
+                                    focusMetrics["ShapeHooks"] = hookTypeCount; 
+                                    focusMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;
                                     
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
                                     //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);

@@ -115,6 +115,7 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
     
     if (contours.empty() || radius <= 0) {
         return 1.0f;
+    }
 
     // Find the largest contour by area that is near the circle center
     int bestContourIdx = -1;
@@ -156,7 +157,7 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
             return 1.0f;
         }
         
-        float circularity = minorAxis / majorAxis;
+        const float circularity = minorAxis / majorAxis;
         return std::clamp(circularity, 0.0f, 1.0f);
     }
     catch (...) {
@@ -175,7 +176,7 @@ CircleMarkerDetector::ShapeType CircleMarkerDetector::CategorizeShape(float circ
     } else if (circularity >= OVAL_LOWER_THRESHOLD) {
         return ShapeType::Oval;
     } else {
-        return ShapeType::Hook;  // Below oval threshold indicates hook/failure
+        return ShapeType::Hook;
     }
 }
 
