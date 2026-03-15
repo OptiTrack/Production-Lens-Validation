@@ -90,7 +90,7 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "C:/opencv/build_x64_vs2026")
+set(OpenCV_DIR "C:/opencv/build")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})

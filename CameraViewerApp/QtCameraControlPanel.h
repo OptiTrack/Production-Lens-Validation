@@ -94,6 +94,7 @@ private:
     QGroupBox* video_group{nullptr};
     QGroupBox* compression_group{nullptr};
     QGroupBox* gamma_group{nullptr};
+    QGroupBox* exporter_group{nullptr};
     MetricWidgets* focus_metrics_widgets{nullptr};
     MetricWidgets* lens_metrics_widgets{nullptr};
 
@@ -166,6 +167,7 @@ private:
     QLabel*           browse_label{nullptr};
     QPushButton*      browse_button{nullptr};
     QPushButton*      screenshot_button{nullptr};
+    QLabel*           screenshot_status_label{nullptr};
     QPushButton*      metrics_export_button{nullptr};
     QCheckBox*        overlay_button{nullptr};
 
