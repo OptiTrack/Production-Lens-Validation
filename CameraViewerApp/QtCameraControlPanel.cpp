@@ -615,6 +615,9 @@ void CameraControlPanel::buildUi() {
     exporterLayout->addWidget(screenshot_button);
 
     screenshot_status_label = new QLabel(exporter_group);
+    screenshot_status_label->setWordWrap(true);
+    screenshot_status_label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    screenshot_status_label->setMinimumHeight(40);
     screenshot_status_label->setVisible(false);
     exporterLayout->addWidget(screenshot_status_label);
 
