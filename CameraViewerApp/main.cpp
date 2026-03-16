@@ -213,6 +213,11 @@ int main(int argc, char *argv[])
     // change whether focus tool is enabled via it's toggle button
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
     QObject::connect(panel, &CameraControlPanel::zoomValueChanged, viewer, &QtCameraViewer::setViewerZoomValue);
+    
+    // Wire circle detection to VideoWidget
+    if (viewer && viewer->videoWidget()) {
+        QObject::connect(panel, &CameraControlPanel::circleDetectionToggled, viewer->videoWidget(), &VideoWidget::setCircleDetectionEnabled);
+    }
 
     std::thread capture([&]() {
         for (;;) {

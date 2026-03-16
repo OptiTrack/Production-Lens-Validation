@@ -244,9 +244,13 @@ void VideoWidget::paintGL() {
     }
     
     // Update and composite circle markers overlay on top of the frame
+    // (disabled when ROI zoom is active)
     {
+        const bool roiEnabled = roiZoomEnabled.load(std::memory_order_relaxed);
+        const bool circleEnabled = circleDetectionEnabled.load(std::memory_order_relaxed);
+        
         std::lock_guard<std::mutex> lock(circleMarkersMutex);
-        if (!detectedCircleMarkers.empty()) {
+        if (!roiEnabled && circleEnabled && !detectedCircleMarkers.empty()) {
             updateCircleMarkersTexture();
             
             // Composite circle markers using simple blend
@@ -722,13 +726,23 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
         cv::Moments m = cv::moments(c);
         cv::Point2f centroid(float(m.m10 / m.m00), float(m.m01 / m.m00));
 
-        double area = cv::contourArea(c);
-        double perimeter = cv::arcLength(c, true);
-
-		double circularity = 0.0;
-
-        if (perimeter > 0 && area > 10.0) {
-            circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
+        // Only calculate circularity when circle detection is enabled
+        // Use ellipse-fitting method for consistency with CircleMarkerDetector (0-1 scale)
+        double circularity = 0.0;
+        if (circleDetectionEnabled.load(std::memory_order_relaxed)) {
+            if (c.size() >= 5) {
+                try {
+                    cv::RotatedRect ellipse = cv::fitEllipse(c);
+                    float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
+                    float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
+                    
+                    if (majorAxis > 0) {
+                        circularity = std::clamp(static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
+                    }
+                } catch (...) {
+                    circularity = 0.0;
+                }
+            }
         }
         rois.push_back({ circularity, r, centroid });
     }
@@ -868,11 +882,12 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW, float ds
                 float sx = toScreenX(lbl.combinedPos.x);
                 float sy = toScreenY(lbl.combinedPos.y);
 
-                double circPct = std::min(100.0, lbl.circularity);
+                double circPct = lbl.circularity * 100.0;  // Scale from 0-1 to 0-100
                 QString text = QString("c:%1%").arg(circPct, 0, 'f', 1);
                 int textW = fm.horizontalAdvance(text);
                 int tx = static_cast<int>(sx) - textW / 2;
-                int ty = static_cast<int>(sy) - fm.height() / 2;
+                // Position text below the marker (instead of at center)
+                int ty = static_cast<int>(sy) + fm.height() / 2 + 12;
 
                 QRect bgRect(tx - 2, ty - 1, textW + 4, fm.height() + 2);
                 painter.fillRect(bgRect, QColor(0, 0, 0, 160));
@@ -961,6 +976,14 @@ void VideoWidget::applyEdgeDetection(cv::Mat& gray, int w, int h)
 }
 
 void VideoWidget::drawCircleMarkers(float dstX, float dstY, float dstW, float dstH) {
+    // Disable circle marker rendering when ROI zoom is enabled or circle detection is not enabled
+    const bool roiEnabled = roiZoomEnabled.load(std::memory_order_relaxed);
+    const bool circleEnabled = circleDetectionEnabled.load(std::memory_order_relaxed);
+    
+    if (roiEnabled || !circleEnabled) {
+        return;
+    }
+
     // Regenerate texture from current markers before drawing
     {
         std::lock_guard<std::mutex> lock(circleMarkersMutex);

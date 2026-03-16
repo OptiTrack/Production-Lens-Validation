@@ -146,6 +146,7 @@ private:
     // Circle marker detection storage
     std::vector<CircleMarkerDetector::CircleMarker> detectedCircleMarkers;
     std::mutex circleMarkersMutex;
+    std::atomic<bool> circleDetectionEnabled{ false };
 
 public:
     /// @brief Update detected circle markers for rendering
@@ -158,6 +159,7 @@ public:
 public slots:
     void setEdgeDetectEnabled(bool enabled) { edge_detect_enabled.store(enabled, std::memory_order_release); }
 	void setRoiZoomEnabled(bool enabled) { roiZoomEnabled.store(enabled, std::memory_order_release); }
+    void setCircleDetectionEnabled(bool enabled) { circleDetectionEnabled.store(enabled, std::memory_order_release); }
 };
 
 #endif // VIDEOWIDGET_H
