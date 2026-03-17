@@ -251,8 +251,10 @@ using frameScore = FocusEvaluator::frameScore;
 				qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
 				for (size_t i = 0; i < circles.size(); ++i) {
 					const auto& circle = circles[i];
-					qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f",
-						i, circle.center.x, circle.center.y, circle.radius);
+					const char* shapeStr = (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? "Circle" :
+											(circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? "Oval" : "Hook";
+					qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f, c: %.2f (%s)",
+						i, circle.center.x, circle.center.y, circle.radius, circle.circularity, shapeStr);
 				}
 			}
 

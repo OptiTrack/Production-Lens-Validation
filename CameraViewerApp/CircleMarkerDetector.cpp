@@ -53,10 +53,9 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         gray = mat;
     }
 
-    cv::Mat blurred;
-    cv::medianBlur(gray, blurred, 5);
-
     // Detect circles using Hough Circle Transform
+    cv::Mat blurred;
+    cv::GaussianBlur(gray, blurred, cv::Size(7, 7), 1.5);
     std::vector<cv::Vec3f> circles;
     cv::HoughCircles(
         blurred,
@@ -72,17 +71,113 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     m_lastDetectionCount = static_cast<int>(circles.size());
 
-    // Convert raw detection results to CircleMarker objects
+    // Detect contours using Canny surrounding the detected circles
+    cv::Mat edges;
+    cv::adaptiveThreshold(blurred, edges, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
+                         cv::THRESH_BINARY, 11, 2);
+    cv::Canny(edges, edges, 50, 150, 3);
+    
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(edges.clone(), contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
+
+    // Convert results to CircleMarker objects
     std::vector<CircleMarker> result;
     for (const auto& circle : circles) {
         CircleMarker marker;
         marker.center = cv::Point2f(circle[0], circle[1]);
         marker.radius = circle[2];
         marker.isValid = true;
+        
+        // Calculate circularity and define shape type based on circularitty
+        marker.circularity = CalculateCircularity(marker.center, marker.radius, contours, marker.contour);
+        marker.shapeType = CategorizeShape(marker.circularity);
+        
+        // Quality metric based on ideal circularity/shape
+        if (marker.shapeType == ShapeType::Circle) {
+            marker.quality = marker.circularity;
+        } else if (marker.shapeType == ShapeType::Oval) {
+            marker.quality = 0.5f;
+        } else {
+            marker.quality = 0.0f;
+        }
+        
         result.push_back(marker);
     }
 
     return result;
+}
+
+float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, float radius, 
+                                                  const std::vector<std::vector<cv::Point>>& contours,
+                                                  std::vector<cv::Point>& outContour)
+{
+    outContour.clear();
+    
+    if (contours.empty() || radius <= 0) {
+        return 1.0f;
+    }
+
+    // Find the largest contour by area that is near the circle center
+    int bestContourIdx = -1;
+    double maxArea = 0.0;
+
+    for (size_t i = 0; i < contours.size(); ++i) {
+        if (contours[i].size() < 5) continue;
+        
+        cv::Moments m = cv::moments(contours[i]);
+        if (m.m00 == 0) continue;
+        
+        cv::Point2f centroid(static_cast<float>(m.m10 / m.m00), static_cast<float>(m.m01 / m.m00));
+        float dist = cv::norm(centroid - center);
+        double area = cv::contourArea(contours[i]);
+        
+        if (dist < radius * 2.0f && area > maxArea) {
+            maxArea = area;
+            bestContourIdx = static_cast<int>(i);
+        }
+    }
+
+    if (bestContourIdx < 0) {
+        return 1.0f;  
+    }
+
+    const auto& contour = contours[bestContourIdx];
+    outContour = contour;  
+    
+    if (contour.size() < 5) {
+        return 1.0f;
+    }
+
+    try {
+        cv::RotatedRect ellipse = cv::fitEllipse(contour);
+        float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
+        float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
+        
+        if (majorAxis <= 0) {
+            return 1.0f;
+        }
+        
+        const float circularity = minorAxis / majorAxis;
+        return std::clamp(circularity, 0.0f, 1.0f);
+    }
+    catch (...) {
+        return 1.0f;
+    }
+}
+
+CircleMarkerDetector::ShapeType CircleMarkerDetector::CategorizeShape(float circularity)
+{
+    // Thresholds for shape categorization
+    const float OVAL_UPPER_THRESHOLD = 0.75f;
+    const float OVAL_LOWER_THRESHOLD = 0.65f;
+    
+    if (circularity > OVAL_UPPER_THRESHOLD) {
+        return ShapeType::Circle;
+    } else if (circularity >= OVAL_LOWER_THRESHOLD) {
+        return ShapeType::Oval;
+    } else {
+        return ShapeType::Hook;
+    }
 }
 
 void CircleMarkerDetector::SetDetectionParams(const DetectionParams& params)

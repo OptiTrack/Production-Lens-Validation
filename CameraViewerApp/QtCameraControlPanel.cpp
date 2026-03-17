@@ -334,6 +334,55 @@ void CameraControlPanel::buildUi() {
     zoomLayoutW->addWidget(zoom_button);
 
     lensInspectionLayout->addWidget(zoomWidget);
+
+    // Hough Circle Detection
+    circle_detect_button = new QPushButton("Enable Circle Detection", lensInspectionGroup);
+    circle_detect_button->setCheckable(true);
+    circle_detect_button->setChecked(false);
+    circle_detect_button->setProperty("secondary", true);
+    connect(circle_detect_button, &QPushButton::clicked, this, [this](bool checked) {
+        emit circleDetectionToggled(checked);
+    });
+
+    circle_count_label = new QLabel("Circles Detected: 0", lensInspectionGroup);
+
+    // Circle detection param2 (accumulator threshold)
+    circle_param2_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
+    circle_param2_slider->setRange(1, 100);
+    circle_param2_slider->setValue(10);
+    circle_param2_slider->setMaximumWidth(100);
+    
+    circle_param2_edit = new QLineEdit(lensInspectionGroup);
+    circle_param2_edit->setText("10");
+    circle_param2_edit->setMaximumWidth(60);
+    connect(circle_param2_edit, &QLineEdit::textChanged, this, &CameraControlPanel::onCircleParam2Changed);
+    connect(circle_param2_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
+        circle_param2_edit->setText(QString::number(val));
+    });
+
+    // Build circle detection controls widget
+    auto* circleCtrlsWidget = new QWidget(lensInspectionGroup);
+    auto* circleCtrlsLayout = new QVBoxLayout(circleCtrlsWidget); 
+    circleCtrlsLayout->setContentsMargins(0, 0, 0, 0); 
+    circleCtrlsLayout->setSpacing(8);
+    
+    circleCtrlsLayout->addWidget(circle_detect_button);
+    circleCtrlsLayout->addWidget(circle_count_label, 0, Qt::AlignLeft);
+    
+    auto* param2LblLayout = new QHBoxLayout();
+    auto* param2Lbl = new QLabel("Param2 (Threshold):", circleCtrlsWidget);
+    param2Lbl->setMinimumWidth(120);
+    param2Lbl->setMaximumWidth(120);
+    param2LblLayout->addWidget(param2Lbl, 0, Qt::AlignLeft);
+    param2LblLayout->addWidget(circle_param2_slider);
+    param2LblLayout->addWidget(circle_param2_edit);
+    param2LblLayout->addStretch();
+    circleCtrlsLayout->addLayout(param2LblLayout);
+
+    lensInspectionLayout->addSpacing(12);
+    lensInspectionLayout->addWidget(new QLabel("<b>Hough Circle Detection</b>", lensInspectionGroup));
+    lensInspectionLayout->addWidget(circleCtrlsWidget);
+
     v1->addWidget(lensInspectionGroup);
     v1->addStretch();
 
