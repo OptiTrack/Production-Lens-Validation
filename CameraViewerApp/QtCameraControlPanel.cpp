@@ -8,6 +8,9 @@
 #include <QCheckBox>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QIntValidator>
+#include <QDoubleValidator>
 #include <QScrollArea>
 #include <QDateTime>
 #include <QCoreApplication>
@@ -78,12 +81,24 @@ void CameraControlPanel::buildUi() {
     exposure_slider->setRange(1, 200);
     exposure_slider->setValue(50);
     exposure_slider->setMaximumWidth(150);
+    exposure_edit = new QLineEdit(cam_group);
+    exposure_edit->setValidator(new QIntValidator(1, 200, exposure_edit));
+    exposure_edit->setMaximumWidth(64);
     exposure_label = new QLabel(cam_group);
     exposure_label->setMaximumWidth(75);
     exposure_label->setMinimumWidth(75);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         Q_UNUSED(val);
         updateSliderLabels();
+    });
+    connect(exposure_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        int v = exposure_edit->text().toInt(&ok);
+        if (!ok) {
+            exposure_edit->setText(QString::number(exposure_slider->value()));
+            return;
+        }
+        exposure_slider->setValue(qBound(1, v, 200));
     });
     exposure_button = new QPushButton(cam_group);
     exposure_button->setProperty("secondary", true);
@@ -96,12 +111,24 @@ void CameraControlPanel::buildUi() {
     fps_slider->setRange(1, 1000);
     fps_slider->setValue(30);
     fps_slider->setMaximumWidth(150);
+    fps_edit = new QLineEdit(cam_group);
+    fps_edit->setValidator(new QIntValidator(1, 1000, fps_edit));
+    fps_edit->setMaximumWidth(64);
     fps_label = new QLabel(cam_group);
     fps_label->setMaximumWidth(80);
     fps_label->setMinimumWidth(80);
     connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         Q_UNUSED(val);
         updateSliderLabels();
+    });
+    connect(fps_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        int v = fps_edit->text().toInt(&ok);
+        if (!ok) {
+            fps_edit->setText(QString::number(fps_slider->value()));
+            return;
+        }
+        fps_slider->setValue(qBound(1, v, 1000));
     });
     fps_button  = new QPushButton(cam_group);
     fps_button->setProperty("secondary", true);
@@ -114,12 +141,24 @@ void CameraControlPanel::buildUi() {
     gain_slider->setRange(0, 7);
     gain_slider->setValue(0);
     gain_slider->setMaximumWidth(100);
+    gain_edit = new QLineEdit(cam_group);
+    gain_edit->setValidator(new QIntValidator(0, 7, gain_edit));
+    gain_edit->setMaximumWidth(64);
     gain_label = new QLabel(cam_group);
     gain_label->setMaximumWidth(60);
     gain_label->setMinimumWidth(60);
     connect(gain_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         Q_UNUSED(val);
         updateSliderLabels();
+    });
+    connect(gain_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        int v = gain_edit->text().toInt(&ok);
+        if (!ok) {
+            gain_edit->setText(QString::number(gain_slider->value()));
+            return;
+        }
+        gain_slider->setValue(qBound(0, v, 7));
     });
     gain_button  = new QPushButton(cam_group);
     gain_button->setProperty("secondary", true);
@@ -134,7 +173,11 @@ void CameraControlPanel::buildUi() {
     exposure_title_label->setMinimumWidth(80);
     exposure_title_label->setMaximumWidth(80);
     expLayout->addWidget(exposure_title_label, 0, Qt::AlignLeft);
-    expLayout->addWidget(exposure_slider);
+    auto* exposureRow = new QWidget(exposureWidget);
+    auto* exposureRowLayout = new QHBoxLayout(exposureRow); exposureRowLayout->setContentsMargins(0,0,0,0); exposureRowLayout->setSpacing(6);
+    exposureRowLayout->addWidget(exposure_slider);
+    exposureRowLayout->addWidget(exposure_edit);
+    expLayout->addWidget(exposureRow);
     expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
     expLayout->addWidget(exposure_button);
 
@@ -144,7 +187,11 @@ void CameraControlPanel::buildUi() {
     fps_title_label->setMinimumWidth(80);
     fps_title_label->setMaximumWidth(80);
     fpsLayoutW->addWidget(fps_title_label, 0, Qt::AlignLeft);
-    fpsLayoutW->addWidget(fps_slider);
+    auto* fpsRow = new QWidget(fpsWidget);
+    auto* fpsRowLayout = new QHBoxLayout(fpsRow); fpsRowLayout->setContentsMargins(0,0,0,0); fpsRowLayout->setSpacing(6);
+    fpsRowLayout->addWidget(fps_slider);
+    fpsRowLayout->addWidget(fps_edit);
+    fpsLayoutW->addWidget(fpsRow);
     fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
     fpsLayoutW->addWidget(fps_button);
 
@@ -154,7 +201,11 @@ void CameraControlPanel::buildUi() {
     gain_title_label->setMaximumWidth(80);
     gain_title_label->setMinimumWidth(80);
     gainLayoutW->addWidget(gain_title_label, 0, Qt::AlignLeft);
-    gainLayoutW->addWidget(gain_slider);
+    auto* gainRow = new QWidget(gainWidget);
+    auto* gainRowLayout = new QHBoxLayout(gainRow); gainRowLayout->setContentsMargins(0,0,0,0); gainRowLayout->setSpacing(6);
+    gainRowLayout->addWidget(gain_slider);
+    gainRowLayout->addWidget(gain_edit);
+    gainLayoutW->addWidget(gainRow);
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
     gainLayoutW->addWidget(gain_button);
     
@@ -404,11 +455,25 @@ void CameraControlPanel::buildUi() {
     quality_slider->setRange(0, 100);
     quality_slider->setValue(75);
     quality_slider->setMaximumWidth(120);
+    quality_edit = new QLineEdit(compression_group);
+    quality_edit->setValidator(new QDoubleValidator(0.0, 1.0, 2, quality_edit));
+    quality_edit->setMaximumWidth(64);
     quality_label = new QLabel(compression_group);
     quality_label->setMaximumWidth(50);
     quality_label->setMinimumWidth(50);
     connect(quality_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         quality_label->setText(QString::number(val / 100.0, 'f', 2));
+        if (quality_edit) quality_edit->setText(QString::number(val / 100.0, 'f', 2));
+    });
+    connect(quality_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        const double v = quality_edit->text().toDouble(&ok);
+        if (!ok) {
+            quality_edit->setText(QString::number(quality_slider->value() / 100.0, 'f', 2));
+            return;
+        }
+        const double bounded = qBound(0.0, v, 1.0);
+        quality_slider->setValue(static_cast<int>(bounded * 100.0 + 0.5));
     });
 
     // Bitrate slider (0 - 10000 Mbps)
@@ -416,11 +481,25 @@ void CameraControlPanel::buildUi() {
     bitrate_slider->setRange(0, 200);
     bitrate_slider->setValue(50);
     bitrate_slider->setMaximumWidth(120);
+    bitrate_edit = new QLineEdit(compression_group);
+    bitrate_edit->setValidator(new QDoubleValidator(0.0, 2.0, 2, bitrate_edit));
+    bitrate_edit->setMaximumWidth(64);
     bitrate_label = new QLabel(compression_group);
     bitrate_label->setMaximumWidth(60);
     bitrate_label->setMinimumWidth(60);
     connect(bitrate_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         bitrate_label->setText(QString::number(val / 100.0, 'f', 2));
+        if (bitrate_edit) bitrate_edit->setText(QString::number(val / 100.0, 'f', 2));
+    });
+    connect(bitrate_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        const double v = bitrate_edit->text().toDouble(&ok);
+        if (!ok) {
+            bitrate_edit->setText(QString::number(bitrate_slider->value() / 100.0, 'f', 2));
+            return;
+        }
+        const double bounded = qBound(0.0, v, 2.0);
+        bitrate_slider->setValue(static_cast<int>(bounded * 100.0 + 0.5));
     });
 
     mode_combo = new QComboBox(compression_group);
@@ -435,12 +514,20 @@ void CameraControlPanel::buildUi() {
     auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(8);
     quality_title_label = new QLabel(compressionCtrlsWidget);
     compressionCtrlsLayout->addWidget(quality_title_label, 0, Qt::AlignLeft);
-    compressionCtrlsLayout->addWidget(quality_slider);
+    auto* qualityRow = new QWidget(compressionCtrlsWidget);
+    auto* qualityRowLayout = new QHBoxLayout(qualityRow); qualityRowLayout->setContentsMargins(0,0,0,0); qualityRowLayout->setSpacing(6);
+    qualityRowLayout->addWidget(quality_slider);
+    qualityRowLayout->addWidget(quality_edit);
+    compressionCtrlsLayout->addWidget(qualityRow);
     compressionCtrlsLayout->addWidget(quality_label, 0, Qt::AlignLeft);
 
     bitrate_title_label = new QLabel(compressionCtrlsWidget);
     compressionCtrlsLayout->addWidget(bitrate_title_label, 0, Qt::AlignLeft);
-    compressionCtrlsLayout->addWidget(bitrate_slider);
+    auto* bitrateRow = new QWidget(compressionCtrlsWidget);
+    auto* bitrateRowLayout = new QHBoxLayout(bitrateRow); bitrateRowLayout->setContentsMargins(0,0,0,0); bitrateRowLayout->setSpacing(6);
+    bitrateRowLayout->addWidget(bitrate_slider);
+    bitrateRowLayout->addWidget(bitrate_edit);
+    compressionCtrlsLayout->addWidget(bitrateRow);
     compressionCtrlsLayout->addWidget(bitrate_label, 0, Qt::AlignLeft);
 
     compressionCtrlsLayout->addWidget(mode_combo);
@@ -456,11 +543,25 @@ void CameraControlPanel::buildUi() {
     gamma_slider->setRange(1, 10);
     gamma_slider->setValue(10);
     gamma_slider->setMaximumWidth(100);
+    gamma_edit = new QLineEdit(compression_group);
+    gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 1, gamma_edit));
+    gamma_edit->setMaximumWidth(64);
     gamma_label = new QLabel(compression_group);
     gamma_label->setMaximumWidth(40);
     gamma_label->setMinimumWidth(40);
     connect(gamma_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
         gamma_label->setText(QString::number(val / 10.0, 'f', 1));
+        if (gamma_edit) gamma_edit->setText(QString::number(val / 10.0, 'f', 1));
+    });
+    connect(gamma_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        const double v = gamma_edit->text().toDouble(&ok);
+        if (!ok) {
+            gamma_edit->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
+            return;
+        }
+        const double bounded = qBound(0.1, v, 1.0);
+        gamma_slider->setValue(static_cast<int>(bounded * 10.0 + 0.5));
     });
 
     gamma_button = new QPushButton(compression_group);
@@ -471,7 +572,11 @@ void CameraControlPanel::buildUi() {
     auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(8);
     gamma_title_label = new QLabel(gammaCtrlsWidget);
     gammaCtrlsLayout->addWidget(gamma_title_label, 0, Qt::AlignLeft);
-    gammaCtrlsLayout->addWidget(gamma_slider);
+    auto* gammaRow = new QWidget(gammaCtrlsWidget);
+    auto* gammaRowLayout = new QHBoxLayout(gammaRow); gammaRowLayout->setContentsMargins(0,0,0,0); gammaRowLayout->setSpacing(6);
+    gammaRowLayout->addWidget(gamma_slider);
+    gammaRowLayout->addWidget(gamma_edit);
+    gammaCtrlsLayout->addWidget(gammaRow);
     gammaCtrlsLayout->addWidget(gamma_label, 0, Qt::AlignLeft);
     gammaCtrlsLayout->addWidget(gamma_button);
 
@@ -518,17 +623,21 @@ void CameraControlPanel::buildUi() {
     auto* tabExpo = new QWidget(this);
     auto* vExpo = new QVBoxLayout(tabExpo);
 
+    exporter_group = new QGroupBox(tabExpo);
+    auto* exporterLayout = new QVBoxLayout(exporter_group); exporterLayout->setContentsMargins(6,6,6,6);
+    exporter_group->setLayout(exporterLayout);
+
 	// Serial number input
-	serial_input = new QLineEdit(tabExpo);
+    serial_input = new QLineEdit(exporter_group);
 	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
 		metrics_manager.setLensSerial(text.toStdString());
 	});
-	vExpo->addWidget(serial_input);
+    exporterLayout->addWidget(serial_input);
 
 	// Browse button for screenshot directory
 	auto* browseDirLayout = new QHBoxLayout();
-    browse_label = new QLabel(tabExpo);
-    browse_button = new QPushButton(tabExpo);
+    browse_label = new QLabel(exporter_group);
+    browse_button = new QPushButton(exporter_group);
     browse_button->setProperty("secondary", true);
 	connect(browse_button, &QPushButton::clicked, this, [this]() {
 		QString dir = QFileDialog::getExistingDirectory(
@@ -544,35 +653,42 @@ void CameraControlPanel::buildUi() {
 	browseDirLayout->addWidget(browse_label);
 	browseDirLayout->addWidget(browse_button);
 	browseDirLayout->addStretch();
-	vExpo->addLayout(browseDirLayout);
+    exporterLayout->addLayout(browseDirLayout);
 
 	// Screenshot button
-    screenshot_button = new QPushButton(tabExpo);
+    screenshot_button = new QPushButton(exporter_group);
 	screenshot_button->setProperty("secondary", true);
 	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
 		takeScreenshot();
-        emit showWarning(tr("Screenshot"), tr("Screenshot saved!"));
 	});
-	vExpo->addWidget(screenshot_button);
+    exporterLayout->addWidget(screenshot_button);
+
+    screenshot_status_label = new QLabel(exporter_group);
+    screenshot_status_label->setWordWrap(true);
+    screenshot_status_label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    screenshot_status_label->setMinimumHeight(40);
+    screenshot_status_label->setVisible(false);
+    exporterLayout->addWidget(screenshot_status_label);
 
 	// Export metrics button
-    metrics_export_button = new QPushButton(tabExpo);
+    metrics_export_button = new QPushButton(exporter_group);
     metrics_export_button->setProperty("secondary", true);
 	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
 		emit exportMetricsRequested();
 	});
-	vExpo->addWidget(metrics_export_button);
+    exporterLayout->addWidget(metrics_export_button);
 
 	// Overlay enable/disable checkbox
-    overlay_button = new QCheckBox(tabExpo);
+    overlay_button = new QCheckBox(exporter_group);
 	overlay_button->setChecked(true);
     overlay_button->setProperty("secondary", true);
 	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
 		overlayState = overlay_button->isChecked();
         updateOverlayButtonText();
 	});
-	vExpo->addWidget(overlay_button);
+    exporterLayout->addWidget(overlay_button);
 
+    vExpo->addWidget(exporter_group);
 	vExpo->addStretch();
 
     leftTabWidget->addTab(tabExpo, QString());
@@ -667,12 +783,15 @@ void CameraControlPanel::updateSliderLabels()
 {
     if (exposure_slider && exposure_label) {
         exposure_label->setText(QString::number(exposure_slider->value()) + " " + exposure_unit_ms);
+        if (exposure_edit) exposure_edit->setText(QString::number(exposure_slider->value()));
     }
     if (fps_slider && fps_label) {
         fps_label->setText(QString::number(fps_slider->value()) + " " + fps_unit);
+        if (fps_edit) fps_edit->setText(QString::number(fps_slider->value()));
     }
     if (gain_slider && gain_label) {
         gain_label->setText(QString::number(gain_slider->value()) + " " + gain_unit_db);
+        if (gain_edit) gain_edit->setText(QString::number(gain_slider->value()));
     }
 }
 
@@ -767,6 +886,7 @@ void CameraControlPanel::retranslateUi()
     if (video_group) video_group->setTitle(tr("Video Mode"));
     if (compression_group) compression_group->setTitle(tr("Color Compression"));
     if (gamma_group) gamma_group->setTitle(tr("Gamma"));
+    if (exporter_group) exporter_group->setTitle(tr("Exporter"));
 
     if (exposure_title_label) exposure_title_label->setText(tr("Exposure:"));
     if (fps_title_label) fps_title_label->setText(tr("FPS:"));
@@ -785,6 +905,24 @@ void CameraControlPanel::retranslateUi()
     fps_unit = tr("fps");
     gain_unit_db = tr("dB");
     updateSliderLabels();
+    if (quality_slider && quality_label) {
+        quality_label->setText(QString::number(quality_slider->value() / 100.0, 'f', 2));
+    }
+    if (quality_slider && quality_edit) {
+        quality_edit->setText(QString::number(quality_slider->value() / 100.0, 'f', 2));
+    }
+    if (bitrate_slider && bitrate_label) {
+        bitrate_label->setText(QString::number(bitrate_slider->value() / 100.0, 'f', 2));
+    }
+    if (bitrate_slider && bitrate_edit) {
+        bitrate_edit->setText(QString::number(bitrate_slider->value() / 100.0, 'f', 2));
+    }
+    if (gamma_slider && gamma_label) {
+        gamma_label->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
+    }
+    if (gamma_slider && gamma_edit) {
+        gamma_edit->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
+    }
 
     updateFocusButtonText();
     updateFocusHudButtonText();
@@ -832,6 +970,10 @@ void CameraControlPanel::retranslateUi()
     if (screenshot_button) {
         screenshot_button->setText(tr("Screenshot"));
         screenshot_button->setToolTip(tr("Take Screenshot"));
+    }
+    if (screenshot_status_label) {
+        screenshot_status_label->clear();
+        screenshot_status_label->setVisible(false);
     }
     if (metrics_export_button) {
         metrics_export_button->setText(tr("Export Data"));
@@ -1002,8 +1144,10 @@ void CameraControlPanel::takeScreenshot()
 {
 	// Check if loaded screen
 	QScreen* screen = QGuiApplication::primaryScreen();
-	if (!screen)
+    if (!screen) {
+        emit showWarning(tr("Screenshot"), tr("No screen is currently available."));
 		return;
+    }
 	// Add Serial number of lens if possible, else put #
 	QString serial = serial_input && !serial_input->text().isEmpty() ? serial_input->text() : "#";
 	// Get the window image
@@ -1016,12 +1160,16 @@ void CameraControlPanel::takeScreenshot()
 		pix = screen->grabWindow(gl_viewer_window->winId());
 	// Assign the time and day, with the serial number for file name
 	QString filename = QDateTime::currentDateTime().toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'").arg(serial);
-	// File location selection
-	if (screenshotDirectory.isEmpty()) {
-		pix.save(filename);
-	}
-	else {
-		QString fileLocation = QDir(screenshotDirectory).filePath(filename);
-		pix.save(fileLocation);
-	}
+    QString fileLocation = screenshotDirectory.isEmpty() ? filename : QDir(screenshotDirectory).filePath(filename);
+
+    if (!pix.save(fileLocation)) {
+        emit showWarning(tr("Screenshot"), tr("Failed to save screenshot."));
+        return;
+    }
+
+    if (screenshot_status_label) {
+        screenshot_status_label->setStyleSheet("color: #1f8f3a;");
+        screenshot_status_label->setText(tr("Screenshot Saved: %1").arg(QFileInfo(fileLocation).fileName()));
+        screenshot_status_label->setVisible(true);
+    }
 }
