@@ -28,6 +28,11 @@ public:
         float quality = 1.0f;            ///< Detection quality metric
     };
 
+	/// @brief Detect circular markers in a frame
+	/// @param bmp Bitmap frame to analyze
+	/// @return Vector of detected circle markers
+	std::vector<CircleMarker> DetectCircleMarkers(CameraLibrary::Bitmap* bmp);
+
     struct DetectionParams {
         double dp = 1.0;         ///< Inverse ratio of accumulator resolution
         double minDist = 10.0;   ///< Minimum distance between circles

@@ -90,7 +90,7 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "C:/opencv/build")
+set(OpenCV_DIR "C:/opencv/build_x64_vs2026")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -230,7 +230,7 @@ if(WIN32)
 	endforeach()
 	
 	# Copy OpenCV DLLs
-    file(GLOB OPENCV_DLLS "C:/opencv/build/bin/Release/*.dll")
+    file(GLOB OPENCV_DLLS "C:/opencv/build_x64_vs2026/bin/Release/*.dll")
     foreach(_dll ${OPENCV_DLLS})
         add_custom_command(TARGET CameraViewerApp POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

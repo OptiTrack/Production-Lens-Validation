@@ -25,6 +25,7 @@
 #include "BitmapPool.h"
 #include "FocusEval.h"
 #include "MetricsManager.h"
+#include "CircleMarkerDetector.h"
 
 #ifdef HAVE_FFMPEG
 #include "videodecoder.h"
@@ -184,11 +185,14 @@ int main(int argc, char *argv[])
     std::atomic_bool circleDetectionEnabled(false); // changed by circle detection UI control
     //std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
 
-    FocusEvaluator fe;
-    fe.focusToolEnabled = true; // changed by focus UI control; set True by default
-    const int focusEvalFrameGap = 10;
-    int frameCount = 0;
-    double score = 0;
+    FocusEvaluator fe;                  // Focus evaluator instance
+	CircleMarkerDetector cmd;           // Circle marker detector instance
+
+	double focusScore = 0.0;            // Latest focus score
+
+    fe.focusToolEnabled = true;         // changed by focus UI control; set True by default
+    const int focusEvalFrameGap = 30;   // Number of frames to skip between focus eval / contour detect
+    int frameCount = 0;                 
 
     // Wire UI signals after creating evaluator and panel
     if (panel) {
@@ -197,14 +201,9 @@ int main(int argc, char *argv[])
         });
 
         QObject::connect(panel, &CameraControlPanel::circleParam2Changed, &app, [&](double param2){
-            try {
-                auto det = fe.GetCircleDetector();
-                if (det) {
-                    auto params = det->GetDetectionParams();
-                    params.param2 = param2;
-                    det->SetDetectionParams(params);
-                }
-            } catch (...) {}
+            auto params = cmd.GetDetectionParams();
+            params.param2 = param2;
+            cmd.SetDetectionParams(params);
         });
     }
 
@@ -255,63 +254,25 @@ int main(int argc, char *argv[])
 
                 auto* raw_bmp = bmp_pool.acquire(w, h, int(outBpp), stride);
 
-                // bmp will be freed after last copy is out of scope
-                auto bmp_shared = std::shared_ptr<CameraLibrary::Bitmap>(
-                    raw_bmp,
-                    [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
-                );
-
                 frame->Rasterize(*cam, raw_bmp);
 
-                // update lens result with current grade
-                QtConcurrent::run([lens_result, &mMgr]() {
-                    QMetaObject::invokeMethod(qApp, [lens_result, &mMgr]() {
-                        lens_result->updateTextandColor(mMgr);
-                        }, Qt::QueuedConnection);
-                });
-
-                // if focus evaluation enabled, do so now
-                if (fe.focusToolEnabled && frameCount == 0) {
+                // Clone bitmap after rasterize, shared between focus and circle detection
+                std::shared_ptr<CameraLibrary::Bitmap> bmp_clone_shared;
+                if (frameCount == 0 && (fe.focusToolEnabled || circleDetectionEnabled.load(std::memory_order_acquire))) {
                     auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
                     std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
-
-                    auto bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
+                    bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
                     );
+                }
 
-                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &mMgr]() {
-                        int circleCount = 0;
-                        double avgCircularity = 0.0;
-                        bool hasHook = false;
-                        auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
-                        
-                        if (circleDetectionEnabled.load(std::memory_order_acquire)) {
-                            circles = fe.DetectCircleMarkers(bmp_clone_shared.get());
-                            circleCount = static_cast<int>(circles.size());
-                            
-                            // Calculate average circularity and check for hooks
-                            if (circleCount > 0) {
-                                double sumCircularity = 0.0;
-                                for (const auto& circle : circles) {
-                                    sumCircularity += circle.circularity;
-                                    // Check if any marker is a hook (auto-fail condition)
-                                    if (circle.shapeType == CircleMarkerDetector::ShapeType::Hook) {
-                                        hasHook = true;
-                                        qDebug("[dbg] HOOK DETECTED - Automatic quality failure");
-                                    }
-                                    if (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) {
-                                        qDebug("[dbg] OVAL DETECTED - Lens requires closer inspection");
-                                    }
-                                }
-                                avgCircularity = sumCircularity / circleCount;
-                            }
-                        }
+                // Focus evaluation (independent of circle detection)
+                if (fe.focusToolEnabled && frameCount == 0) {
+                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr]() {
 
                         double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                
-                        
-                        qDebug("[dbg] Focus score: %.2f, Circles: %d, Avg Circularity: %.2f", score, circleCount, avgCircularity);
+                        qDebug("[dbg] Focus score: %.2f", score);
 
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
@@ -319,54 +280,28 @@ int main(int argc, char *argv[])
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, circleCount, avgCircularity, hasHook, circles, panel, viewer, relativeTime, &mMgr]() {
+                            [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
 
                                 focus_result->updateTextandColor(score, mMgr);
-
-                                if (panel) {
-                                    panel->updateCircleCount(circleCount);
-                                }
-                                
-                                // Display detected markers for visual error checking
-                                if (viewer && viewer->videoWidget()) {
-                                    viewer->videoWidget()->setDetectedCircleMarkers(circles);
-                                }
-
                                 viewer->focus_score = score;
 
                                 if (panel && panel->getFocusMetricsController()) {
                                     QHash<QString, qreal> focusMetrics;
                                     focusMetrics["FocusQuality"] = score;
-                                    focusMetrics["CircleCount"] = circleCount;
-                                    focusMetrics["CircleCircularity"] = avgCircularity;
-                                    
-                                    // Count shape types
-                                    int circleTypeCount = 0, ovalTypeCount = 0, hookTypeCount = 0;
-                                    for (const auto& c : circles) {
-                                        if (c.shapeType == CircleMarkerDetector::ShapeType::Circle) circleTypeCount++;
-                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Oval) ovalTypeCount++;
-                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Hook) hookTypeCount++;
-                                    }
-                                    
-                                    focusMetrics["ShapeCircles"] = circleTypeCount;
-                                    focusMetrics["ShapeOvals"] = ovalTypeCount;
-                                    focusMetrics["ShapeHooks"] = hookTypeCount; 
-                                    focusMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;
-                                    
                                     panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                                    //qDebug("[metrics] Added focus data at t=%.2f, score=%.2f", relativeTime, score);
                                 }
                             },
                             Qt::QueuedConnection
                         );
                     });
                 }
+
                 // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
                 if (!fe.focusToolEnabled) {
-                    QFuture<void> result = QtConcurrent::run([&focus_result, &score, viewer, &mMgr]() {
+                    QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr]() {
                         QMetaObject::invokeMethod(
                             qApp,
-                            [focus_result, score, viewer, mMgr]() {
+                            [focus_result, viewer, mMgr]() {
                                 focus_result->updateTextandColor(-1, mMgr);
                                 viewer->focus_score = 0;
                             },
@@ -375,6 +310,90 @@ int main(int argc, char *argv[])
                     });
                 }
 
+                // Circle detection (independent of focus tool state)
+                if (circleDetectionEnabled.load(std::memory_order_acquire) && frameCount == 0) {
+                    QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr]() {
+
+                        int circleCount = 0;
+                        double avgCircularity = 0.0;
+                        bool hasHook = false;
+                        auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+
+                        mMgr.clearMarkers();
+
+                        circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
+                        circleCount = static_cast<int>(circles.size());
+
+                        if (circleCount > 0) {
+                            double sumCircularity = 0.0;
+                            for (const auto& circle : circles) {
+
+                                // Add contours to current metrics for lens grading
+                                MetricsManager::contourData circ = {
+                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? MetricsManager::markerClass::circle :
+                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? MetricsManager::markerClass::oval :
+                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Hook) ? MetricsManager::markerClass::hook :
+                                    MetricsManager::markerClass::circle,
+                                    circle.center,
+                                    circle.circularity
+                                };
+                                mMgr.addMarker(circ);
+                                sumCircularity += circle.circularity;
+                            }
+                            avgCircularity = sumCircularity / circleCount;
+                        }
+
+                        qDebug("[dbg] Contours: %d, Avg Circularity: %.2f", circleCount, avgCircularity);
+
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                        qreal relativeTime = elapsed.count() / 1000.0;
+
+                        QMetaObject::invokeMethod(
+                            qApp,
+                            [circleCount, avgCircularity, hasHook, circles, panel, viewer, relativeTime, &mMgr]() {
+
+                                if (panel) {
+                                    panel->updateCircleCount(circleCount);
+                                }
+
+                                if (viewer && viewer->videoWidget()) {
+                                    viewer->videoWidget()->setDetectedCircleMarkers(circles);
+                                }
+
+                                if (panel && panel->getFocusMetricsController()) {
+                                    QHash<QString, qreal> contourMetrics;
+                                    contourMetrics["CircleCount"] = circleCount;
+                                    contourMetrics["CircleCircularity"] = avgCircularity;
+
+                                    int circleTypeCount = 0, ovalTypeCount = 0, hookTypeCount = 0;
+                                    for (const auto& c : circles) {
+                                        if (c.shapeType == CircleMarkerDetector::ShapeType::Circle) circleTypeCount++;
+                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Oval) ovalTypeCount++;
+                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Hook) hookTypeCount++;
+                                    }
+
+                                    contourMetrics["ShapeCircles"] = circleTypeCount;
+                                    contourMetrics["ShapeOvals"] = ovalTypeCount;
+                                    contourMetrics["ShapeHooks"] = hookTypeCount;
+                                    contourMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;
+
+                                    panel->getFocusMetricsController()->addData(relativeTime, contourMetrics);
+                                }
+                            },
+                            Qt::QueuedConnection
+                        );
+                    });
+                }
+
+                // update lens result with current grade
+                QtConcurrent::run([lens_result, &mMgr]() {
+                    QMetaObject::invokeMethod(qApp, [lens_result, &mMgr]() {
+                        lens_result->updateTextandColor(mMgr);
+                        }, Qt::QueuedConnection);
+                });
+
+                // repaint video widget with new frame
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
                     viewer->videoWidget()->updateFrameFromBitmap(raw_bmp);
                 }, Qt::QueuedConnection);
@@ -409,10 +428,10 @@ int main(int argc, char *argv[])
         qDebug("[ui] Circle detection %s", enabled ? "enabled" : "disabled");
     });
 
-    QObject::connect(panel, &CameraControlPanel::circleParam2Changed, [&fe](double param2){
-        auto params = fe.GetCircleDetector()->GetDetectionParams();
+    QObject::connect(panel, &CameraControlPanel::circleParam2Changed, [&cmd](double param2){
+        auto params = cmd.GetDetectionParams();
         params.param2 = param2;
-        fe.GetCircleDetector()->SetDetectionParams(params);
+        cmd.SetDetectionParams(params);
         qDebug("[ui] Circle param2 changed to %.1f", param2);
     });
 

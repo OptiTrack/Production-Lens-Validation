@@ -1,4 +1,5 @@
 #include "CircleMarkerDetector.h"
+#include <QtLogging>
 
 CircleMarkerDetector::CircleMarkerDetector()
     : m_params()
@@ -37,6 +38,35 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 {
     cv::Mat mat = ConvertBitmapToMat(bmp);
     return DetectCirclesFromMat(mat);
+}
+
+/// <summary>
+/// Detects circular markers in the bitmap frame using Hough Circle detection
+/// </summary>
+/// <param name="bmp">Input frame bitmap from camera</param>
+/// <returns>Vector of detected circle markers</returns>
+std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap* bmp) {
+
+    try {
+        auto circles = DetectCircles(bmp);
+
+        if (!circles.empty()) {
+            qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
+            for (size_t i = 0; i < circles.size(); ++i) {
+                const auto& circle = circles[i];
+                const char* shapeStr = (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? "Circle" :
+                    (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? "Oval" : "Hook";
+                qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f, c: %.2f (%s)",
+                    i, circle.center.x, circle.center.y, circle.radius, circle.circularity, shapeStr);
+            }
+        }
+
+        return circles;
+    }
+    catch (const std::exception& e) {
+        qWarning("[dbg] Circle detection failed: %s", e.what());
+        return std::vector<CircleMarkerDetector::CircleMarker>();
+    }
 }
 
 std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat& mat)
