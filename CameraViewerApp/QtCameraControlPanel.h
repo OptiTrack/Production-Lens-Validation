@@ -52,7 +52,8 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsManager& mMgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
-    
+	MetricController* getLensMetricsController() const { return lensMetricsController; }
+
     /// @brief Update circle detection count display
     void updateCircleCount(int count);
     bool const returnFocusToolState() { return focusState; }

@@ -45,6 +45,7 @@ public:
 
 	// Accessors for the metrics
 	const lensMetrics& getMetrics() const { return m_metrics; }
+	const double getLensScore() const { return m_metrics.lensScore; }
 
 	void setLensSerial(const std::string& serial) { m_metrics.lensSerial = serial; }
 	void setLanguage(OutputLanguage lang) { m_metrics.lang = lang; }

@@ -108,9 +108,6 @@ int main(int argc, char *argv[])
 
     MetricsManager mMgr;
 
-    //dbg
-    mMgr.testMM();
-
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
@@ -191,7 +188,7 @@ int main(int argc, char *argv[])
 	double focusScore = 0.0;            // Latest focus score
 
     fe.focusToolEnabled = true;         // changed by focus UI control; set True by default
-    const int focusEvalFrameGap = 30;   // Number of frames to skip between focus eval / contour detect
+    const int focusEvalFrameGap = 100;  // Number of frames to skip between focus eval / contour detect
     int frameCount = 0;                 
 
     // Wire UI signals after creating evaluator and panel
@@ -319,8 +316,6 @@ int main(int argc, char *argv[])
                         bool hasHook = false;
                         auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
 
-                        mMgr.clearMarkers();
-
                         circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
                         circleCount = static_cast<int>(circles.size());
 
@@ -337,7 +332,7 @@ int main(int argc, char *argv[])
                                     circle.center,
                                     circle.circularity
                                 };
-                                mMgr.addMarker(circ);
+                                mMgr.addMarker(circ); 
                                 sumCircularity += circle.circularity;
                             }
                             avgCircularity = sumCircularity / circleCount;
@@ -348,10 +343,11 @@ int main(int argc, char *argv[])
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
                         qreal relativeTime = elapsed.count() / 1000.0;
+						double lensScore = mMgr.getLensScore();
 
                         QMetaObject::invokeMethod(
                             qApp,
-                            [circleCount, avgCircularity, hasHook, circles, panel, viewer, relativeTime, &mMgr]() {
+                            [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
 
                                 if (panel) {
                                     panel->updateCircleCount(circleCount);
@@ -361,28 +357,16 @@ int main(int argc, char *argv[])
                                     viewer->videoWidget()->setDetectedCircleMarkers(circles);
                                 }
 
-                                if (panel && panel->getFocusMetricsController()) {
-                                    QHash<QString, qreal> contourMetrics;
-                                    contourMetrics["CircleCount"] = circleCount;
-                                    contourMetrics["CircleCircularity"] = avgCircularity;
-
-                                    int circleTypeCount = 0, ovalTypeCount = 0, hookTypeCount = 0;
-                                    for (const auto& c : circles) {
-                                        if (c.shapeType == CircleMarkerDetector::ShapeType::Circle) circleTypeCount++;
-                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Oval) ovalTypeCount++;
-                                        else if (c.shapeType == CircleMarkerDetector::ShapeType::Hook) hookTypeCount++;
-                                    }
-
-                                    contourMetrics["ShapeCircles"] = circleTypeCount;
-                                    contourMetrics["ShapeOvals"] = ovalTypeCount;
-                                    contourMetrics["ShapeHooks"] = hookTypeCount;
-                                    contourMetrics["HookDetected"] = hasHook ? 1.0 : 0.0;
-
-                                    panel->getFocusMetricsController()->addData(relativeTime, contourMetrics);
+                                if (panel && panel->getLensMetricsController()) {
+                                    QHash<QString, qreal> lensMetrics;
+                                    lensMetrics["LensHealth"] = lensScore;
+                                    qDebug("[dbg] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensMetrics);
+                                    panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
                                 }
                             },
                             Qt::QueuedConnection
                         );
+						mMgr.clearMarkers();
                     });
                 }
 

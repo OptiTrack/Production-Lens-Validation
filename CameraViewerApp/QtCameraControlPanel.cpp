@@ -605,7 +605,7 @@ void CameraControlPanel::buildUi() {
     vStats->addWidget(focus_metrics_widgets->groupBox);
 
     // Create Lens Metrics with controller
-    QVector<QString> lensLabels = {"LensValidation"};
+    QVector<QString> lensLabels = {"LensHealth"};
     QVector<QString> lensDescriptions = {""};
     QVector<bool> lensGraphs = {true};
     lens_metrics_widgets = createMetricWidgets(QString(), QString(), lensLabels, lensDescriptions, lensGraphs);
