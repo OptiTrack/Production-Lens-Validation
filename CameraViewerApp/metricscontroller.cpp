@@ -14,7 +14,7 @@ void MetricController::addData(qreal id, QHash<QString, qreal> metrics)
 
         if (metrics.contains(key)) {
             qreal value = metrics.value(key);
-            dataLabel->setText(QString::number(value, 'f', 1) + " " + m_metricWidgets->units);
+            dataLabel->setText(QString::number(value, 'f', 3) + " " + m_metricWidgets->units);
 
             GraphWidget* metricGraph = metricGraphs.at(i);
             if (metricGraph) {

@@ -176,6 +176,7 @@ using frameScore = FocusEvaluator::frameScore;
 		}
 
 		// otherwise, classify quality
+		/*
 		if (ratio >= hiFocusThreshold) {
 			qDebug("[dbg] Focus optimal!");
 		} 
@@ -188,6 +189,7 @@ using frameScore = FocusEvaluator::frameScore;
 		else {
 			qDebug("[dbg] Focus poor.");
 		}
+		*/
 
 		// decay max slowly in case we grabbed a transient peak
 		double oldMax = maxInstanceScore;

@@ -41,12 +41,12 @@ using lensMetrics = MetricsManager::lensMetrics;
 /// <returns>True if export succeeded, false otherwise</returns>
 bool MetricsManager::ExportMetrics() {
 
-	if (m_metrics.visibleMarkers.empty()) {
+	if (m_snapshot.visibleMarkers.empty()) {
 		qDebug("[!] No contour data to export!");
 		return false;
 	}
 
-	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_metrics.lensSerial.c_str());
+	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_snapshot.lensSerial.c_str());
 
 	QString filePath = QFileDialog::getSaveFileName(
 		nullptr,
@@ -69,8 +69,7 @@ bool MetricsManager::ExportMetrics() {
 	const char** hTable = nullptr;
 	size_t hCount = 0;
 
-	// language check
-	if (m_metrics.lang == MetricsManager::English) {
+	if (m_snapshot.lang == MetricsManager::English) {
 		hTable = ENHeaders;
 		hCount = std::size(ENHeaders);
 	}
@@ -86,14 +85,14 @@ bool MetricsManager::ExportMetrics() {
 	}
 	out << "\n";
 
-	for (const auto& d : m_metrics.visibleMarkers) {
-		out << m_metrics.lensSerial << ","
-			<< LensDispositionToString(m_metrics.lensDisp) << ","
+	for (const auto& d : m_snapshot.visibleMarkers) {
+		out << m_snapshot.lensSerial << ","
+			<< LensDispositionToString(m_snapshot.lensDisp) << ","
 			<< MarkerClassifierToString(d.mClass) << ","
 			<< d.circularityScore << ","
 			<< d.centroid.x << ","
 			<< d.centroid.y << ","
-			<< (m_metrics.lensFocusOptimal ? "true" : "false") << ","
+			<< (m_snapshot.lensFocusOptimal ? "true" : "false") << ","
 			<< "\n";
 	}
 
@@ -135,7 +134,28 @@ void MetricsManager::testMM() {
 }
 
 /// <summary>
-/// Given a collection of markers, evaluate overall lens condition
+/// Convert and add all circles from a detection pass, then evaluate once.
+/// </summary>
+void MetricsManager::addMarkers(const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
+	for (const auto& circle : circles) {
+		contourData circ = {
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? markerClass::circle :
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Oval)   ? markerClass::oval   :
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Hook)   ? markerClass::hook   :
+			markerClass::circle,
+			circle.center,
+			circle.circularity
+		};
+		m_metrics.visibleMarkers.push_back(circ);
+	}
+
+	UpdateLensDisposition();
+}
+
+/// <summary>
+/// Given a collection of markers, evaluate overall lens condition.
+/// Saves a snapshot of the result whenever markers are present so
+/// ExportMetrics() always has data regardless of render loop timing.
 /// </summary>
 void MetricsManager::UpdateLensDisposition() {
 
@@ -173,7 +193,7 @@ void MetricsManager::UpdateLensDisposition() {
 		// Scale penalty with circularity for more dynamic scoring.
 		if (m.mClass == markerClass::oval) {
 
-			qDebug("\n[dbg] Oval marker at (%.1f, %.1f) with circularity %.2f", m.centroid.x, m.centroid.y, m.circularityScore);
+			qDebug("\n[dbg] Oval marker at (%.2f, %.2f) with circularity %.2f", m.centroid.x, m.centroid.y, m.circularityScore);
 
 			if (hypotToCenter == 0.0) {
 				qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
@@ -186,7 +206,7 @@ void MetricsManager::UpdateLensDisposition() {
 			// marker centroid deviation from true image center as weight
 			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter); 
 
-			qDebug("[dbg] Max hypot: %.1f, marker hypot: %.1f, Distance weight: %.1f",
+			qDebug("[dbg] Max hypot: %.2f, marker hypot: %.2f, Distance weight: %.2f",
 				hypotToCenter,
 				markerHypotToCenter,
 				scaledMultiplier);
@@ -194,13 +214,13 @@ void MetricsManager::UpdateLensDisposition() {
 			// scale distance with non-circularity
 			penalty = scaledMultiplier * (1 - m.circularityScore);
 
-			qDebug("[dbg] Calculated oval marker penalty: %.1f", penalty);
+			qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
 		}
 
 		// if circular, apply penalty proportional to circularity
 		else if (m.mClass == markerClass::circle) {
 			penalty = (1 - m.circularityScore); // apply unweighted circularity score
-			qDebug("[dbg] Calculated circle marker penalty: %.1f", penalty);
+			qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
 		}
 		score -= penalty;
 	}
@@ -217,7 +237,10 @@ void MetricsManager::UpdateLensDisposition() {
 		m_metrics.lensDisp = lensDisposition::fail;
 	}
 	m_metrics.lensScore = scorePct;
-	qDebug("[dbg] Overall lens health: %.1f%\n", scorePct * 100.f);
+	qDebug("[dbg] Overall lens health: %.2f%\n", scorePct * 100.f);
+
+	// Retain this result so ExportMetrics() always has the last valid frame data
+	m_snapshot = m_metrics;
 }
 
 

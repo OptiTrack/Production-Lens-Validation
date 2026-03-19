@@ -3,6 +3,7 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/types.hpp>
+#include "CircleMarkerDetector.h"
 
 class MetricsManager {
 public:
@@ -47,8 +48,8 @@ public:
 	const lensMetrics& getMetrics() const { return m_metrics; }
 	const double getLensScore() const { return m_metrics.lensScore; }
 
-	void setLensSerial(const std::string& serial) { m_metrics.lensSerial = serial; }
-	void setLanguage(OutputLanguage lang) { m_metrics.lang = lang; }
+	void setLensSerial(const std::string& serial) { m_metrics.lensSerial = serial; m_snapshot.lensSerial = serial; }
+	void setLanguage(OutputLanguage lang) { m_metrics.lang = lang; m_snapshot.lang = lang; }
 	void setDisposition(lensDisposition disp) { m_metrics.lensDisp = disp; }
 	void setFocusOptimal(bool optimal) { m_metrics.lensFocusOptimal = optimal; }
 
@@ -63,15 +64,13 @@ public:
 
 	void addMarker(const contourData& marker) {
 		m_metrics.visibleMarkers.push_back(marker);
-
-		// only evaluate if focus is optimal, no value otherwise.
-		if (m_metrics.lensFocusOptimal) {
-			UpdateLensDisposition();
-		}
+		UpdateLensDisposition();
 	}
 
-	void clearMarkers() { 
-		m_metrics.visibleMarkers.clear(); 
+	void addMarkers(const std::vector<CircleMarkerDetector::CircleMarker>& circles);
+
+	void clearMarkers() {
+		m_metrics.visibleMarkers.clear();
 		UpdateLensDisposition();
 	}
 
@@ -86,8 +85,10 @@ private:
 	double hypotToCenter;
 	int imageW;
 	int imageH;
-																	 
-	lensMetrics m_metrics;
+
+	lensMetrics m_metrics;		// current metrics
+	lensMetrics m_snapshot;		// metrics snapshot of prior frame
+
 	void UpdateLensDisposition();
 	static const char* LensDispositionToString(MetricsManager::lensDisposition ds);
 	static const char* MarkerClassifierToString(MetricsManager::markerClass mc);

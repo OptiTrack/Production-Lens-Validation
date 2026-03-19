@@ -549,109 +549,116 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
         if (!rois.empty()) {
             shapeParams.roiLabels.clear();
 
-            // Apply EWM smoothing to prevent glitching when subject moves
-            if (!prev_roi_centroids.empty() && prev_roi_centroids.size() == rois.size()) {
-                for (size_t i = 0; i < rois.size(); ++i) {
-
-                    // Find closest previous centroid to current ROI
-                    float minDistSq = std::numeric_limits<float>::max();
-                    int bestMatch = -1;
-
-                    for (size_t j = 0; j < prev_roi_centroids.size(); ++j) {
-                        float dx = rois[i].centroid.x - prev_roi_centroids[j].x;
-                        float dy = rois[i].centroid.y - prev_roi_centroids[j].y;
-                        float distSq = dx * dx + dy * dy;
-                        if (distSq < minDistSq) {
-                            minDistSq = distSq;
-                            bestMatch = static_cast<int>(j);
-                        }
-                    }
-
-                    // Apply exponential smoothing if match found and close enough
-                    if (bestMatch >= 0 && minDistSq < centroid_matching_threshold) {
-                        rois[i].centroid.x = centroid_smoothing_alpha * rois[i].centroid.x +
-                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].x;
-                        rois[i].centroid.y = centroid_smoothing_alpha * rois[i].centroid.y +
-                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].y;
-                    }
-                }
-            }
-
-            // Update cache for next frame
-            prev_roi_centroids.clear();
-            for (const auto& roi : rois) {
-                prev_roi_centroids.push_back(roi.centroid);
-            }
-
-            // Find center-most ROI
             cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
-            
-            int centerIdx = -1;
-            float minDistSq = std::numeric_limits<float>::max();
 
-            for (size_t i = 0; i < rois.size(); ++i) {
-                cv::Point2f c = rois[i].centroid;
-                float dx = c.x - imageCenter.x;
-                float dy = c.y - imageCenter.y;
-                float distSq = dx * dx + dy * dy;
-                if (distSq < minDistSq) {
-                    minDistSq = distSq;
-                    centerIdx = static_cast<int>(i);
+            // Find center-most ROI for the diamond slot (slot 4)
+            int centerIdx = -1;
+            {
+                float minDistSq = std::numeric_limits<float>::max();
+                for (size_t i = 0; i < rois.size(); ++i) {
+                    float dx = rois[i].centroid.x - imageCenter.x;
+                    float dy = rois[i].centroid.y - imageCenter.y;
+                    float d = dx*dx + dy*dy;
+                    if (d < minDistSq) { minDistSq = d; centerIdx = static_cast<int>(i); }
                 }
             }
 
-            // Place remaining ROIs in quadrants
+            // Group remaining ROI indices by quadrant slot (col + row*2)
+            std::array<std::vector<size_t>, 4> slotCandidates;
             for (size_t i = 0; i < rois.size(); ++i) {
+                if (static_cast<int>(i) == centerIdx) continue;
+                int col = (rois[i].centroid.x > imageCenter.x) ? 1 : 0;
+                int row = (rois[i].centroid.y > imageCenter.y) ? 1 : 0;
+                slotCandidates[col + row * 2].push_back(i);
+            }
 
-                VideoWidget::RoiInfo& roi = rois[i];
-
-                //skip center ROI
-                if (static_cast<int>(i) == centerIdx) { 
-                    continue; 
+            // For each quadrant slot, select one candidate and apply EMA smoothing.
+            // If the slot has a prior track, pick the candidate closest to it.
+            // If no prior track (or track lost), pick the largest by contour area.
+            for (int slot = 0; slot < 4; ++slot) {
+                const auto& cands = slotCandidates[slot];
+                if (cands.empty()) {
+                    quadrantSlots[slot].hasTrack = false;
+                    continue;
                 }
 
-                int col = (roi.centroid.x > imageCenter.x) ? 1 : 0;
-                int row = (roi.centroid.y > imageCenter.y) ? 1 : 0;
+                int chosen = -1;
+                if (quadrantSlots[slot].hasTrack) {
+                    float minDist = std::numeric_limits<float>::max();
+                    for (size_t idx : cands) {
+                        float dx = rois[idx].centroid.x - quadrantSlots[slot].centroid.x;
+                        float dy = rois[idx].centroid.y - quadrantSlots[slot].centroid.y;
+                        float d = dx*dx + dy*dy;
+                        if (d < minDist) { minDist = d; chosen = static_cast<int>(idx); }
+                    }
+                    if (minDist >= centroid_matching_threshold) chosen = -1; // track lost
+                }
+                if (chosen < 0) {
+                    // No track — pick largest area as anchor
+                    chosen = static_cast<int>(*std::max_element(cands.begin(), cands.end(),
+                        [&](size_t a, size_t b){ return rois[a].rect.area() < rois[b].rect.area(); }));
+                }
 
-                int x = col * (quadW);
-                int y = row * (quadH);
+                auto& s = quadrantSlots[slot];
+                if (s.hasTrack) {
+                    s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x
+                                 + (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+                    s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y
+                                 + (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+                } else {
+                    s.centroid = rois[chosen].centroid;
+                }
+                s.hasTrack = true;
+                s.circularity = rois[chosen].circularity;
+            }
 
-                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
+            // Place quadrant slots
+            for (int slot = 0; slot < 4; ++slot) {
+                if (!quadrantSlots[slot].hasTrack) continue;
+                int col = slot % 2;
+                int row = slot / 2;
+                int x = col * quadW;
+                int y = row * quadH;
+
+                cv::Mat cropped = zoomCrop(gray, quadrantSlots[slot].centroid, ROIZoomScale);
                 cv::Mat resized;
                 cv::resize(cropped, resized, cv::Size(quadW, quadH));
-
                 resized.copyTo(combined(cv::Rect(x, y, quadW, quadH)));
 
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(x + quadW / 2), float(y + quadH / 2)),
-                    roi.circularity
+                    quadrantSlots[slot].circularity
                 });
             }
 
-            // Place center ROI in diamond area with mask
+            // Update center slot (slot 4) and place in diamond area with mask
             if (centerIdx >= 0) {
-                VideoWidget::RoiInfo& roi = rois[centerIdx];
+                auto& s = quadrantSlots[4];
+                if (s.hasTrack) {
+                    s.centroid.x = centroid_smoothing_alpha * rois[centerIdx].centroid.x
+                                 + (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+                    s.centroid.y = centroid_smoothing_alpha * rois[centerIdx].centroid.y
+                                 + (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+                } else {
+                    s.centroid = rois[centerIdx].centroid;
+                }
+                s.hasTrack = true;
+                s.circularity = rois[centerIdx].circularity;
 
-                // Crop the center region of the original image
-                int cropSize = std::min(gray.cols, gray.rows) / 2;
-
-                int cropX = (gray.cols - cropSize) / 2;
-                int cropY = (gray.rows - cropSize) / 2;
-
-                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
-
+                cv::Mat cropped = zoomCrop(gray, s.centroid, ROIZoomScale);
                 cv::Mat centerResized;
                 cv::resize(cropped, centerResized, cv::Size(diamondW, diamondH));
 
                 cv::Mat diamondMask = cv::Mat::zeros(diamondH, diamondW, CV_8UC1);
                 cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{diamondPts}, cv::Scalar(255));
-
                 centerResized.copyTo(combined(cv::Rect(diamondX, diamondY, diamondW, diamondH)), diamondMask);
 
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(diamondX + diamondW / 2), float(diamondY + diamondH / 2)),
-                    rois[static_cast<size_t>(centerIdx)].circularity
+                    s.circularity
                 });
+            } else {
+                quadrantSlots[4].hasTrack = false;
             }
         }
 

@@ -78,14 +78,23 @@ private:
 
     float ROIZoomScale = 1.f; // degree of zoom for ROI quadrants
 
-    // Temporal smoothing for ROI centroids to prevent glitching
-    std::vector<cv::Point2f> prev_roi_centroids;
-    const float centroid_smoothing_alpha = 0.05f; 		// Lower = more smoothing (0.1-0.3)
-    const float centroid_matching_threshold = 10000.0f; // Max distance squared for tracking
+    // Per-slot tracking: each of the 5 display slots (TL, TR, BL, BR, center) independently
+    // tracks its chosen marker across frames, selecting the closest candidate each frame.
+    struct QuadrantSlot {
+        cv::Point2f centroid{0.0f, 0.0f};
+        bool hasTrack = false;
+        double circularity = 0.0;
+    };
+
+    // Slots 0-3: col + row * 2 (0=TL,1=TR,2=BL,3=BR) slot 4: center diamond area
+    std::array<QuadrantSlot, 5> quadrantSlots{};
+
+    const float centroid_smoothing_alpha = 0.05f;        // EMA weight on new detection (lower = smoother)
+    const float centroid_matching_threshold = 150000.0f; // Max sq dist to keep a slot's track (150,000 -> ~387px)
 
     // ROI detection parameters
-    const int roi_extraction_margin = 30; 		// Margin around detected contours (pixels)
-    const size_t roi_max_count = 5; 			// Maximum number of ROIs to detect
+    const int roi_extraction_margin = 45; 		// Margin around detected contours (pixels)
+    const size_t roi_max_count = 20; 			// Candidate pool size (select 1 per slot from these)
 
     // Edge detection parameters
     const double canny_low_threshold = 100.0; 	// Canny low threshold

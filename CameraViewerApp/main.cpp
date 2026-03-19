@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
                                       fps_calculator, focus_result, lens_result, mMgr, nullptr);
 
-    
+
     // Remove any current installed translators to ensure a clean slate, then install the appropriate ones based on the current locale
     // use [&] to capture the app and translators by reference so they remain in scope and can be modified inside the lambda
     auto applyLanguage = [&](const QString& localeName) {
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 	double focusScore = 0.0;            // Latest focus score
 
     fe.focusToolEnabled = true;         // changed by focus UI control; set True by default
-    const int focusEvalFrameGap = 100;  // Number of frames to skip between focus eval / contour detect
+    const int focusEvalFrameGap = 15;  // Number of frames to skip between focus eval / contour detect
     int frameCount = 0;                 
 
     // Wire UI signals after creating evaluator and panel
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
                     QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr]() {
 
                         double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                        qDebug("[dbg] Focus score: %.2f", score);
+                        //qDebug("[dbg] Focus score: %.2f", score);
 
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
@@ -279,6 +279,7 @@ int main(int argc, char *argv[])
                             qApp,
                             [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
 
+                                mMgr.setFocusOptimal(score >= 0.65);
                                 focus_result->updateTextandColor(score, mMgr);
                                 viewer->focus_score = score;
 
@@ -312,7 +313,6 @@ int main(int argc, char *argv[])
                     QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr]() {
 
                         int circleCount = 0;
-                        double avgCircularity = 0.0;
                         bool hasHook = false;
                         auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
 
@@ -320,30 +320,17 @@ int main(int argc, char *argv[])
                         circleCount = static_cast<int>(circles.size());
 
                         if (circleCount > 0) {
-                            double sumCircularity = 0.0;
-                            for (const auto& circle : circles) {
-
-                                // Add contours to current metrics for lens grading
-                                MetricsManager::contourData circ = {
-                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? MetricsManager::markerClass::circle :
-                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? MetricsManager::markerClass::oval :
-                                    (circle.shapeType == CircleMarkerDetector::ShapeType::Hook) ? MetricsManager::markerClass::hook :
-                                    MetricsManager::markerClass::circle,
-                                    circle.center,
-                                    circle.circularity
-                                };
-                                mMgr.addMarker(circ); 
-                                sumCircularity += circle.circularity;
-                            }
-                            avgCircularity = sumCircularity / circleCount;
+                            mMgr.addMarkers(circles);
                         }
 
-                        qDebug("[dbg] Contours: %d, Avg Circularity: %.2f", circleCount, avgCircularity);
+                        qDebug("[dbg] Contours: %d", circleCount);
 
                         auto now = std::chrono::steady_clock::now();
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
                         qreal relativeTime = elapsed.count() / 1000.0;
+
 						double lensScore = mMgr.getLensScore();
+						qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensScore);
 
                         QMetaObject::invokeMethod(
                             qApp,
@@ -360,7 +347,6 @@ int main(int argc, char *argv[])
                                 if (panel && panel->getLensMetricsController()) {
                                     QHash<QString, qreal> lensMetrics;
                                     lensMetrics["LensHealth"] = lensScore;
-                                    qDebug("[dbg] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensMetrics);
                                     panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
                                 }
                             },
@@ -380,6 +366,7 @@ int main(int argc, char *argv[])
                 // repaint video widget with new frame
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
                     viewer->videoWidget()->updateFrameFromBitmap(raw_bmp);
+                    bmp_pool.release(raw_bmp);
                 }, Qt::QueuedConnection);
 
                 frameCount += 1;
@@ -421,6 +408,7 @@ int main(int argc, char *argv[])
 
     const int rc = app.exec();
     guard.finalize();
+    delete viewer;
     delete mgr;
     return rc;
 }
