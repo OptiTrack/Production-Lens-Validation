@@ -134,7 +134,7 @@ private:
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};
     QLabel* quality_label{nullptr};
-    QLabel* quality_title_label{nullptr};
+    QLabel* color_title_label{nullptr};
     QLineEdit* bitrate_edit{nullptr};
     QSlider* bitrate_slider{nullptr};
     QLabel* bitrate_label{nullptr};

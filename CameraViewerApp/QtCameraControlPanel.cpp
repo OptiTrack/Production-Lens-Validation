@@ -512,8 +512,8 @@ void CameraControlPanel::buildUi() {
     // Build compression controls widget
     auto* compressionCtrlsWidget = new QWidget(compression_group);
     auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(8);
-    quality_title_label = new QLabel(compressionCtrlsWidget);
-    compressionCtrlsLayout->addWidget(quality_title_label, 0, Qt::AlignLeft);
+    color_title_label = new QLabel(compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(color_title_label, 0, Qt::AlignLeft);
     auto* qualityRow = new QWidget(compressionCtrlsWidget);
     auto* qualityRowLayout = new QHBoxLayout(qualityRow); qualityRowLayout->setContentsMargins(0,0,0,0); qualityRowLayout->setSpacing(6);
     qualityRowLayout->addWidget(quality_slider);
@@ -891,7 +891,7 @@ void CameraControlPanel::retranslateUi()
     if (exposure_title_label) exposure_title_label->setText(tr("Exposure:"));
     if (fps_title_label) fps_title_label->setText(tr("FPS:"));
     if (gain_title_label) gain_title_label->setText(tr("Gain:"));
-    if (quality_title_label) quality_title_label->setText(tr("Quality:"));
+    if (color_title_label) color_title_label->setText(tr("Color:"));
     if (bitrate_title_label) bitrate_title_label->setText(tr("Bitrate:"));
     if (gamma_title_label) gamma_title_label->setText(tr("Gamma:"));
 
@@ -950,7 +950,7 @@ void CameraControlPanel::retranslateUi()
     if (leftTabWidget) {
         leftTabWidget->setTabText(0, tr("Controls"));
         leftTabWidget->setTabText(1, tr("Lens"));
-        leftTabWidget->setTabText(2, tr("Quality"));
+        leftTabWidget->setTabText(2, tr("Color"));
         leftTabWidget->setTabText(3, tr("Statistics"));
         leftTabWidget->setTabText(4, tr("Exporter"));
     }

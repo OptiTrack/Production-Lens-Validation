@@ -179,7 +179,7 @@ void QtCameraViewer::buildUi()
     connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
     auto* tab1_visibility_button = new QPushButton("Lens", toggle_tabs_bar);
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-    auto* tab2_visibility_button = new QPushButton("Quality", toggle_tabs_bar);
+    auto* tab2_visibility_button = new QPushButton("Color", toggle_tabs_bar);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
     auto* tab3_visibility_button = new QPushButton("Statistics", toggle_tabs_bar);
     connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
