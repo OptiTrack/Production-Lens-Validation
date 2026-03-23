@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QDateTime>
 #include <qfile.h>
+#include <qtimer.h>
 
 // For chinese translation support
 #include <QTranslator>
@@ -107,7 +108,17 @@ int main(int argc, char *argv[])
     LensResultLabel* lens_result = new LensResultLabel("Unknown");
 
     MetricsManager mMgr;
+    QTimer focusTimer, gradeTimer;
 
+    // bitmap frame shared between timed events
+    std::shared_ptr<CameraLibrary::Bitmap> bmp_clone_shared;
+
+    FocusEvaluator fe;                  // Focus evaluator instance
+    CircleMarkerDetector cmd;           // Circle marker detector instance
+
+
+    focusTimer.start(16); // ~60 Hz
+    gradeTimer.start(16); 
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
@@ -180,16 +191,10 @@ int main(int argc, char *argv[])
     std::atomic_bool running(true);
     std::atomic_bool focusToolEnabled(true); // changed by focus UI control
     std::atomic_bool circleDetectionEnabled(false); // changed by circle detection UI control
-    //std::atomic_bool focusToolEnabled(true); // changed by focus UI control; set True by default
-
-    FocusEvaluator fe;                  // Focus evaluator instance
-	CircleMarkerDetector cmd;           // Circle marker detector instance
 
 	double focusScore = 0.0;            // Latest focus score
 
-    fe.focusToolEnabled = true;         // changed by focus UI control; set True by default
-    const int focusEvalFrameGap = 15;  // Number of frames to skip between focus eval / contour detect
-    int frameCount = 0;                 
+    fe.focusToolEnabled = true;         // changed by focus UI control; set True by default             
 
     // Wire UI signals after creating evaluator and panel
     if (panel) {
@@ -214,6 +219,108 @@ int main(int argc, char *argv[])
     if (viewer && viewer->videoWidget()) {
         QObject::connect(panel, &CameraControlPanel::circleDetectionToggled, viewer->videoWidget(), &VideoWidget::setCircleDetectionEnabled);
     }
+
+    QObject::connect(&focusTimer, &QTimer::timeout, [&]() {
+        if (fe.focusToolEnabled && bmp_clone_shared) {
+            QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr]() {
+
+                double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+                //qDebug("[dbg] Focus score: %.2f", score);
+
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                qreal relativeTime = elapsed.count() / 1000.0;
+
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
+
+                        mMgr.setFocusOptimal(score >= 0.65);
+                        focus_result->updateTextandColor(score, mMgr);
+                        viewer->focus_score = score;
+
+                        if (panel && panel->getFocusMetricsController()) {
+                            QHash<QString, qreal> focusMetrics;
+                            focusMetrics["FocusQuality"] = score;
+                            panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                        }
+                    },
+                    Qt::QueuedConnection
+                );
+                });
+        }
+
+        // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
+        if (!fe.focusToolEnabled) {
+            QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr]() {
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [focus_result, viewer, mMgr]() {
+                        focus_result->updateTextandColor(-1, mMgr);
+                        viewer->focus_score = 0;
+                    },
+                    Qt::QueuedConnection
+                );
+            });
+        }
+    });
+
+    QObject::connect(&gradeTimer, &QTimer::timeout, [&]() {
+        if (circleDetectionEnabled.load(std::memory_order_acquire) && bmp_clone_shared) {
+            QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr]() {
+
+                int circleCount = 0;
+                bool hasHook = false;
+                auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+
+                circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
+                circleCount = static_cast<int>(circles.size());
+
+                if (circleCount > 0) {
+                    mMgr.addMarkers(circles);
+                }
+
+                qDebug("[dbg] Contours: %d", circleCount);
+
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                qreal relativeTime = elapsed.count() / 1000.0;
+
+                double lensScore = mMgr.getLensScore();
+                qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensScore);
+
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
+
+                        if (panel) {
+                            panel->updateCircleCount(circleCount);
+                        }
+
+                        if (viewer && viewer->videoWidget()) {
+                            viewer->videoWidget()->setDetectedCircleMarkers(circles);
+                        }
+
+                        if (panel && panel->getLensMetricsController()) {
+                            QHash<QString, qreal> lensMetrics;
+                            lensMetrics["LensHealth"] = lensScore;
+                            panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
+                        }
+                    },
+                    Qt::QueuedConnection
+                );
+                mMgr.clearMarkers();
+            });
+        }
+
+        // update lens result with current grade
+        QtConcurrent::run([lens_result, &mMgr]() {
+            QMetaObject::invokeMethod(qApp, [lens_result, &mMgr]() {
+                lens_result->updateTextandColor(mMgr);
+                }, Qt::QueuedConnection);
+        });
+    });
+
 
     std::thread capture([&]() {
         for (;;) {
@@ -253,115 +360,13 @@ int main(int argc, char *argv[])
 
                 frame->Rasterize(*cam, raw_bmp);
 
-                // Clone bitmap after rasterize, shared between focus and circle detection
-                std::shared_ptr<CameraLibrary::Bitmap> bmp_clone_shared;
-                if (frameCount == 0 && (fe.focusToolEnabled || circleDetectionEnabled.load(std::memory_order_acquire))) {
-                    auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
+                // Clone current frame in all cases for timed focus/grade
+                auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
                     std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
                     bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
                         bmp_clone,
                         [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
-                    );
-                }
-
-                // Focus evaluation (independent of circle detection)
-                if (fe.focusToolEnabled && frameCount == 0) {
-                    QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr]() {
-
-                        double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                        //qDebug("[dbg] Focus score: %.2f", score);
-
-                        auto now = std::chrono::steady_clock::now();
-                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-                        qreal relativeTime = elapsed.count() / 1000.0;
-
-                        QMetaObject::invokeMethod(
-                            qApp,
-                            [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
-
-                                mMgr.setFocusOptimal(score >= 0.65);
-                                focus_result->updateTextandColor(score, mMgr);
-                                viewer->focus_score = score;
-
-                                if (panel && panel->getFocusMetricsController()) {
-                                    QHash<QString, qreal> focusMetrics;
-                                    focusMetrics["FocusQuality"] = score;
-                                    panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                                }
-                            },
-                            Qt::QueuedConnection
-                        );
-                    });
-                }
-
-                // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
-                if (!fe.focusToolEnabled) {
-                    QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr]() {
-                        QMetaObject::invokeMethod(
-                            qApp,
-                            [focus_result, viewer, mMgr]() {
-                                focus_result->updateTextandColor(-1, mMgr);
-                                viewer->focus_score = 0;
-                            },
-                            Qt::QueuedConnection
-                        );
-                    });
-                }
-
-                // Circle detection (independent of focus tool state)
-                if (circleDetectionEnabled.load(std::memory_order_acquire) && frameCount == 0) {
-                    QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr]() {
-
-                        int circleCount = 0;
-                        bool hasHook = false;
-                        auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
-
-                        circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
-                        circleCount = static_cast<int>(circles.size());
-
-                        if (circleCount > 0) {
-                            mMgr.addMarkers(circles);
-                        }
-
-                        qDebug("[dbg] Contours: %d", circleCount);
-
-                        auto now = std::chrono::steady_clock::now();
-                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-                        qreal relativeTime = elapsed.count() / 1000.0;
-
-						double lensScore = mMgr.getLensScore();
-						qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensScore);
-
-                        QMetaObject::invokeMethod(
-                            qApp,
-                            [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
-
-                                if (panel) {
-                                    panel->updateCircleCount(circleCount);
-                                }
-
-                                if (viewer && viewer->videoWidget()) {
-                                    viewer->videoWidget()->setDetectedCircleMarkers(circles);
-                                }
-
-                                if (panel && panel->getLensMetricsController()) {
-                                    QHash<QString, qreal> lensMetrics;
-                                    lensMetrics["LensHealth"] = lensScore;
-                                    panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
-                                }
-                            },
-                            Qt::QueuedConnection
-                        );
-						mMgr.clearMarkers();
-                    });
-                }
-
-                // update lens result with current grade
-                QtConcurrent::run([lens_result, &mMgr]() {
-                    QMetaObject::invokeMethod(qApp, [lens_result, &mMgr]() {
-                        lens_result->updateTextandColor(mMgr);
-                        }, Qt::QueuedConnection);
-                });
+                );
 
                 // repaint video widget with new frame
                 QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
@@ -369,10 +374,7 @@ int main(int argc, char *argv[])
                     bmp_pool.release(raw_bmp);
                 }, Qt::QueuedConnection);
 
-                frameCount += 1;
-                frameCount = frameCount % focusEvalFrameGap;
             }
-
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
