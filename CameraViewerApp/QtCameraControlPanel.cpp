@@ -657,7 +657,7 @@ void CameraControlPanel::buildUi() {
     scrollAreaExpo->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* vExpo = new QVBoxLayout(tabExpo);
 
-    exporter_group = new QGroupBox(tabExpo);
+    exporter_group = new QGroupBox();
     auto* exporterLayout = new QVBoxLayout(exporter_group); exporterLayout->setContentsMargins(6,6,6,6);
     exporter_group->setLayout(exporterLayout);
 
@@ -672,6 +672,7 @@ void CameraControlPanel::buildUi() {
 	// Browse button for screenshot directory
 	auto* browseDirLayout = new QHBoxLayout();
     browse_label = new QLabel(exporter_group);
+    browse_label->setWordWrap(true);
     browse_button = new QPushButton(exporter_group);
     browse_button->setProperty("secondary", true);
     browse_button->setToolTip("Click to select a destination folder for export");

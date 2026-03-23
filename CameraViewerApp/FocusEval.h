@@ -27,7 +27,7 @@ private:
 	frameScore gradeFrame(CameraLibrary::Bitmap* bmp);
 	void addFrameScore(frameScore fs);
 	double compareScoreToMax(const frameScore& fs);
-	double bestLocalFocus();
-
+	double getBestLocalFocus();
+	double smoothedRatio = 0.0;
 };
 
