@@ -14,10 +14,11 @@
 #include <qmessagebox.h>
 
 const char* ENHeaders[] = {
-	"Serial number",
-	"Disposition",
-	"Marker appearance",
-	"Circularity score",
+	"Lens Serial Number",
+	"Lens Disposition",
+	"Marker Appearance",
+	"Marker Disposition",
+	"Circularity Score",
 	"Position X (px)",
 	"Position Y (px)",
 	"Lens focus optimal?",
@@ -26,8 +27,9 @@ const char* ENHeaders[] = {
 // TODO retranslate these headers
 const char* CNHeaders[] = {
 	u8"序列号",
-	u8"处置方式",
+	u8"镜头布局",
 	u8"标记外观",
+	u8"标记布局",
 	u8"圆度评分",
 	u8"X 坐标 (像素)",
 	u8"Y 坐标 (像素)",
@@ -90,6 +92,7 @@ bool MetricsManager::ExportMetrics() {
 		out << m_snapshot.lensSerial << ","
 			<< LensDispositionToString(m_snapshot.lensDisp) << ","
 			<< MarkerClassifierToString(d.mClass) << ","
+			<< LensDispositionToString(d.contourDisp) << ","
 			<< d.circularityScore << ","
 			<< d.centroid.x << ","
 			<< d.centroid.y << ","
@@ -166,26 +169,20 @@ void MetricsManager::UpdateLensDisposition() {
 		return;
 	}
 
-	// any quantity of hooks fail the lens immediately.
-	if (std::any_of(
-		m_metrics.visibleMarkers.begin(),
-		m_metrics.visibleMarkers.end(),
-		[](const auto& m) 
-		{
-			return m.mClass == markerClass::hook;
-		})) 
-	{
-		m_metrics.lensDisp = lensDisposition::fail;
-		m_metrics.lensScore = 0;
-		qDebug("[dbg] Hook in collection! Lens fails.");
-		return;
-	}
-		
 	// score starts at max value, apply penalties as required
 	double maxScore = 1.0 * m_metrics.visibleMarkers.size();
 	double score = maxScore;
+	bool hasHook = false;
 
-	for (const auto& m : m_metrics.visibleMarkers) {
+	for (auto& m : m_metrics.visibleMarkers) {
+
+		// hooks fail immediately
+		if (m.mClass == markerClass::hook) {
+			m.contourDisp = lensDisposition::fail;
+			hasHook = true;
+			qDebug("[dbg] Hook in collection! Lens fails.");
+			continue;
+		}
 
 		double penalty = 0;
 
@@ -198,6 +195,7 @@ void MetricsManager::UpdateLensDisposition() {
 
 			if (hypotToCenter == 0.0) {
 				qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
+				m.contourDisp = lensDisposition::untested;
 				continue;
 			}
 
@@ -205,7 +203,7 @@ void MetricsManager::UpdateLensDisposition() {
 													std::abs(imageCenter.y - m.centroid.y));
 
 			// marker centroid deviation from true image center as weight
-			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter); 
+			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter);
 
 			qDebug("[dbg] Max hypot: %.2f, marker hypot: %.2f, Distance weight: %.2f",
 				hypotToCenter,
@@ -223,7 +221,25 @@ void MetricsManager::UpdateLensDisposition() {
 			penalty = (1 - m.circularityScore); // apply unweighted circularity score
 			qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
 		}
+
+		// assign per-contour disposition using same thresholds as the lens
+		if (penalty <= 1.0 - passingScoreThreshold) {
+			m.contourDisp = lensDisposition::pass;
+		}
+		else if (penalty <= 1.0 - checkingScoreThreshold) {
+			m.contourDisp = lensDisposition::check;
+		}
+		else {
+			m.contourDisp = lensDisposition::fail;
+		}
+
 		score -= penalty;
+	}
+
+	if (hasHook) {
+		m_metrics.lensDisp = lensDisposition::fail;
+		m_metrics.lensScore = 0;
+		return;
 	}
 
 	// assign disposition to metrics object

@@ -22,9 +22,10 @@ public:
 	};
 
 	struct contourData {
-		markerClass mClass;			// appearance classification of contour
-		cv::Point2f centroid;		// defines position of contour in image
-		double circularityScore;	// closeness of contour to perfect circle (1.0 max)
+		markerClass mClass;						// appearance classification of contour
+		cv::Point2f centroid;					// defines position of contour in image
+		double circularityScore;				// closeness of contour to perfect circle (1.0 max)
+		lensDisposition contourDisp = untested; // per-contour pass/check/fail
 	};
 
 	enum OutputLanguage {
