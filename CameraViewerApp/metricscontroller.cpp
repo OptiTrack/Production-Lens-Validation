@@ -16,6 +16,9 @@ void MetricController::addData(qreal id, QHash<QString, qreal> metrics)
             qreal value = metrics.value(key);
             dataLabel->setText(QString::number(value, 'f', 3) + " " + m_metricWidgets->units);
 
+            const bool passing = value >= m_metricWidgets->passingThreshold;
+            dataLabel->setStyleSheet(passing ? "color: cyan;" : "");
+
             GraphWidget* metricGraph = metricGraphs.at(i);
             if (metricGraph) {
                 metricGraph->addData(id, value);

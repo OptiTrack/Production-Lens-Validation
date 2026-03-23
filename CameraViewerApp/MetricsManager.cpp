@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <QCoreApplication>
+#include <qmessagebox.h>
 
 const char* ENHeaders[] = {
 	"Serial number",
@@ -42,7 +43,7 @@ using lensMetrics = MetricsManager::lensMetrics;
 bool MetricsManager::ExportMetrics() {
 
 	if (m_snapshot.visibleMarkers.empty()) {
-		qDebug("[!] No contour data to export!");
+		QMessageBox::warning(nullptr, "No data!", "No lens data is available for export.\rCheck lens focus and try again.");
 		return false;
 	}
 
@@ -56,13 +57,13 @@ bool MetricsManager::ExportMetrics() {
 	);
 
 	if (filePath.isEmpty()) {
-		qDebug("[!] No filename provided!");
+		QMessageBox::warning(nullptr, "No output path!", "No output path has been selected for export.\rSelect an output folder and try again.");
 		return false;
 	}
 
 	std::ofstream out(filePath.toStdString(), std::ios::binary);
 	if (!out.is_open()) {
-		qDebug("[!] File creation failed!");
+		QMessageBox::critical(nullptr, "Failed to create file!", "Could not create export file.\rCheck folder permissions and try again.");
 		return false;
 	}
 

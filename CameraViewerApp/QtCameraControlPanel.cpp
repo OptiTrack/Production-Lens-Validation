@@ -54,8 +54,8 @@ void CameraControlPanel::buildUi() {
         // give the left tab bar a stable object name so CSS can target it precisely
         leftTabWidget->tabBar()->setObjectName("leftControlTabs");
     }
-    leftTabWidget->setMinimumWidth(300);
-    leftTabWidget->setMaximumWidth(300);
+    leftTabWidget->setMinimumWidth(450);
+    leftTabWidget->setMaximumWidth(450);
 
     auto* row1 = new QWidget(this);
     auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
@@ -65,9 +65,12 @@ void CameraControlPanel::buildUi() {
     ********** Tab: Camera Controls and Video Modes ***************
     */
 
-    auto* tab0 = new QWidget(this);
-    auto* scrollArea = new QScrollArea;
-    scrollArea->setWidget(tab0);
+    auto* tab0 = new QWidget;
+    auto* scrollArea0 = new QScrollArea;
+    scrollArea0->setWidget(tab0);
+    scrollArea0->setWidgetResizable(true);
+    scrollArea0->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea0->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* v0 = new QVBoxLayout(tab0);
 
     // Group: Camera Controls (exposure, fps, gain)
@@ -80,10 +83,12 @@ void CameraControlPanel::buildUi() {
     exposure_slider = new QSlider(Qt::Horizontal, this);
     exposure_slider->setRange(1, 200);
     exposure_slider->setValue(50);
-    exposure_slider->setMaximumWidth(150);
+    exposure_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    exposure_slider->setToolTip("Drag slider to adjust exposure");
     exposure_edit = new QLineEdit(cam_group);
     exposure_edit->setValidator(new QIntValidator(1, 200, exposure_edit));
     exposure_edit->setMaximumWidth(64);
+    exposure_edit->setToolTip("Enter an exposure value here");
     exposure_label = new QLabel(cam_group);
     exposure_label->setMaximumWidth(75);
     exposure_label->setMinimumWidth(75);
@@ -91,29 +96,29 @@ void CameraControlPanel::buildUi() {
         Q_UNUSED(val);
         updateSliderLabels();
     });
-    connect(exposure_edit, &QLineEdit::editingFinished, this, [this]() {
+    connect(exposure_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetExposure(); });
+    connect(exposure_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
         bool ok = false;
-        int v = exposure_edit->text().toInt(&ok);
-        if (!ok) {
-            exposure_edit->setText(QString::number(exposure_slider->value()));
-            return;
-        }
+        const int v = text.toInt(&ok);
+        if (!ok) return;
         exposure_slider->setValue(qBound(1, v, 200));
-    });
-    exposure_button = new QPushButton(cam_group);
-    exposure_button->setProperty("secondary", true);
-    connect(exposure_button, &QPushButton::clicked, this, [this](){
         onSetExposure();
     });
-
+    connect(exposure_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        if (!exposure_edit->text().toInt(&ok) || !ok)
+            exposure_edit->setText(QString::number(exposure_slider->value()));
+    });
     // Frame Rate: slider from 1 to 1000
     fps_slider = new QSlider(Qt::Horizontal, cam_group);
     fps_slider->setRange(1, 1000);
     fps_slider->setValue(30);
-    fps_slider->setMaximumWidth(150);
+    fps_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    fps_slider->setToolTip("Drag slider to adjust maximum framerate");
     fps_edit = new QLineEdit(cam_group);
     fps_edit->setValidator(new QIntValidator(1, 1000, fps_edit));
     fps_edit->setMaximumWidth(64);
+    fps_edit->setToolTip("Enter a new framerate here");
     fps_label = new QLabel(cam_group);
     fps_label->setMaximumWidth(80);
     fps_label->setMinimumWidth(80);
@@ -121,29 +126,29 @@ void CameraControlPanel::buildUi() {
         Q_UNUSED(val);
         updateSliderLabels();
     });
-    connect(fps_edit, &QLineEdit::editingFinished, this, [this]() {
+    connect(fps_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetFps(); });
+    connect(fps_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
         bool ok = false;
-        int v = fps_edit->text().toInt(&ok);
-        if (!ok) {
-            fps_edit->setText(QString::number(fps_slider->value()));
-            return;
-        }
+        const int v = text.toInt(&ok);
+        if (!ok) return;
         fps_slider->setValue(qBound(1, v, 1000));
-    });
-    fps_button  = new QPushButton(cam_group);
-    fps_button->setProperty("secondary", true);
-    connect(fps_button, &QPushButton::clicked, this, [this](){
         onSetFps();
     });
-
+    connect(fps_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        if (!fps_edit->text().toInt(&ok) || !ok)
+            fps_edit->setText(QString::number(fps_slider->value()));
+    });
     // Gain: slider from 0 to 7
     gain_slider = new QSlider(Qt::Horizontal, cam_group);
     gain_slider->setRange(0, 7);
     gain_slider->setValue(0);
-    gain_slider->setMaximumWidth(100);
+    gain_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    gain_slider->setToolTip("Drag slider to adjust gain");
     gain_edit = new QLineEdit(cam_group);
     gain_edit->setValidator(new QIntValidator(0, 7, gain_edit));
     gain_edit->setMaximumWidth(64);
+    gain_edit->setToolTip("Enter new gain here");
     gain_label = new QLabel(cam_group);
     gain_label->setMaximumWidth(60);
     gain_label->setMinimumWidth(60);
@@ -151,21 +156,19 @@ void CameraControlPanel::buildUi() {
         Q_UNUSED(val);
         updateSliderLabels();
     });
-    connect(gain_edit, &QLineEdit::editingFinished, this, [this]() {
+    connect(gain_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetGain(); });
+    connect(gain_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
         bool ok = false;
-        int v = gain_edit->text().toInt(&ok);
-        if (!ok) {
-            gain_edit->setText(QString::number(gain_slider->value()));
-            return;
-        }
+        const int v = text.toInt(&ok);
+        if (!ok) return;
         gain_slider->setValue(qBound(0, v, 7));
-    });
-    gain_button  = new QPushButton(cam_group);
-    gain_button->setProperty("secondary", true);
-    connect(gain_button, &QPushButton::clicked, this, [this](){
         onSetGain();
     });
-
+    connect(gain_edit, &QLineEdit::editingFinished, this, [this]() {
+        bool ok = false;
+        if (!gain_edit->text().toInt(&ok) || !ok)
+            gain_edit->setText(QString::number(gain_slider->value()));
+    });
     // Build compact horizontal widgets for each camera control
     auto* exposureWidget = new QWidget(cam_group);
     auto* expLayout = new QVBoxLayout(exposureWidget); expLayout->setContentsMargins(0,0,0,0); expLayout->setSpacing(8);
@@ -179,7 +182,6 @@ void CameraControlPanel::buildUi() {
     exposureRowLayout->addWidget(exposure_edit);
     expLayout->addWidget(exposureRow);
     expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
-    expLayout->addWidget(exposure_button);
 
     auto* fpsWidget = new QWidget(cam_group);
     auto* fpsLayoutW = new QVBoxLayout(fpsWidget); fpsLayoutW->setContentsMargins(0,0,0,0); fpsLayoutW->setSpacing(8);
@@ -193,7 +195,6 @@ void CameraControlPanel::buildUi() {
     fpsRowLayout->addWidget(fps_edit);
     fpsLayoutW->addWidget(fpsRow);
     fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
-    fpsLayoutW->addWidget(fps_button);
 
     auto* gainWidget = new QWidget(cam_group);
     auto* gainLayoutW = new QVBoxLayout(gainWidget); gainLayoutW->setContentsMargins(0,0,0,0); gainLayoutW->setSpacing(8);
@@ -207,7 +208,6 @@ void CameraControlPanel::buildUi() {
     gainRowLayout->addWidget(gain_edit);
     gainLayoutW->addWidget(gainRow);
     gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
-    gainLayoutW->addWidget(gain_button);
     
 
     camLayout->addWidget(exposureWidget);
@@ -218,6 +218,7 @@ void CameraControlPanel::buildUi() {
     // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the viewer
     // Add a Video Mode dropdown next to existing controls so modes appear with other controls
     video_mode_combo = new QComboBox(tab0);
+    video_mode_combo->setToolTip("Click to select a new video mode");
     repopulateVideoModes();
 
     // Selecting any regular mode should disable Edge Detect if it was enabled
@@ -282,10 +283,10 @@ void CameraControlPanel::buildUi() {
         }
         emit edgeDetectToggled(checked);
     });
-    edge_button->setToolTip(QString());
+    edge_button->setToolTip("Click to enable edge detection overlay");
 
 
-    leftTabWidget->addTab(tab0, QString());
+    leftTabWidget->addTab(scrollArea0, QString());
 
     // add camera controls and video modes to tab
     v0->addWidget(cam_group);
@@ -300,7 +301,12 @@ void CameraControlPanel::buildUi() {
     */
 
     // Row: Video modes - convert previous buttons into a single dropdown embedded with other controls
-    auto* tab1 = new QWidget(this);
+    auto* tab1 = new QWidget;
+    auto* scrollArea1 = new QScrollArea;
+    scrollArea1->setWidget(tab1);
+    scrollArea1->setWidgetResizable(true);
+    scrollArea1->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea1->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* v1 = new QVBoxLayout(tab1);
 
     // Group: Focus Tool
@@ -313,6 +319,7 @@ void CameraControlPanel::buildUi() {
     focus_button = new QCheckBox(focusToolGroup);
     focus_button->setText("Focus Enabled");
     focus_button->setChecked(true);
+    focus_button->setToolTip("When checked, focus assist tool is enabled");
     connect(focus_button, &QCheckBox::clicked, this, [this]() {
         focusState = !focusState;
         if (focusState) {
@@ -329,6 +336,7 @@ void CameraControlPanel::buildUi() {
     focusHUD_button = new QCheckBox(focusToolGroup);
     focusHUD_button->setText("Focus HUD Enabled");
     focusHUD_button->setChecked(true);
+    focusHUD_button->setToolTip("When checked, focus and lens grading HUD is enabled");
     connect(focusHUD_button, &QCheckBox::clicked, this, [this]() { 
         focusHUDState = !focusHUDState;
         if (focusHUDState) {
@@ -344,7 +352,7 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focus_button);
     focusToolLayout->addWidget(focusHUD_button);
 
-    leftTabWidget->addTab(tab1, QString());
+    leftTabWidget->addTab(scrollArea1, QString());
     v1->addWidget(focusToolGroup);
 
     // Group: Lens Inspection
@@ -355,7 +363,8 @@ void CameraControlPanel::buildUi() {
     zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
     zoom_slider->setRange(1, 20);
     zoom_slider->setValue(1);
-    zoom_slider->setMaximumWidth(100);
+    zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    zoom_slider->setToolTip("Drag slider to adjust zoom");
     zoom_label = new QLabel("1x", lensInspectionGroup);
     zoom_label->setMaximumWidth(60);
     zoom_label->setMinimumWidth(60);
@@ -367,6 +376,7 @@ void CameraControlPanel::buildUi() {
         });
     zoom_button = new QPushButton("Reset", lensInspectionGroup);
     zoom_button->setProperty("primary", true);
+    zoom_button->setToolTip("Click to reset zoom to default");
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
         zoom_slider->setValue(1.0);
     });
@@ -391,6 +401,7 @@ void CameraControlPanel::buildUi() {
     circle_detect_button->setCheckable(true);
     circle_detect_button->setChecked(false);
     circle_detect_button->setProperty("secondary", true);
+    circle_detect_button->setToolTip("Click to enable circle marker detection");
     connect(circle_detect_button, &QPushButton::clicked, this, [this](bool checked) {
         emit circleDetectionToggled(checked);
     });
@@ -401,11 +412,13 @@ void CameraControlPanel::buildUi() {
     circle_param2_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
     circle_param2_slider->setRange(1, 100);
     circle_param2_slider->setValue(10);
-    circle_param2_slider->setMaximumWidth(100);
-    
+    circle_param2_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    circle_param2_slider->setToolTip("Click to adjust accumulator threshold parameter value for circle marker detection");
+
     circle_param2_edit = new QLineEdit(lensInspectionGroup);
     circle_param2_edit->setText("10");
     circle_param2_edit->setMaximumWidth(60);
+    circle_param2_edit->setToolTip("Enter a new accumulator threshold value here");
     connect(circle_param2_edit, &QLineEdit::textChanged, this, &CameraControlPanel::onCircleParam2Changed);
     connect(circle_param2_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
         circle_param2_edit->setText(QString::number(val));
@@ -442,7 +455,12 @@ void CameraControlPanel::buildUi() {
     *************** Tab: Color compression / gamma ***************
     */
 
-    auto* tab2 = new QWidget(this);
+    auto* tab2 = new QWidget;
+    auto* scrollArea2 = new QScrollArea;
+    scrollArea2->setWidget(tab2);
+    scrollArea2->setWidgetResizable(true);
+    scrollArea2->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea2->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* v2   = new QVBoxLayout(tab2);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
@@ -454,10 +472,12 @@ void CameraControlPanel::buildUi() {
     quality_slider = new QSlider(Qt::Horizontal, compression_group);
     quality_slider->setRange(0, 100);
     quality_slider->setValue(75);
-    quality_slider->setMaximumWidth(120);
+    quality_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    quality_slider->setToolTip("Drag slider to adjust quality");
     quality_edit = new QLineEdit(compression_group);
     quality_edit->setValidator(new QDoubleValidator(0.0, 1.0, 2, quality_edit));
     quality_edit->setMaximumWidth(64);
+    quality_edit->setToolTip("Enter a new quality value here");
     quality_label = new QLabel(compression_group);
     quality_label->setMaximumWidth(50);
     quality_label->setMinimumWidth(50);
@@ -465,25 +485,30 @@ void CameraControlPanel::buildUi() {
         quality_label->setText(QString::number(val / 100.0, 'f', 2));
         if (quality_edit) quality_edit->setText(QString::number(val / 100.0, 'f', 2));
     });
+    connect(quality_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetCompression(); });
+    connect(quality_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
+        bool ok = false;
+        const double v = text.toDouble(&ok);
+        if (!ok) return;
+        quality_slider->setValue(static_cast<int>(qBound(0.0, v, 1.0) * 100.0 + 0.5));
+        onSetCompression();
+    });
     connect(quality_edit, &QLineEdit::editingFinished, this, [this]() {
         bool ok = false;
-        const double v = quality_edit->text().toDouble(&ok);
-        if (!ok) {
+        if (!quality_edit->text().toDouble(&ok) && !ok)
             quality_edit->setText(QString::number(quality_slider->value() / 100.0, 'f', 2));
-            return;
-        }
-        const double bounded = qBound(0.0, v, 1.0);
-        quality_slider->setValue(static_cast<int>(bounded * 100.0 + 0.5));
     });
 
     // Bitrate slider (0 - 10000 Mbps)
     bitrate_slider = new QSlider(Qt::Horizontal, compression_group);
     bitrate_slider->setRange(0, 200);
     bitrate_slider->setValue(50);
-    bitrate_slider->setMaximumWidth(120);
+    bitrate_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    bitrate_slider->setToolTip("Drag slider to adjust bitrate");
     bitrate_edit = new QLineEdit(compression_group);
     bitrate_edit->setValidator(new QDoubleValidator(0.0, 2.0, 2, bitrate_edit));
     bitrate_edit->setMaximumWidth(64);
+    bitrate_edit->setToolTip("Enter a new bitrate value here");
     bitrate_label = new QLabel(compression_group);
     bitrate_label->setMaximumWidth(60);
     bitrate_label->setMinimumWidth(60);
@@ -491,29 +516,29 @@ void CameraControlPanel::buildUi() {
         bitrate_label->setText(QString::number(val / 100.0, 'f', 2));
         if (bitrate_edit) bitrate_edit->setText(QString::number(val / 100.0, 'f', 2));
     });
+    connect(bitrate_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetCompression(); });
+    connect(bitrate_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
+        bool ok = false;
+        const double v = text.toDouble(&ok);
+        if (!ok) return;
+        bitrate_slider->setValue(static_cast<int>(qBound(0.0, v, 2.0) * 100.0 + 0.5));
+        onSetCompression();
+    });
     connect(bitrate_edit, &QLineEdit::editingFinished, this, [this]() {
         bool ok = false;
-        const double v = bitrate_edit->text().toDouble(&ok);
-        if (!ok) {
+        if (!bitrate_edit->text().toDouble(&ok) && !ok)
             bitrate_edit->setText(QString::number(bitrate_slider->value() / 100.0, 'f', 2));
-            return;
-        }
-        const double bounded = qBound(0.0, v, 2.0);
-        bitrate_slider->setValue(static_cast<int>(bounded * 100.0 + 0.5));
     });
 
     mode_combo = new QComboBox(compression_group);
+    mode_combo->setToolTip("Click to select a new video compression mode");
     repopulateCompressionModes();
-
-    set_compression_button = new QPushButton(compression_group);
-    set_compression_button->setProperty("secondary", true);
-    connect(set_compression_button, &QPushButton::clicked, this, &CameraControlPanel::onSetCompression);
 
     // Build compression controls widget
     auto* compressionCtrlsWidget = new QWidget(compression_group);
     auto* compressionCtrlsLayout = new QVBoxLayout(compressionCtrlsWidget); compressionCtrlsLayout->setContentsMargins(0,0,0,0); compressionCtrlsLayout->setSpacing(8);
-    color_title_label = new QLabel(compressionCtrlsWidget);
-    compressionCtrlsLayout->addWidget(color_title_label, 0, Qt::AlignLeft);
+    quality_title_label = new QLabel(compressionCtrlsWidget);
+    compressionCtrlsLayout->addWidget(quality_title_label, 0, Qt::AlignLeft);
     auto* qualityRow = new QWidget(compressionCtrlsWidget);
     auto* qualityRowLayout = new QHBoxLayout(qualityRow); qualityRowLayout->setContentsMargins(0,0,0,0); qualityRowLayout->setSpacing(6);
     qualityRowLayout->addWidget(quality_slider);
@@ -531,7 +556,6 @@ void CameraControlPanel::buildUi() {
     compressionCtrlsLayout->addWidget(bitrate_label, 0, Qt::AlignLeft);
 
     compressionCtrlsLayout->addWidget(mode_combo);
-    compressionCtrlsLayout->addWidget(set_compression_button);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
     gamma_group = new QGroupBox(this);
@@ -542,10 +566,12 @@ void CameraControlPanel::buildUi() {
     gamma_slider = new QSlider(Qt::Horizontal, compression_group);
     gamma_slider->setRange(1, 10);
     gamma_slider->setValue(10);
-    gamma_slider->setMaximumWidth(100);
+    gamma_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    gamma_slider->setToolTip("Drag slider to adjust gamma");
     gamma_edit = new QLineEdit(compression_group);
     gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 1, gamma_edit));
     gamma_edit->setMaximumWidth(64);
+    gamma_edit->setToolTip("Enter a new gamma value here");
     gamma_label = new QLabel(compression_group);
     gamma_label->setMaximumWidth(40);
     gamma_label->setMinimumWidth(40);
@@ -553,20 +579,19 @@ void CameraControlPanel::buildUi() {
         gamma_label->setText(QString::number(val / 10.0, 'f', 1));
         if (gamma_edit) gamma_edit->setText(QString::number(val / 10.0, 'f', 1));
     });
+    connect(gamma_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetGamma(); });
+    connect(gamma_edit, &QLineEdit::textEdited, this, [this](const QString& text) {
+        bool ok = false;
+        const double v = text.toDouble(&ok);
+        if (!ok) return;
+        gamma_slider->setValue(static_cast<int>(qBound(0.1, v, 1.0) * 10.0 + 0.5));
+        onSetGamma();
+    });
     connect(gamma_edit, &QLineEdit::editingFinished, this, [this]() {
         bool ok = false;
-        const double v = gamma_edit->text().toDouble(&ok);
-        if (!ok) {
+        if (!gamma_edit->text().toDouble(&ok) && !ok)
             gamma_edit->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
-            return;
-        }
-        const double bounded = qBound(0.1, v, 1.0);
-        gamma_slider->setValue(static_cast<int>(bounded * 10.0 + 0.5));
     });
-
-    gamma_button = new QPushButton(compression_group);
-    gamma_button->setProperty("secondary", true);
-    connect(gamma_button, &QPushButton::clicked, this, &CameraControlPanel::onSetGamma);
 
     auto* gammaCtrlsWidget = new QWidget(compression_group);
     auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(8);
@@ -578,12 +603,11 @@ void CameraControlPanel::buildUi() {
     gammaRowLayout->addWidget(gamma_edit);
     gammaCtrlsLayout->addWidget(gammaRow);
     gammaCtrlsLayout->addWidget(gamma_label, 0, Qt::AlignLeft);
-    gammaCtrlsLayout->addWidget(gamma_button);
 
     compLayout->addWidget(compressionCtrlsWidget);
     gammaLayout->addWidget(gammaCtrlsWidget);
 
-    leftTabWidget->addTab(tab2, QString());
+    leftTabWidget->addTab(scrollArea2, QString());
     v2->addWidget(compression_group);
     v2->addWidget(gamma_group);
     v2->addStretch();
@@ -593,7 +617,12 @@ void CameraControlPanel::buildUi() {
     ********** Tab for statistics graphs with MetricController integration ***************
     */
 
-    auto* tabStats = new QWidget(this);
+    auto* tabStats = new QWidget;
+    auto* scrollAreaStats = new QScrollArea;
+    scrollAreaStats->setWidget(tabStats);
+    scrollAreaStats->setWidgetResizable(true);
+    scrollAreaStats->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollAreaStats->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* vStats = new QVBoxLayout(tabStats);
 
     // Create Focus Metrics with controller
@@ -613,14 +642,19 @@ void CameraControlPanel::buildUi() {
     vStats->addWidget(lens_metrics_widgets->groupBox);
     vStats->addStretch();
 
-    leftTabWidget->addTab(tabStats, "Statistics");
+    leftTabWidget->addTab(scrollAreaStats, "Statistics");
 
 
 	/*
     *************** Tab for Exporter ***************
     */
    
-    auto* tabExpo = new QWidget(this);
+    auto* tabExpo = new QWidget;
+    auto* scrollAreaExpo = new QScrollArea;
+    scrollAreaExpo->setWidget(tabExpo);
+    scrollAreaExpo->setWidgetResizable(true);
+    scrollAreaExpo->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollAreaExpo->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* vExpo = new QVBoxLayout(tabExpo);
 
     exporter_group = new QGroupBox(tabExpo);
@@ -629,6 +663,7 @@ void CameraControlPanel::buildUi() {
 
 	// Serial number input
     serial_input = new QLineEdit(exporter_group);
+    serial_input->setToolTip("Enter the currently installed lens serial number here");
 	connect(serial_input, &QLineEdit::textChanged, this, [this](const QString& text) {
 		metrics_manager.setLensSerial(text.toStdString());
 	});
@@ -639,6 +674,7 @@ void CameraControlPanel::buildUi() {
     browse_label = new QLabel(exporter_group);
     browse_button = new QPushButton(exporter_group);
     browse_button->setProperty("secondary", true);
+    browse_button->setToolTip("Click to select a destination folder for export");
 	connect(browse_button, &QPushButton::clicked, this, [this]() {
 		QString dir = QFileDialog::getExistingDirectory(
 			this,
@@ -658,6 +694,7 @@ void CameraControlPanel::buildUi() {
 	// Screenshot button
     screenshot_button = new QPushButton(exporter_group);
 	screenshot_button->setProperty("secondary", true);
+    screenshot_button->setToolTip("Click to capture screenshot of window");
 	connect(screenshot_button, &QPushButton::clicked, this, [this]() {
 		takeScreenshot();
 	});
@@ -673,6 +710,7 @@ void CameraControlPanel::buildUi() {
 	// Export metrics button
     metrics_export_button = new QPushButton(exporter_group);
     metrics_export_button->setProperty("secondary", true);
+    metrics_export_button->setToolTip("Click to export current lens metrics");
 	connect(metrics_export_button, &QPushButton::clicked, this, [this]() {
 		emit exportMetricsRequested();
 	});
@@ -682,6 +720,7 @@ void CameraControlPanel::buildUi() {
     overlay_button = new QCheckBox(exporter_group);
 	overlay_button->setChecked(true);
     overlay_button->setProperty("secondary", true);
+    overlay_button->setToolTip("When checked, the overlay is enabled");
 	connect(overlay_button, &QCheckBox::clicked, this, [this]() {
 		overlayState = overlay_button->isChecked();
         updateOverlayButtonText();
@@ -691,7 +730,7 @@ void CameraControlPanel::buildUi() {
     vExpo->addWidget(exporter_group);
 	vExpo->addStretch();
 
-    leftTabWidget->addTab(tabExpo, QString());
+    leftTabWidget->addTab(scrollAreaExpo, QString());
 
     root->addWidget(leftTabWidget);
 
@@ -717,6 +756,10 @@ MetricWidgets* CameraControlPanel::createMetricWidgets(const QString name, const
         dataLabel->setObjectName(labels[i] + "DataLabel");
         dataLabel->setText("- " + units);
         dataLabel->setAlignment(Qt::AlignRight);
+        QFont labelFont = dataLabel->font();
+        labelFont.setPointSize(20);
+        labelFont.setBold(true);
+        dataLabel->setFont(labelFont);
 
         layout->addWidget(dataLabel);
         metricWidgets->dataLabels.append(dataLabel);
@@ -891,15 +934,9 @@ void CameraControlPanel::retranslateUi()
     if (exposure_title_label) exposure_title_label->setText(tr("Exposure:"));
     if (fps_title_label) fps_title_label->setText(tr("FPS:"));
     if (gain_title_label) gain_title_label->setText(tr("Gain:"));
-    if (color_title_label) color_title_label->setText(tr("Color:"));
+    if (quality_title_label) quality_title_label->setText(tr("Quality:"));
     if (bitrate_title_label) bitrate_title_label->setText(tr("Bitrate:"));
     if (gamma_title_label) gamma_title_label->setText(tr("Gamma:"));
-
-    if (exposure_button) exposure_button->setText(tr("Apply"));
-    if (fps_button) fps_button->setText(tr("Apply"));
-    if (gain_button) gain_button->setText(tr("Apply"));
-    if (set_compression_button) set_compression_button->setText(tr("Apply"));
-    if (gamma_button) gamma_button->setText(tr("Apply"));
 
     exposure_unit_ms = tr("ms");
     fps_unit = tr("fps");
