@@ -19,6 +19,8 @@
 #include <QPainter>
 #include <QImage>
 #include <QFont>
+#include <QThread>
+#include <QMouseEvent>
 #include <QFontMetrics>
 #include <vector>
 #include <opencv2/core/types.hpp>
@@ -291,6 +293,123 @@ void VideoWidget::paintGL() {
     }
     // Draw detected circle markers for error checking (simple overlay)
     drawCircleMarkers(dstX, dstY, dstW, dstH);
+
+    // Draw crosshair at the last clicked pixel
+    if (clickedPixel.x >= 0 && clickedPixel.y >= 0 && frame_width > 0 && frame_height > 0) {
+        const float sx = dstX + (float(clickedPixel.x) / float(frame_width)) * dstW;
+        const float sy = dstY + (float(clickedPixel.y) / float(frame_height)) * dstH;
+
+        constexpr float kCrossRadius = 10.0f;  // crosshair half-length
+        constexpr float kCircleRadius = 12.0f; // circle radius
+        constexpr int kCircleSegments = 20;    // smoothness
+
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glLineWidth(1.5f);
+        glColor4f(0.0f, 1.0f, 1.0f, 1.0f); // yellow
+
+        // Set up 2D orthographic projection (Y-down)
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, W, H, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+
+        // --- Draw crosshair ---
+        glBegin(GL_LINES);
+        glVertex2f(sx - kCrossRadius, sy);
+        glVertex2f(sx + kCrossRadius, sy);
+        glVertex2f(sx, sy - kCrossRadius);
+        glVertex2f(sx, sy + kCrossRadius);
+        glEnd();
+
+        // --- Draw circle ---
+        glBegin(GL_LINE_LOOP);
+        for (int i = 0; i < kCircleSegments; ++i) {
+            float theta = 2.0f * 3.1415926f * float(i) / float(kCircleSegments);
+            float x = kCircleRadius * cosf(theta);
+            float y = kCircleRadius * sinf(theta);
+            glVertex2f(sx + x, sy + y);
+        }
+        glEnd();
+
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        glDisable(GL_BLEND);
+
+        // Debug label: "(px, py) [Quadrant]"
+        // Rendered via QImage->texture to avoid QPainter(this)/raw-GL state conflicts.
+        static const char* kQuadrantNames[] = { "TL", "TR", "BL", "BR", "Center" };
+        const char* quadName = (clickedQuadrant >= 0 && clickedQuadrant <= 4)
+                               ? kQuadrantNames[clickedQuadrant] : "?";
+        QString label = QString("(%1, %2) [%3]").arg(clickedPixel.x).arg(clickedPixel.y).arg(quadName);
+
+        QFont font;
+        font.setPointSize(8);
+        font.setBold(true);
+        QFontMetrics fm(font);
+        const int pad  = 3;
+        const int imgW = fm.horizontalAdvance(label) + pad * 2;
+        const int imgH = fm.height() + pad * 2;
+
+        QImage labelImg(imgW, imgH, QImage::Format_RGBA8888);
+        labelImg.fill(qRgba(0, 0, 0, 180));
+        {
+            QPainter p(&labelImg);
+            p.setFont(font);
+            p.setPen(QColor(0, 255, 255));
+            p.drawText(pad, pad + fm.ascent(), label);
+        }
+        QImage glLabel = labelImg.mirrored(false, false);
+
+        GLuint labelTex = 0;
+        glGenTextures(1, &labelTex);
+        glBindTexture(GL_TEXTURE_2D, labelTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imgW, imgH, 0, GL_RGBA, GL_UNSIGNED_BYTE, glLabel.bits());
+
+        // Position label to the right of the circle; nudge left if it would clip
+        int tx = int(sx) + int(kCircleRadius) + 4;
+        int ty = int(sy) - imgH / 2;
+        if (tx + imgW > int(W)) tx = int(sx) - int(kCircleRadius) - imgW - 4;
+        if (ty < 0) ty = 0;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, W, H, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex2f(tx,        ty);
+        glTexCoord2f(1, 0); glVertex2f(tx + imgW, ty);
+        glTexCoord2f(1, 1); glVertex2f(tx + imgW, ty + imgH);
+        glTexCoord2f(0, 1); glVertex2f(tx,        ty + imgH);
+        glEnd();
+
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDisable(GL_TEXTURE_2D);
+        glDisable(GL_BLEND);
+        glDeleteTextures(1, &labelTex);
+    }
 }
 
 
@@ -502,6 +621,72 @@ void VideoWidget::setNewZoomValue(float value) {
     if (value > 0) {
         this->ROIZoomScale = value;
     }
+}
+
+
+void VideoWidget::mousePressEvent(QMouseEvent* event)
+{
+    // Right-click clears the selection
+    bool clearSelection = (event->button() == Qt::RightButton);
+
+    /*
+    if (event->button() == Qt::RightButton) {
+        clickedPixel    = cv::Point(-1, -1);
+        clickedQuadrant = -1;
+        requestUpdate();
+        return;
+    }
+    */
+
+    if (event->button() != Qt::LeftButton)
+        return;
+
+    QPoint c = event->pos();
+
+    int w = width();
+    int h = height();
+    float scale = std::min(float(w) / float(frame_width),
+        float(h) / float(frame_height));
+
+    int drawW = int(frame_width * scale);
+    int drawH = int(frame_height * scale);
+
+    int offsetX = (w - drawW) / 2;
+    int offsetY = (h - drawH) / 2;
+
+    // Outside video area?
+    if (c.x() < offsetX || c.x() >= offsetX + drawW ||
+        c.y() < offsetY || c.y() >= offsetY + drawH)
+        return;
+
+    int px = (c.x() - offsetX) / scale;
+    int py = (c.y() - offsetY) / scale;
+
+    int quadrant = -1;
+
+    // When ROI zoom is active the frame buffer holds the combined image rescaled to
+    // (frame_width x frame_height).  Map the click back to combined-image coordinates
+    // and test against the center diamond polygon before falling back to the four-quadrant
+    // half-plane split.  shapeParams.diamondPts already carries the diamondX/Y offset.
+    if (roiZoomEnabled.load(std::memory_order_relaxed) && shapeParams.isValid
+            && shapeParams.combinedW > 0 && shapeParams.combinedH > 0) {
+        float cx = float(px) * float(shapeParams.combinedW) / float(frame_width);
+        float cy = float(py) * float(shapeParams.combinedH) / float(frame_height);
+        if (cv::pointPolygonTest(shapeParams.diamondPts, cv::Point2f(cx, cy), false) >= 0.0f)
+            quadrant = 4; // center diamond slot
+    }
+
+    if (quadrant < 0) {
+        // Standard four-quadrant split — same formula as applyRoiZoomToFrame's slotCandidates
+        int col = (px > frame_width  / 2) ? 1 : 0;
+        int row = (py > frame_height / 2) ? 1 : 0;
+        quadrant = col + row * 2;
+    }
+
+    clickedPixel    = cv::Point(px, py);
+    clickedQuadrant = quadrant;
+    emit pixelClicked(px, py, quadrant);
+    requestUpdate();
 }
 
 /// <summary>

@@ -31,6 +31,10 @@ public:
         cv::Point2f centroid;
     };
 
+signals:
+    // quadrant: 0=TL, 1=TR, 2=BL, 3=BR (col+row*2), 4=center diamond (ROI zoom only)
+    void pixelClicked(int x, int y, int quadrant);
+
 public slots:
     void updateFrameFromBitmap(CameraLibrary::Bitmap* bmp);
     void setNewZoomValue(float zoom);
@@ -39,7 +43,8 @@ protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
-
+	void mousePressEvent(QMouseEvent* event) override;
+	
 private:
     GLuint gl_texture = 0;
     int    texture_width = 0;
@@ -86,6 +91,9 @@ private:
         double circularity = 0.0;
     };
 
+	cv::Point clickedPixel{ -1, -1 }; // Last clicked pixel in frame coordinates
+    int clickedQuadrant = -1;          // Quadrant of last click: 0=TL,1=TR,2=BL,3=BR,4=Center
+
     // Slots 0-3: col + row * 2 (0=TL,1=TR,2=BL,3=BR) slot 4: center diamond area
     std::array<QuadrantSlot, 5> quadrantSlots{};
 
@@ -94,7 +102,7 @@ private:
 
     // ROI detection parameters
     const int roi_extraction_margin = 45; 		// Margin around detected contours (pixels)
-    const size_t roi_max_count = 20; 			// Candidate pool size (select 1 per slot from these)
+    const size_t roi_max_count = 128; 			// Candidate pool size (select 1 per slot from these)
 
     // Edge detection parameters
     const double canny_low_threshold = 100.0; 	// Canny low threshold
@@ -119,6 +127,7 @@ private:
         struct RoiLabel {
             cv::Point2f combinedPos; ///< Center position in combined-image coordinates
             double circularity;      ///< Circularity value (0..100, 100 = perfect circle)
+            int id;
         };
         std::vector<RoiLabel> roiLabels; ///< One entry per detected ROI placed this frame
 
