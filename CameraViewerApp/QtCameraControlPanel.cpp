@@ -359,26 +359,31 @@ void CameraControlPanel::buildUi() {
 
     auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
     auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
-    // Zoom Slider (1x to 20x)
+    // Zoom Slider: 1.0x to 20.0x in 0.1x steps
+    // The slider displays tenths-of-zoom (range 10–200), divided by 10.0f to get the true value.
     zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
-    zoom_slider->setRange(1, 20);
-    zoom_slider->setValue(1);
+    zoom_slider->setRange(10, 200);
+    zoom_slider->setValue(10);
+    zoom_slider->setSingleStep(1);   // 0.1x per arrow-key tick
+    zoom_slider->setPageStep(5);     // 0.5x per page-up/down
     zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    zoom_slider->setToolTip("Drag slider to adjust zoom");
-    zoom_label = new QLabel("1x", lensInspectionGroup);
+    zoom_slider->setToolTip("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)");
+    zoom_label = new QLabel("1.0x", lensInspectionGroup);
     zoom_label->setMaximumWidth(60);
     zoom_label->setMinimumWidth(60);
 
-    // Sliders output an int, but the implicit conversion to float is safe.
     connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val) {
-        zoom_label->setText(QString::number(val) + "x");
+        // Convert tenths back to the real zoom value for display and emission.
+        float zoom = val / 10.0f;
+        zoom_label->setText(QString::number(zoom, 'f', 1) + "x");
         onSetZoom(false);
         });
+
     zoom_button = new QPushButton("Reset", lensInspectionGroup);
     zoom_button->setProperty("primary", true);
     zoom_button->setToolTip("Click to reset zoom to default");
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
-        zoom_slider->setValue(1.0);
+        zoom_slider->setValue(10); // 10*0.1 = 1.0x initial zoom
     });
     zoom_button->setEnabled(false);
 	zoom_slider->setEnabled(false);
@@ -1045,11 +1050,13 @@ void CameraControlPanel::onSetGain() {
 
 void CameraControlPanel::onSetZoom(bool reset) {
     if (!currentSerialValid()) { emit showWarning("No Camera", "No camera is currently selected."); return; }
-    int v = zoom_slider->value();
     if (reset) {
-        v = 1;
+        zoom_slider->setValue(10); // 10 tenths = 1.0x
+        return; // setValue fires valueChanged which calls onSetZoom(false), so return here
     }
-    emit zoomValueChanged(v);
+    // Slider stores tenths-of-zoom; convert to the float value VideoWidget expects.
+    float zoom = zoom_slider->value() / 10.0f;
+    emit zoomValueChanged(zoom);
 }
 
 void CameraControlPanel::onSetGamma() {

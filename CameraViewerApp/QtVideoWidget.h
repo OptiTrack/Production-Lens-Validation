@@ -94,7 +94,11 @@ private:
 	cv::Point clickedPixel{ -1, -1 }; // Last clicked pixel in frame coordinates
     int clickedQuadrant = -1;          // Quadrant of last click: 0=TL,1=TR,2=BL,3=BR,4=Center
 
-    // Slots 0-3: col + row * 2 (0=TL,1=TR,2=BL,3=BR) slot 4: center diamond area
+    // Slots 0-3: col + row * 2, 0=TL,1=TR,2=BL,3=BR, 4=Center
+	std::array<cv::Point2f, 5> quadrantClickPositions{
+        cv::Point2f(-1,-1), cv::Point2f(-1,-1), cv::Point2f(-1,-1),
+        cv::Point2f(-1,-1), cv::Point2f(-1,-1)
+    };
     std::array<QuadrantSlot, 5> quadrantSlots{};
 
     const float centroid_smoothing_alpha = 0.05f;        // EMA weight on new detection (lower = smoother)
@@ -159,7 +163,20 @@ private:
 	void drawCircleMarkers(float dstX, float dstY, float dstW, float dstH);
 	void updateCircleMarkersTexture();  ///< Generate texture from detected markers with circularity labels
     std::vector<RoiInfo> extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs);
-	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom);
+	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point2f& center, float zoom);
+
+    /// Inverts a single zoom-crop+resize step: maps quadrant coords (lx, ly) back to
+    /// original image coordinates, using prevCentroid to reconstruct the crop origin.
+    cv::Point2f inverseZoomCrop(cv::Point2f prevCentroid, float lx, float ly, int panelW, int panelH) const;
+
+    /// Maps a click at (px, py) in frame space to original image coordinates.
+    /// When ROI zoom is inactive or no marker is being actively tracked, returns (px, py) unchanged.
+    cv::Point2f mapClickToImageCoords(int px, int py, int quadrant) const;
+
+    /// Searches detectedCircleMarkers for the circle closest to centroid that lies within
+    /// the current zoom-crop window (radius = min(frame_w, frame_h) / (2 * zoom)).
+    /// Returns the matched marker's center, or incoming centroid unchanged if no match is found.
+    cv::Point2f snapCentroidToCircle(cv::Point2f centroid);
 
     // Circle marker detection storage
     std::vector<CircleMarkerDetector::CircleMarker> detectedCircleMarkers;
