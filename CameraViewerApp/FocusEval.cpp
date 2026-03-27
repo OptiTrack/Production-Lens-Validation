@@ -22,13 +22,12 @@ using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
 
 	std::deque<FocusEvaluator::frameScore> frameScoreSet;
-	size_t sampleCount = 64;				
+	size_t sampleCount = 65535;		
+
 	double maxInstanceScore = 0.0;
+	double smoothedRatio = 0.0;
 
-	const double hiFocusThreshold = 0.95;
-	const double midFocusThreshold = 0.6;
 	const double loFocusThreshold = 0.3;
-
 	const double decayRate = 0.93; // per evaluation, forget old max val a little bit
 
 	/// <summary>
@@ -180,7 +179,7 @@ using frameScore = FocusEvaluator::frameScore;
 		//qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
 
 		// apply EMA smoothing to ratio
-		const double alpha = 0.1;
+		const double alpha = 0.2;
 		smoothedRatio = alpha * ratio + (1.0 - alpha) * smoothedRatio;
 
 		return smoothedRatio;
@@ -195,6 +194,17 @@ using frameScore = FocusEvaluator::frameScore;
 		if (frameScoreSet.size() > sampleCount) {
 			frameScoreSet.pop_front();
 		}
+	}
+
+	/// <summary>
+	/// Clears existing focus data, to reset the tool to a "cold start" state. 
+	/// Necessary when video mode is changed.
+	/// </summary>
+	void FocusEvaluator::onResetFocusStats() {
+		qDebug("[dbg] FocusEvaluator reset: clearing data and resetting max score");
+		frameScoreSet.clear();
+		maxInstanceScore = 0.0;
+		smoothedRatio = 0.0;
 	}
 
 	/// <summary>

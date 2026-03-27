@@ -72,6 +72,7 @@ signals:
     void edgeDetectToggled(bool enabled);
     void onMarkerZoomToggled(bool enabled);
     void focusToolToggled(bool enabled);
+    void resetFocusStats();
     void zoomValueChanged(float val);
     void focusHUDToggled(bool enabled);
     void exportMetricsRequested();

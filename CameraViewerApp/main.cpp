@@ -211,7 +211,8 @@ int main(int argc, char *argv[])
 
     // Start time for relative timestamps in metrics
     auto startTime = std::chrono::steady_clock::now();
-    // change whether focus tool is enabled via it's toggle button
+
+    QObject::connect(panel, &CameraControlPanel::resetFocusStats, &fe, &FocusEvaluator::onResetFocusStats);
     QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe, &FocusEvaluator::onSetFocusTool);
     QObject::connect(panel, &CameraControlPanel::zoomValueChanged, viewer, &QtCameraViewer::setViewerZoomValue);
     

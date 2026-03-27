@@ -2,18 +2,11 @@
 
 #include <QApplication>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QComboBox>
 #include <QTimer>
 #include <QStackedLayout>
 #include <QStyleFactory>
 #include <QPushButton>
-#include <QScreen>
-#include <QDateTime>
-#include <QLineEdit>
-#include <QFileDialog>
-#include <QCheckBox>
-#include <QCoreApplication>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"

@@ -21,6 +21,7 @@ public:
 
 public slots:
     void onSetFocusTool(bool toggle);
+	void onResetFocusStats();
 
 private:
 	cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap* bmp);
@@ -28,6 +29,5 @@ private:
 	void addFrameScore(frameScore fs);
 	double compareScoreToMax(const frameScore& fs);
 	double getBestLocalFocus();
-	double smoothedRatio = 0.0;
 };
 

@@ -223,6 +223,9 @@ void CameraControlPanel::buildUi() {
 
     // Selecting any regular mode should disable Edge Detect if it was enabled
     connect(video_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
+
+        emit resetFocusStats(); // reset focus data on mode change
+
         if (!currentSerialValid()) {
             emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
             return;
