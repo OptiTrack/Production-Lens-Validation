@@ -15,6 +15,14 @@ if(NOT DEFINED CAMERA_SDK_PATH)
 endif()
 find_package(CameraLibrary REQUIRED HINTS ${CAMERA_SDK_PATH})
 
+# CameraLibrary ships as Release-only; map all other configs to it so the
+# linker finds the import lib in Debug / RelWithDebInfo / MinSizeRel builds.
+set_target_properties(CameraLibrary::CameraLibrary PROPERTIES
+    MAP_IMPORTED_CONFIG_DEBUG          "Release"
+    MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release"
+    MAP_IMPORTED_CONFIG_MINSIZEREL     "Release"
+)
+
 # Qt & OpenGL
 find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent LinguistTools)
 find_package(OpenGL REQUIRED)
@@ -61,12 +69,38 @@ qt6_wrap_cpp(MOC_SOURCES
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
 target_include_directories(CameraViewerApp PRIVATE widgets)
 
-# Translations
+# CameraLibrary is Release-only (no debug DLL). Disable MSVC's iterator
+# debugging in Debug builds so our STL containers have the same memory
+# layout as the SDK's containers, preventing the xmemory proxy crash.
+if(MSVC)
+    target_compile_definitions(CameraViewerApp PRIVATE
+        $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>
+    )
+endif()
 
-set(TS_FILES i18n/app_en.ts i18n/app_zh_CN.ts ) 
-qt6_add_translation(QM_FILES ${TS_FILES}) 
-add_custom_target(translations ALL DEPENDS ${QM_FILES}) 
-add_dependencies(CameraViewerApp translations)
+# Translations
+# Compile each .ts file to .qm directly into the per-config output directory as
+# a POST_BUILD step. This runs for every build configuration (Debug, Release,
+# RelWithDebInfo, etc.) and avoids the multi-config generator pitfall of the
+# qt6_add_translation / custom-target approach, where the QM generation custom
+# command may not re-trigger for configurations built after the first one.
+
+get_target_property(_lrelease_location Qt6::lrelease IMPORTED_LOCATION)
+
+set(TS_FILES i18n/app_en.ts i18n/app_zh_CN.ts)
+
+foreach(_ts_file IN LISTS TS_FILES)
+    get_filename_component(_ts_base "${_ts_file}" NAME_WE)
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
+        COMMAND "${_lrelease_location}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/${_ts_file}"
+            -qm "$<TARGET_FILE_DIR:CameraViewerApp>/i18n/${_ts_base}.qm"
+        COMMENT "Compiling translation: ${_ts_file}"
+        VERBATIM
+    )
+endforeach()
 
 # Copy Motive CSS to output folder
 set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
@@ -76,15 +110,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DESIGNS_DIR}/motive.css"
             "$<TARGET_FILE_DIR:CameraViewerApp>/motive.css"
-)
-
-add_custom_command(
-    TARGET CameraViewerApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${QM_FILES}
-        "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
+    VERBATIM
 )
 
 # ------------------------------------------
@@ -207,35 +233,56 @@ if(WIN32)
         VERBATIM
     )
 	
-		set(QT_DLLS
-		Qt6Core.dll
-		Qt6Gui.dll
-		Qt6Widgets.dll
-		Qt6OpenGLWidgets.dll
-		Qt6OpenGL.dll
-		Qt6Concurrent.dll
-	)
+	    # Derive Qt bin dir from qmake (works regardless of install location)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
+    get_filename_component(QT_INSTALL_PREFIX "${QT_BIN_DIR}" DIRECTORY)
+    message(STATUS "Qt bin dir: ${QT_BIN_DIR}")
 
-	# Folder where Qt DLLs are located
-	set(QT_BIN_DIR "C:/Qt/6.10.0/msvc2022_64/bin")
-	
-	# Copy each QT DLL after build
-	foreach(_dll ${QT_DLLS})
-		add_custom_command(TARGET CameraViewerApp POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt DLL: ${_dll}"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-					"${QT_BIN_DIR}/${_dll}"
-					"$<TARGET_FILE_DIR:CameraViewerApp>"
-		)
-	endforeach()
-	
-	# Copy OpenCV DLLs
-    file(GLOB OPENCV_DLLS "C:/opencv/build_x64_vs2026/bin/Release/*.dll")
-    foreach(_dll ${OPENCV_DLLS})
-        add_custom_command(TARGET CameraViewerApp POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_dll}" $<TARGET_FILE_DIR:CameraViewerApp>)
-    endforeach()
+    # Debug builds use 'd' suffix (Qt6Cored.dll), Release does not
+    set(QT_DEBUG_SUFFIX $<$<CONFIG:Debug>:d>)
+
+set(QT_DLLS
+    Qt6Core${QT_DEBUG_SUFFIX}.dll
+    Qt6Gui${QT_DEBUG_SUFFIX}.dll
+    Qt6Widgets${QT_DEBUG_SUFFIX}.dll
+    Qt6OpenGLWidgets${QT_DEBUG_SUFFIX}.dll
+    Qt6OpenGL${QT_DEBUG_SUFFIX}.dll
+    Qt6Concurrent${QT_DEBUG_SUFFIX}.dll
+)
+
+foreach(_dll ${QT_DLLS})
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt DLL: ${_dll}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT_BIN_DIR}/${_dll}"
+                "$<TARGET_FILE_DIR:CameraViewerApp>"
+    )
+endforeach()
+
+    # Copy Qt's zh_CN base translations into <exe>/translations/ so that
+    # QLibraryInfo::TranslationsPath (which qt.conf redirects there) resolves them.
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_INSTALL_PREFIX}/translations/qtbase_zh_CN.qm"
+            "$<TARGET_FILE_DIR:CameraViewerApp>/translations/qtbase_zh_CN.qm"
+        VERBATIM
+    )
+
+# Copy OpenCV DLLs (Debug/Release aware)
+set(OPENCV_BIN_DIR "C:/opencv/build_x64_vs2026/bin")
+
+
+# OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
+# MinSizeRel to Release so the copy always finds a valid source directory.
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
+        "$<TARGET_FILE_DIR:CameraViewerApp>"
+)
 
 elseif(UNIX)
     target_link_libraries(CameraViewerApp

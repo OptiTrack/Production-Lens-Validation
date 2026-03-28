@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
     // for Qt's built-in translations (e.g. file dialog buttons)
     QTranslator qtTranslator; 
 
-    QFile file("motive.css");
+    QFile file(QCoreApplication::applicationDirPath() + "/motive.css");
 
     if (file.open(QFile::ReadOnly | QFile::Text)) {
         QString styleSheet = file.readAll();
@@ -109,6 +109,10 @@ int main(int argc, char *argv[])
 
     MetricsManager mMgr;
     QTimer focusTimer, gradeTimer;
+
+    // set when QtConcurrent focus/grade is running
+    std::atomic<bool> focusBusy{false};
+    std::atomic<bool> gradeBusy{false};
 
     // bitmap frame shared between timed events
     std::shared_ptr<CameraLibrary::Bitmap> bmp_clone_shared;
@@ -223,95 +227,104 @@ int main(int argc, char *argv[])
 
     QObject::connect(&focusTimer, &QTimer::timeout, [&]() {
         if (fe.focusToolEnabled && bmp_clone_shared) {
-            QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr]() {
+            if (!focusBusy.exchange(true)) {
+                QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr, &focusBusy]() {
 
-                double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                //qDebug("[dbg] Focus score: %.2f", score);
+                    double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
+                    //qDebug("[dbg] Focus score: %.2f", score);
 
-                auto now = std::chrono::steady_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-                qreal relativeTime = elapsed.count() / 1000.0;
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                    qreal relativeTime = elapsed.count() / 1000.0;
 
-                QMetaObject::invokeMethod(
-                    qApp,
-                    [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
+                    QMetaObject::invokeMethod(
+                        qApp,
+                        [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
 
-                        mMgr.setFocusOptimal(score >= 0.65);
-                        focus_result->updateTextandColor(score, mMgr);
-                        viewer->focus_score = score;
+                            mMgr.setFocusOptimal(score >= 0.65);
+                            focus_result->updateTextandColor(score, mMgr);
+                            viewer->focus_score = score;
 
-                        if (panel && panel->getFocusMetricsController()) {
-                            QHash<QString, qreal> focusMetrics;
-                            focusMetrics["FocusQuality"] = score;
-                            panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                        }
-                    },
-                    Qt::QueuedConnection
-                );
+                            if (panel && panel->getFocusMetricsController()) {
+                                QHash<QString, qreal> focusMetrics;
+                                focusMetrics["FocusQuality"] = score;
+                                panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                            }
+                        },
+                        Qt::QueuedConnection
+                    );
+                    focusBusy.store(false);
                 });
+            }
         }
 
         // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
         if (!fe.focusToolEnabled) {
-            QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr]() {
-                QMetaObject::invokeMethod(
-                    qApp,
-                    [focus_result, viewer, mMgr]() {
-                        focus_result->updateTextandColor(-1, mMgr);
-                        viewer->focus_score = 0;
-                    },
-                    Qt::QueuedConnection
-                );
-            });
+            if (!focusBusy.exchange(true)) {
+                QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr, &focusBusy]() {
+                    QMetaObject::invokeMethod(
+                        qApp,
+                        [focus_result, viewer, mMgr]() {
+                            focus_result->updateTextandColor(-1, mMgr);
+                            viewer->focus_score = 0;
+                        },
+                        Qt::QueuedConnection
+                    );
+                    focusBusy.store(false);
+                });
+            }
         }
     });
 
     QObject::connect(&gradeTimer, &QTimer::timeout, [&]() {
         if (circleDetectionEnabled.load(std::memory_order_acquire) && bmp_clone_shared) {
-            QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr]() {
+            if (!gradeBusy.exchange(true)) {
+                QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
 
-                int circleCount = 0;
-                bool hasHook = false;
-                auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+                    int circleCount = 0;
+                    bool hasHook = false;
+                    auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
 
-                circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
-                circleCount = static_cast<int>(circles.size());
+                    circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
+                    circleCount = static_cast<int>(circles.size());
 
-                if (circleCount > 0) {
-                    mMgr.addMarkers(circles);
-                }
+                    if (circleCount > 0) {
+                        mMgr.addMarkers(circles);
+                    }
 
-                qDebug("[dbg] Contours: %d", circleCount);
+                    qDebug("[dbg] Contours: %d", circleCount);
 
-                auto now = std::chrono::steady_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-                qreal relativeTime = elapsed.count() / 1000.0;
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                    qreal relativeTime = elapsed.count() / 1000.0;
 
-                double lensScore = mMgr.getLensScore();
-                qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensScore);
+                    double lensScore = mMgr.getLensScore();
+                    qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f", relativeTime, lensScore);
 
-                QMetaObject::invokeMethod(
-                    qApp,
-                    [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
+                    QMetaObject::invokeMethod(
+                        qApp,
+                        [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
 
-                        if (panel) {
-                            panel->updateCircleCount(circleCount);
-                        }
+                            if (panel) {
+                                panel->updateCircleCount(circleCount);
+                            }
 
-                        if (viewer && viewer->videoWidget()) {
-                            viewer->videoWidget()->setDetectedCircleMarkers(circles);
-                        }
+                            if (viewer && viewer->videoWidget()) {
+                                viewer->videoWidget()->setDetectedCircleMarkers(circles);
+                            }
 
-                        if (panel && panel->getLensMetricsController()) {
-                            QHash<QString, qreal> lensMetrics;
-                            lensMetrics["LensHealth"] = lensScore;
-                            panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
-                        }
-                    },
-                    Qt::QueuedConnection
-                );
-                mMgr.clearMarkers();
-            });
+                            if (panel && panel->getLensMetricsController()) {
+                                QHash<QString, qreal> lensMetrics;
+                                lensMetrics["LensHealth"] = lensScore;
+                                panel->getLensMetricsController()->addData(relativeTime, lensMetrics);
+                            }
+                        },
+                        Qt::QueuedConnection
+                    );
+                    mMgr.clearMarkers();
+                    gradeBusy.store(false);
+                });
+            }
         }
 
         // update lens result with current grade
