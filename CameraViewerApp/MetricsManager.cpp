@@ -17,7 +17,6 @@ const char* ENHeaders[] = {
 	"Lens Serial Number",
 	"Lens Disposition",
 	"Marker Appearance",
-	"Marker Disposition",
 	"Circularity Score",
 	"Position X (px)",
 	"Position Y (px)",
@@ -29,7 +28,6 @@ const char* CNHeaders[] = {
 	u8"序列号",
 	u8"镜头布局",
 	u8"标记外观",
-	u8"标记布局",
 	u8"圆度评分",
 	u8"X 坐标 (像素)",
 	u8"Y 坐标 (像素)",
@@ -221,18 +219,6 @@ void MetricsManager::UpdateLensDisposition() {
 			penalty = (1 - m.circularityScore); // apply unweighted circularity score
 			qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
 		}
-
-		// assign per-contour disposition using same thresholds as the lens
-		if (penalty <= 1.0 - passingScoreThreshold) {
-			m.contourDisp = lensDisposition::pass;
-		}
-		else if (penalty <= 1.0 - checkingScoreThreshold) {
-			m.contourDisp = lensDisposition::check;
-		}
-		else {
-			m.contourDisp = lensDisposition::fail;
-		}
-
 		score -= penalty;
 	}
 

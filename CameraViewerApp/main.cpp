@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     CircleMarkerDetector cmd;           // Circle marker detector instance
 
 
-    focusTimer.start(50);
+    focusTimer.start(125);
     gradeTimer.start(750); 
 
     // The core UI/window for the program
