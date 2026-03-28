@@ -13,7 +13,7 @@ public:
 	double EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp);
 
 	struct frameScore {
-		double cirularity;
+		double circularity;
 		double avgContourArea;
 		int contourCount;
 	};

@@ -121,8 +121,8 @@ int main(int argc, char *argv[])
     CircleMarkerDetector cmd;           // Circle marker detector instance
 
 
-    focusTimer.start(100);
-    gradeTimer.start(100); 
+    focusTimer.start(50);
+    gradeTimer.start(750); 
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,

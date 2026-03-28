@@ -104,7 +104,7 @@ using frameScore = FocusEvaluator::frameScore;
 		FocusEvaluator::frameScore fs{};
 		if (validContours > 0 && totalArea > 0.0) {
 			fs.avgContourArea = totalArea / validContours;
-			fs.cirularity = weightedCircularity / totalArea;
+			fs.circularity = weightedCircularity / totalArea;
 			fs.contourCount = validContours;
 		}
 		return fs;
@@ -123,7 +123,7 @@ using frameScore = FocusEvaluator::frameScore;
 		std::vector<double> scores;
 		scores.reserve(frameScoreSet.size());
 		for (const auto& fs : frameScoreSet) {
-			scores.push_back(fs.cirularity / (fs.avgContourArea + 1e-6));
+			scores.push_back(fs.circularity / (fs.avgContourArea + 1e-6));
 		}
 		// sort and retrieve 90th percentile values, ignoring outlier peaks
 		std::sort(scores.begin(), scores.end());
@@ -146,7 +146,7 @@ using frameScore = FocusEvaluator::frameScore;
 		}
 
 		// current frame's focus metric
-	    double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+	    double curr = fs.circularity / (fs.avgContourArea + 1e-6);
 
 		// Update global max if better focus achieved
 		if (curr > maxInstanceScore) {
