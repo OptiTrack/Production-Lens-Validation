@@ -90,7 +90,6 @@ bool MetricsManager::ExportMetrics() {
 		out << m_snapshot.lensSerial << ","
 			<< LensDispositionToString(m_snapshot.lensDisp) << ","
 			<< MarkerClassifierToString(d.mClass) << ","
-			<< LensDispositionToString(d.contourDisp) << ","
 			<< d.circularityScore << ","
 			<< d.centroid.x << ","
 			<< d.centroid.y << ","
@@ -176,9 +175,7 @@ void MetricsManager::UpdateLensDisposition() {
 
 		// hooks fail immediately
 		if (m.mClass == markerClass::hook) {
-			m.contourDisp = lensDisposition::fail;
 			hasHook = true;
-			qDebug("[dbg] Hook in collection! Lens fails.");
 			continue;
 		}
 
@@ -193,7 +190,6 @@ void MetricsManager::UpdateLensDisposition() {
 
 			if (hypotToCenter == 0.0) {
 				qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
-				m.contourDisp = lensDisposition::untested;
 				continue;
 			}
 
@@ -223,6 +219,7 @@ void MetricsManager::UpdateLensDisposition() {
 	}
 
 	if (hasHook) {
+		qDebug("[dbg] Hook in collection! Lens fails.");
 		m_metrics.lensDisp = lensDisposition::fail;
 		m_metrics.lensScore = 0;
 		return;

@@ -26,6 +26,7 @@ public:
         ShapeType shapeType = ShapeType::Circle;  ///< Categorized shape type
         std::vector<cv::Point> contour;  ///< Contour points for rendering
         float quality = 1.0f;            ///< Detection quality metric
+        int id;
     };
 
 	/// @brief Detect circular markers in a frame

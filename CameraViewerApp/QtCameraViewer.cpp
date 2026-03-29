@@ -68,9 +68,9 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 
 void QtCameraViewer::buildUi()
 {
-	auto* mainLayout = new QVBoxLayout(this);
-	auto* v = new QVBoxLayout(this);
-	auto* h2 = new QHBoxLayout(this);
+	auto* mainLayout = new QVBoxLayout(this);	// 'this' places layout onto the main widget
+	auto* v = new QVBoxLayout();				// no parent
+	auto* h2 = new QHBoxLayout();				// no parent
 
 	// Row 1: Camera picker
 	camera_picker = new CameraPicker(camera_manager, this);

@@ -112,6 +112,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     // Convert results to CircleMarker objects
     std::vector<CircleMarker> result;
+    int id = 0;
     for (const auto& circle : circles) {
         CircleMarker marker;
         marker.center = cv::Point2f(circle[0], circle[1]);
@@ -130,7 +131,10 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         } else {
             marker.quality = 0.0f;
         }
-        
+
+        marker.id = id;
+        id++;
+
         result.push_back(marker);
     }
 

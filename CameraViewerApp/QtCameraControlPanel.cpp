@@ -58,7 +58,8 @@ void CameraControlPanel::buildUi() {
     leftTabWidget->setMaximumWidth(450);
 
     auto* row1 = new QWidget(this);
-    auto* h1   = new QHBoxLayout(row1); h1->setContentsMargins(0,0,0,0);
+    auto* h1   = new QHBoxLayout(row1); 
+    h1->setContentsMargins(0,0,0,0);
 
 
     /*
@@ -76,7 +77,8 @@ void CameraControlPanel::buildUi() {
     // Group: Camera Controls (exposure, fps, gain)
 
     cam_group = new QGroupBox(this);
-    auto* camLayout = new QVBoxLayout(this); camLayout->setContentsMargins(6,6,6,6);
+    auto* camLayout = new QVBoxLayout(); 
+    camLayout->setContentsMargins(6,6,6,6);
     cam_group->setLayout(camLayout);
     
     // Exposure: slider from 1 to 200
@@ -315,7 +317,8 @@ void CameraControlPanel::buildUi() {
     // Group: Focus Tool
 
     auto* focusToolGroup = new QGroupBox("Focus Tool");
-    auto* focusToolLayout = new QVBoxLayout(this); focusToolLayout->setContentsMargins(6,6,6,6);
+    auto* focusToolLayout = new QVBoxLayout(); 
+    focusToolLayout->setContentsMargins(6,6,6,6);
     focusToolGroup->setLayout(focusToolLayout);
 
     // Focus Tool enable/disable checkbox

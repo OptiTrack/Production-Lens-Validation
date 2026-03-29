@@ -914,7 +914,11 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                     float dx = rois[i].centroid.x - imageCenter.x;
                     float dy = rois[i].centroid.y - imageCenter.y;
                     float d = dx*dx + dy*dy;
-                    if (d < minDistSq) { minDistSq = d; centerIdx = static_cast<int>(i); }
+                    
+                    if (d < minDistSq) { 
+                        minDistSq = d; 
+                        centerIdx = static_cast<int>(i); 
+                    }
                 }
             }
 
@@ -942,27 +946,36 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                 Once a candidate is chosen, the centroid is updated via exponential moving average
                 (EMA) to smooth jitter. A manual pin bypasses EMA and locks the centroid directly.
             */
+            int id = 0;
             for (int slot = 0; slot < 4; ++slot) {
+
                 const auto& cands = slotCandidates[slot];
+
+                // No markers detected in this quadrant this frame, quadrant is blank
                 if (cands.empty()) {
-                    // No markers detected in this quadrant this frame, quadrant is blank
                     quadrantSlots[slot].hasTrack = false;
                     continue;
                 }
 
                 int chosen = -1;
                 const cv::Point2f& clickPos = quadrantClickPositions[slot];
+
+                // Priority 1: manual pin — find the candidate nearest the clicked point.
                 if (clickPos.x != -1 && clickPos.y != -1) {
-                    // Priority 1: manual pin — find the candidate nearest the clicked point.
                     float minDist = std::numeric_limits<float>::max();
                     for (size_t idx : cands) {
                         float dx = rois[idx].centroid.x - clickPos.x;
                         float dy = rois[idx].centroid.y - clickPos.y;
                         float d = dx*dx + dy*dy;
-                        if (d < minDist) { minDist = d; chosen = static_cast<int>(idx); }
+                        if (d < minDist) { 
+                            minDist = d; 
+                            chosen = static_cast<int>(idx); 
+                        }
                     }
-                } else if (quadrantSlots[slot].hasTrack) {
-                    // Priority 2: active track - find the candidate nearest the previous centroid.
+                } 
+
+                // Priority 2: active track - find the candidate nearest the previous centroid.
+                else if (quadrantSlots[slot].hasTrack) {
                     float minDist = std::numeric_limits<float>::max();
                     for (size_t idx : cands) {
                         float dx = rois[idx].centroid.x - quadrantSlots[slot].centroid.x;
@@ -973,8 +986,8 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                     if (minDist >= centroid_matching_threshold) chosen = -1; // too far - track lost
                 }
 
+                // Priority 3: no track — pick the candidate closest to this slot's image corner
                 if (chosen < 0) {
-                    // Priority 3: no track — pick the candidate closest to this slot's image corner
                     int col = slot % 2;
                     int row = slot / 2;
                     cv::Point2f corner(float(col * gray.cols), float(row * gray.rows));
@@ -1038,8 +1051,10 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
                 // Record the panel center and circularity so drawShapesOverlay can label it.
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(x + quadW / 2), float(y + quadH / 2)),
-                    quadrantSlots[slot].circularity
+                    quadrantSlots[slot].circularity,
+                    id
                 });
+                id++;
             }
 
             // --- Update and render the center diamond panel (slot 4) ---
@@ -1098,7 +1113,8 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
 
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(diamondX + diamondW / 2), float(diamondY + diamondH / 2)),
-                    s.circularity
+                    s.circularity,
+                    id
                 });
             } else {
                 quadrantSlots[4].hasTrack = false;
@@ -1337,17 +1353,26 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW, float ds
                 float sx = toScreenX(lbl.combinedPos.x);
                 float sy = toScreenY(lbl.combinedPos.y);
 
-                double circPct = lbl.circularity * 100.0;  // Scale from 0-1 to 0-100
-                QString text = QString("c:%1%").arg(circPct, 0, 'f', 1);
-                int textW = fm.horizontalAdvance(text);
-                int tx = static_cast<int>(sx) - textW / 2;
-                // Position text below the marker (instead of at center)
-                int ty = static_cast<int>(sy) + fm.height() / 2 + 12;
+                QString circularityText =
+                    QString("c:%1%\nID:%2")
+                    .arg(lbl.circularity * 100.0f, 0, 'f', 1)
+                    .arg(lbl.id);
 
-                QRect bgRect(tx - 2, ty - 1, textW + 4, fm.height() + 2);
-                painter.fillRect(bgRect, QColor(0, 0, 0, 160));
+                QRect textRect = fm.boundingRect(
+                    QRect(0, 0, 200, 100),  // max bounds
+                    Qt::TextWordWrap,
+                    circularityText
+                );
+
+                int tx = static_cast<int>(sx) - textRect.width() / 2;
+                int ty = static_cast<int>(sy) + 16;
+
+                QRect drawRect(tx, ty, textRect.width(), textRect.height());
+
+                painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 160));
                 painter.setPen(cyanColor);
-                painter.drawText(tx, ty + fm.ascent(), text);
+
+                painter.drawText(drawRect, Qt::AlignCenter, circularityText);
             }
         }
 
@@ -1520,7 +1545,6 @@ void VideoWidget::updateCircleMarkersTexture() {
             circlePen.setCapStyle(Qt::RoundCap);
             painter.setPen(circlePen);
 
-            // Draw each marker
             for (const auto& marker : detectedCircleMarkers) {
                 int sx = static_cast<int>(marker.center.x);
                 int sy = static_cast<int>(marker.center.y);
@@ -1530,23 +1554,28 @@ void VideoWidget::updateCircleMarkersTexture() {
                     continue;
                 }
 
-                QString circularityText = QString("c:%1").arg(marker.circularity * 100.0f, 0, 'f', 1);
-                
-                // Position text below the circle, centered horizontally
+                QString circularityText =
+                    QString("c:%1%\nID:%2")
+                    .arg(marker.circularity * 100.0f, 0, 'f', 1)
+                    .arg(marker.id);
+
                 QFontMetrics fm(painter.font());
-                int textX = sx - (fm.horizontalAdvance(circularityText) / 2);
-                int textY = sy + sr + 12;
-                
-                // Draw text with background for readability
-                QRect textRect = fm.boundingRect(circularityText);
-                textRect.moveTo(textX, textY);
-                textRect.adjust(-2, -1, 2, 1);
-                painter.fillRect(textRect, QColor(0, 0, 0, 180));
-                
-                // Draw text in cyan
-                painter.setPen(QPen(cyanColor));
-                painter.drawText(textX, textY + fm.ascent(), circularityText);
-                painter.setPen(circlePen);  // Restore circle pen
+
+                QRect textRect = fm.boundingRect(
+                    QRect(0, 0, 200, 100),
+                    Qt::TextWordWrap,
+                    circularityText
+                );
+
+                int tx = sx - textRect.width() / 2;
+                int ty = sy + sr + 16;
+
+                QRect drawRect(tx, ty, textRect.width(), textRect.height());
+
+                painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 180));
+                painter.setPen(cyanColor);
+                painter.drawText(drawRect, Qt::AlignCenter, circularityText);
+                painter.setPen(circlePen);
             }
         }
 
