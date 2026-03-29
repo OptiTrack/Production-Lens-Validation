@@ -57,11 +57,6 @@ void CameraControlPanel::buildUi() {
     leftTabWidget->setMinimumWidth(450);
     leftTabWidget->setMaximumWidth(450);
 
-    auto* row1 = new QWidget(this);
-    auto* h1   = new QHBoxLayout(row1); 
-    h1->setContentsMargins(0,0,0,0);
-
-
     /*
     ********** Tab: Camera Controls and Video Modes ***************
     */
@@ -76,13 +71,13 @@ void CameraControlPanel::buildUi() {
 
     // Group: Camera Controls (exposure, fps, gain)
 
-    cam_group = new QGroupBox(this);
+    cam_group = new QGroupBox(tab0);
     auto* camLayout = new QVBoxLayout(); 
     camLayout->setContentsMargins(6,6,6,6);
     cam_group->setLayout(camLayout);
     
     // Exposure: slider from 1 to 200
-    exposure_slider = new QSlider(Qt::Horizontal, this);
+    exposure_slider = new QSlider(Qt::Horizontal, cam_group);
     exposure_slider->setRange(1, 200);
     exposure_slider->setValue(50);
     exposure_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -95,7 +90,6 @@ void CameraControlPanel::buildUi() {
     exposure_label->setMaximumWidth(75);
     exposure_label->setMinimumWidth(75);
     connect(exposure_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
-        Q_UNUSED(val);
         updateSliderLabels();
     });
     connect(exposure_slider, &QAbstractSlider::sliderReleased, this, [this](){ onSetExposure(); });
@@ -270,7 +264,7 @@ void CameraControlPanel::buildUi() {
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
-    video_group = new QGroupBox(this);
+    video_group = new QGroupBox(tab0);
     auto* video_layout = new QVBoxLayout(video_group); video_layout->setContentsMargins(6,6,6,6);
     video_group->setLayout(video_layout);
     video_layout->addWidget(video_mode_combo);
@@ -290,7 +284,6 @@ void CameraControlPanel::buildUi() {
     });
     edge_button->setToolTip("Click to enable edge detection overlay");
 
-
     leftTabWidget->addTab(scrollArea0, QString());
 
     // add camera controls and video modes to tab
@@ -298,7 +291,6 @@ void CameraControlPanel::buildUi() {
     v0->addWidget(video_group);
     v0->addStretch();
     video_layout->addWidget(edge_button);
-    h1->addWidget(leftTabWidget);
     
 
     /*
@@ -316,7 +308,7 @@ void CameraControlPanel::buildUi() {
 
     // Group: Focus Tool
 
-    auto* focusToolGroup = new QGroupBox("Focus Tool");
+    auto* focusToolGroup = new QGroupBox("Focus Tool", tab1);
     auto* focusToolLayout = new QVBoxLayout(); 
     focusToolLayout->setContentsMargins(6,6,6,6);
     focusToolGroup->setLayout(focusToolLayout);
@@ -475,7 +467,7 @@ void CameraControlPanel::buildUi() {
     auto* v2   = new QVBoxLayout(tab2);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
-    compression_group = new QGroupBox(this);
+    compression_group = new QGroupBox(tab2);
     auto* compLayout = new QVBoxLayout(compression_group); compLayout->setContentsMargins(6,6,6,6);
     compression_group->setLayout(compLayout);
 
@@ -569,21 +561,21 @@ void CameraControlPanel::buildUi() {
     compressionCtrlsLayout->addWidget(mode_combo);
 
     // Group: Color Compression (quality, bitrate, mode dropdown)
-    gamma_group = new QGroupBox(this);
+    gamma_group = new QGroupBox(tab2);
     auto* gammaLayout = new QVBoxLayout(gamma_group); gammaLayout->setContentsMargins(6,6,6,6);
     gamma_group->setLayout(gammaLayout);
 
     // Gamma slider (0.1 - 1.0)
-    gamma_slider = new QSlider(Qt::Horizontal, compression_group);
+    gamma_slider = new QSlider(Qt::Horizontal, gamma_group);
     gamma_slider->setRange(1, 10);
     gamma_slider->setValue(10);
     gamma_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     gamma_slider->setToolTip("Drag slider to adjust gamma");
-    gamma_edit = new QLineEdit(compression_group);
+    gamma_edit = new QLineEdit(gamma_group);
     gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 1, gamma_edit));
     gamma_edit->setMaximumWidth(64);
     gamma_edit->setToolTip("Enter a new gamma value here");
-    gamma_label = new QLabel(compression_group);
+    gamma_label = new QLabel(gamma_group);
     gamma_label->setMaximumWidth(40);
     gamma_label->setMinimumWidth(40);
     connect(gamma_slider, QOverload<int>::of(&QSlider::valueChanged), this, [this](int val){
@@ -604,12 +596,15 @@ void CameraControlPanel::buildUi() {
             gamma_edit->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
     });
 
-    auto* gammaCtrlsWidget = new QWidget(compression_group);
-    auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(8);
+    auto* gammaCtrlsWidget = new QWidget(gamma_group);
+    auto* gammaCtrlsLayout = new QVBoxLayout(gammaCtrlsWidget); 
+    gammaCtrlsLayout->setContentsMargins(0,0,0,0); gammaCtrlsLayout->setSpacing(8);
     gamma_title_label = new QLabel(gammaCtrlsWidget);
     gammaCtrlsLayout->addWidget(gamma_title_label, 0, Qt::AlignLeft);
     auto* gammaRow = new QWidget(gammaCtrlsWidget);
-    auto* gammaRowLayout = new QHBoxLayout(gammaRow); gammaRowLayout->setContentsMargins(0,0,0,0); gammaRowLayout->setSpacing(6);
+    auto* gammaRowLayout = new QHBoxLayout(gammaRow); 
+    gammaRowLayout->setContentsMargins(0,0,0,0); 
+    gammaRowLayout->setSpacing(6);
     gammaRowLayout->addWidget(gamma_slider);
     gammaRowLayout->addWidget(gamma_edit);
     gammaCtrlsLayout->addWidget(gammaRow);
@@ -668,7 +663,7 @@ void CameraControlPanel::buildUi() {
     scrollAreaExpo->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto* vExpo = new QVBoxLayout(tabExpo);
 
-    exporter_group = new QGroupBox();
+    exporter_group = new QGroupBox(tabExpo);
     auto* exporterLayout = new QVBoxLayout(exporter_group); exporterLayout->setContentsMargins(6,6,6,6);
     exporter_group->setLayout(exporterLayout);
 

@@ -85,7 +85,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     // Detect circles using Hough Circle Transform
     cv::Mat blurred;
-    cv::GaussianBlur(gray, blurred, cv::Size(7, 7), 1.5);
+    cv::GaussianBlur(gray, blurred, cv::Size(3, 3), 1.0);
     std::vector<cv::Vec3f> circles;
     cv::HoughCircles(
         blurred,
