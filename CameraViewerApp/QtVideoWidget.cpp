@@ -77,10 +77,11 @@ void VideoWidget::SetupLockOverlay() {
         svgSize = QSize(32, 32);
     }
 
-    lockImg = QImage(QSize(svgSize.width()*2, svgSize.height()*2), QImage::Format_RGBA8888); // RGBA8 for OpenGL
+    lockImg = QImage(QSize(svgSize.width()*3, svgSize.height()*3), QImage::Format_RGBA8888); // RGBA8 for OpenGL
     lockImg.fill(Qt::transparent);
 
     QPainter p(&lockImg);
+    p.setOpacity(1.0);
     lockOverlay.render(&p);
     p.end();
 
@@ -134,6 +135,13 @@ void VideoWidget::resizeGL(int w, int h) {
     const float dpr = devicePixelRatio();
     glViewport(0, 0, int(w * dpr), int(h * dpr));
 }
+
+// default x/y offset of lock image for center quadrant at default window size
+const float defaultOffset = 38.0f;
+
+// size of videowidget at default window size
+const float defaultW = 922.0f;
+const float defaultH = 640.0f;
 
 void VideoWidget::paintGL() {
     glClearColor(background_color.redF(), background_color.greenF(), background_color.blueF(), 1.0f);
@@ -343,12 +351,15 @@ void VideoWidget::paintGL() {
         const float margin = 5.0f;
 
         // Corner position (top-left of icon) for each quadrant: 0=TL,1=TR,2=BL,3=BR
+        float scaleFactor = std::min(W / defaultW, H / defaultH);
+        float scaledOffset = defaultOffset * scaleFactor;
+
         const float corners[5][2] = {
             { margin,              margin              }, // TL
             { W - texW - margin,   margin              }, // TR
             { margin,              H - texH - margin   }, // BL
             { W - texW - margin,   H - texH - margin   }, // BR
-            { (W - texW) / 2 - 42,        (H - texH) / 2 - 42}  //center
+            { (W - texW) / 2 - scaledOffset, (H - texH) / 2 - scaledOffset }  //center
         };
 
         glDisable(GL_DEPTH_TEST);
