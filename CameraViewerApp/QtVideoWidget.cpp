@@ -16,6 +16,7 @@
 #include <qopenglbuffer.h>
 #include <qopenglshaderprogram.h>
 #include <qopenglwindow.h>
+#include <QOpenGLTexture>
 #include <QPainter>
 #include <QImage>
 #include <QFont>
@@ -25,6 +26,7 @@
 #include <vector>
 #include <opencv2/core/types.hpp>
 #include <limits>
+#include <qdir.h>
 
 // Specialized GL Viewer for displaying bitmaps from a camera
 
@@ -32,16 +34,18 @@ using namespace CameraLibrary;
 using RoiInfo = VideoWidget::RoiInfo;
 
 namespace {
-struct Vertex { float x, y, u, v; };
+    struct Vertex { float x, y, u, v; };
 
-// Convert widget pixel coords to NDC (-1..1), with origin top-left in pixels
-inline float toNdcX(float x, float W) { return (x / W) * 2.0F - 1.0F; }
-inline float toNdcY(float y, float H) { return 1.0F - (y / H) * 2.0F; }
+    // Convert widget pixel coords to NDC (-1..1), with origin top-left in pixels
+    inline float toNdcX(float x, float W) { return (x / W) * 2.0F - 1.0F; }
+    inline float toNdcY(float y, float H) { return 1.0F - (y / H) * 2.0F; }
 }
 
 VideoWidget::VideoWidget(UpdateBehavior behavior)
     : QOpenGLWindow(behavior) {
-    QSurfaceFormat f = format(); f.setSwapInterval(0); setFormat(f);
+    QSurfaceFormat f = format(); 
+    f.setSwapInterval(0); 
+    setFormat(f);
 }
 
 VideoWidget::~VideoWidget() {
@@ -55,9 +59,40 @@ VideoWidget::~VideoWidget() {
     doneCurrent();
 }
 
+void VideoWidget::SetupLockOverlay() {
+    // Load reusable lock overlay asset
+	makeCurrent();
+    QString exeDir = QCoreApplication::applicationDirPath();
+    QString svgPath = QDir(exeDir).filePath("Assets/Lock-On.svg");
+
+    if (!lockOverlay.load(svgPath)) {
+        qWarning() << "[!] Failed to load SVG:" << svgPath;
+    }
+    else {
+        qDebug() << "[+] Successfully load asset:" << svgPath;
+    }
+
+    QSize svgSize = lockOverlay.defaultSize();
+    if (!svgSize.isValid()) {
+        svgSize = QSize(32, 32);
+    }
+
+    lockImg = QImage(QSize(svgSize.width()*2, svgSize.height()*2), QImage::Format_RGBA8888); // RGBA8 for OpenGL
+    lockImg.fill(Qt::transparent);
+
+    QPainter p(&lockImg);
+    lockOverlay.render(&p);
+    p.end();
+
+    lockTexture = std::make_unique<QOpenGLTexture>(lockImg);
+    lockTexture->setMinificationFilter(QOpenGLTexture::Linear);
+    lockTexture->setMagnificationFilter(QOpenGLTexture::Linear);
+    lockTexture->setWrapMode(QOpenGLTexture::ClampToEdge);
+	doneCurrent();
+}
+
 void VideoWidget::initializeGL() {
     initializeOpenGLFunctions();
-
     glGenTextures(1, &gl_texture);
     glBindTexture(GL_TEXTURE_2D, gl_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -92,6 +127,7 @@ void VideoWidget::initializeGL() {
                           reinterpret_cast<const void*>(offsetof(Vertex, u)));
     vertext_buffer.release();
     vertex_array.release();
+    SetupLockOverlay();
 }
 
 void VideoWidget::resizeGL(int w, int h) {
@@ -217,17 +253,22 @@ void VideoWidget::paintGL() {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl_texture);
     program_shader->setUniformValue(sampler_uniform, 0);
+
     // Bind edge mask on texture unit 1 and provide overlay color/alpha
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
     program_shader->setUniformValue(edge_mask_uniform, 1);
+
     // Neon blue (possibly implement QT element to change color?)
     program_shader->setUniformValue(edge_color_uniform, QVector3D(0.00f, 0.65f, 1.0f));
+
     // Only show overlay when edge detection is enabled: alpha = 1.0 (showing) else 0.0 (transparent)
     const float alpha = edge_detect_enabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     program_shader->setUniformValue(edge_alpha_uniform, alpha);
+
     // Draw quad and cleanup
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
     // Restore GL state: unbind textures on both units
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -294,96 +335,27 @@ void VideoWidget::paintGL() {
     // Draw detected circle markers for error checking (simple overlay)
     drawCircleMarkers(dstX, dstY, dstW, dstH);
 
-    // Draw crosshair at the last clicked pixel
-    if (clickedPixel.x >= 0 && clickedPixel.y >= 0 && frame_width > 0 && frame_height > 0) {
-        const float sx = dstX + (float(clickedPixel.x) / float(frame_width)) * dstW;
-        const float sy = dstY + (float(clickedPixel.y) / float(frame_height)) * dstH;
+    // Draw lock overlay for every quadrant that has a manually pinned marker
+    if (lockTexture)
+    {
+        const float texW   = float(lockTexture->width());
+        const float texH   = float(lockTexture->height());
+        const float margin = 5.0f;
 
-        constexpr float kCrossRadius = 10.0f;  // crosshair half-length
-        constexpr float kCircleRadius = 12.0f; // circle radius
-        constexpr int kCircleSegments = 20;    // smoothness
+        // Corner position (top-left of icon) for each quadrant: 0=TL,1=TR,2=BL,3=BR
+        const float corners[5][2] = {
+            { margin,              margin              }, // TL
+            { W - texW - margin,   margin              }, // TR
+            { margin,              H - texH - margin   }, // BL
+            { W - texW - margin,   H - texH - margin   }, // BR
+            { (W - texW) / 2 - 42,        (H - texH) / 2 - 42}  //center
+        };
 
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glLineWidth(1.5f);
-        glColor4f(0.0f, 1.0f, 1.0f, 1.0f); // yellow
-
-        // Set up 2D orthographic projection (Y-down)
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        glOrtho(0, W, H, 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-
-        // --- Draw crosshair ---
-        glBegin(GL_LINES);
-        glVertex2f(sx - kCrossRadius, sy);
-        glVertex2f(sx + kCrossRadius, sy);
-        glVertex2f(sx, sy - kCrossRadius);
-        glVertex2f(sx, sy + kCrossRadius);
-        glEnd();
-
-        // --- Draw circle ---
-        glBegin(GL_LINE_LOOP);
-        for (int i = 0; i < kCircleSegments; ++i) {
-            float theta = 2.0f * 3.1415926f * float(i) / float(kCircleSegments);
-            float x = kCircleRadius * cosf(theta);
-            float y = kCircleRadius * sinf(theta);
-            glVertex2f(sx + x, sy + y);
-        }
-        glEnd();
-
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-
-        glDisable(GL_BLEND);
-
-        // Debug label: "(px, py) [Quadrant]"
-        // Rendered via QImage->texture to avoid QPainter(this)/raw-GL state conflicts.
-        static const char* kQuadrantNames[] = { "TL", "TR", "BL", "BR", "Center" };
-        const char* quadName = (clickedQuadrant >= 0 && clickedQuadrant <= 4)
-                               ? kQuadrantNames[clickedQuadrant] : "?";
-        QString label = QString("(%1, %2) [%3]").arg(clickedPixel.x).arg(clickedPixel.y).arg(quadName);
-
-        QFont font;
-        font.setPointSize(8);
-        font.setBold(true);
-        QFontMetrics fm(font);
-        const int pad  = 3;
-        const int imgW = fm.horizontalAdvance(label) + pad * 2;
-        const int imgH = fm.height() + pad * 2;
-
-        QImage labelImg(imgW, imgH, QImage::Format_RGBA8888);
-        labelImg.fill(qRgba(0, 0, 0, 180));
-        {
-            QPainter p(&labelImg);
-            p.setFont(font);
-            p.setPen(QColor(0, 255, 255));
-            p.drawText(pad, pad + fm.ascent(), label);
-        }
-        QImage glLabel = labelImg.mirrored(false, false);
-
-        GLuint labelTex = 0;
-        glGenTextures(1, &labelTex);
-        glBindTexture(GL_TEXTURE_2D, labelTex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imgW, imgH, 0, GL_RGBA, GL_UNSIGNED_BYTE, glLabel.bits());
-
-        // Position label to the right of the circle; nudge left if it would clip
-        int tx = int(sx) + int(kCircleRadius) + 4;
-        int ty = int(sy) - imgH / 2;
-        if (tx + imgW > int(W)) tx = int(sx) - int(kCircleRadius) - imgW - 4;
-        if (ty < 0) ty = 0;
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_TEXTURE_2D);
+
         glMatrixMode(GL_PROJECTION);
         glPushMatrix();
         glLoadIdentity();
@@ -392,23 +364,31 @@ void VideoWidget::paintGL() {
         glPushMatrix();
         glLoadIdentity();
 
-        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(tx,        ty);
-        glTexCoord2f(1, 0); glVertex2f(tx + imgW, ty);
-        glTexCoord2f(1, 1); glVertex2f(tx + imgW, ty + imgH);
-        glTexCoord2f(0, 1); glVertex2f(tx,        ty + imgH);
-        glEnd();
+        for (int q = 0; q <= 4; ++q)
+        {
+            if (quadrantClickPositions[q].x == -1)
+                continue;
+
+            const float x = corners[q][0];
+            const float y = corners[q][1];
+
+            lockTexture->bind();
+            glBegin(GL_TRIANGLE_STRIP);
+            glTexCoord2f(0.0f, 1.0f); glVertex2f(x,        y + texH);
+            glTexCoord2f(1.0f, 1.0f); glVertex2f(x + texW, y + texH);
+            glTexCoord2f(0.0f, 0.0f); glVertex2f(x,        y       );
+            glTexCoord2f(1.0f, 0.0f); glVertex2f(x + texW, y       );
+            glEnd();
+            lockTexture->release();
+        }
 
         glPopMatrix();
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
 
-        glBindTexture(GL_TEXTURE_2D, 0);
         glDisable(GL_TEXTURE_2D);
         glDisable(GL_BLEND);
-        glDeleteTextures(1, &labelTex);
     }
 }
 

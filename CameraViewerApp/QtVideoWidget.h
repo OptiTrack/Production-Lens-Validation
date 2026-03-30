@@ -10,7 +10,8 @@
 #include <QByteArray>
 #include <atomic>
 #include <mutex>
-
+#include <QtSvg/qsvgrenderer.h>
+#include <QOpenGLTexture>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -91,6 +92,11 @@ private:
         double circularity = 0.0;
     };
 
+    // Lock icon for quadrant marker select
+    QSvgRenderer lockOverlay;
+    QImage lockImg;
+    std::unique_ptr<QOpenGLTexture> lockTexture;
+    
 	cv::Point clickedPixel{ -1, -1 }; // Last clicked pixel in frame coordinates
     int clickedQuadrant = -1;          // Quadrant of last click: 0=TL,1=TR,2=BL,3=BR,4=Center
 
@@ -155,6 +161,7 @@ private:
 private:
     void ensureProgram();
     void ensureVaoVbo();
+    void SetupLockOverlay();
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
     void applyEdgeDetection(cv::Mat& gray, int w, int h);

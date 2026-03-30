@@ -24,7 +24,7 @@ set_target_properties(CameraLibrary::CameraLibrary PROPERTIES
 )
 
 # Qt & OpenGL
-find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent Svg LinguistTools)
 find_package(OpenGL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -102,7 +102,7 @@ foreach(_ts_file IN LISTS TS_FILES)
     )
 endforeach()
 
-# Copy Motive CSS to output folder
+# Copy assets to output folders
 set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
 
 add_custom_command(
@@ -112,6 +112,17 @@ add_custom_command(
             "$<TARGET_FILE_DIR:CameraViewerApp>/motive.css"
     VERBATIM
 )
+
+# make assets dir and copy 
+add_custom_command(
+    TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CameraViewerApp>/Assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${DESIGNS_DIR}/Small/Lock/Lock-On.svg"
+            "$<TARGET_FILE_DIR:CameraViewerApp>/Assets/Lock-On.svg"
+    VERBATIM
+)
+
 
 # ------------------------------------------
 # OpenCV
@@ -257,6 +268,7 @@ set(QT_DLLS
     Qt6OpenGLWidgets${QT_DEBUG_SUFFIX}.dll
     Qt6OpenGL${QT_DEBUG_SUFFIX}.dll
     Qt6Concurrent${QT_DEBUG_SUFFIX}.dll
+    Qt6Svg${QT_DEBUG_SUFFIX}.dll 
 )
 
 foreach(_dll ${QT_DLLS})
