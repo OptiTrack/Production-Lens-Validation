@@ -123,7 +123,15 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(CameraViewerApp PRIVATE ${OpenCV_LIBS})
 
 # Link basics
-target_link_libraries(CameraViewerApp PRIVATE Qt6::Core Qt6::Gui Qt6::OpenGLWidgets Qt6::Concurrent OpenGL::GL)
+target_link_libraries(CameraViewerApp
+    PRIVATE 
+        Qt6::Core
+        Qt6::Gui 
+        Qt6::OpenGLWidgets
+        Qt6::Concurrent
+        Qt6::Svg
+        OpenGL::GL
+    )
 
 # FFmpeg if included
 if(ENABLE_FFMPEG)
