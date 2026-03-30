@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
     std::atomic<bool> gradeBusy{false};
 
     // bitmap frame shared between timed events
-    std::shared_ptr<CameraLibrary::Bitmap> bmp_clone_shared;
+    std::shared_ptr<CameraLibrary::Bitmap> framePtr;
 
     FocusEvaluator fe;                  // Focus evaluator instance
     CircleMarkerDetector cmd;           // Circle marker detector instance
@@ -226,37 +226,45 @@ int main(int argc, char *argv[])
     }
 
     QObject::connect(&focusTimer, &QTimer::timeout, [&]() {
-        if (fe.focusToolEnabled && bmp_clone_shared) {
-            if (!focusBusy.exchange(true)) {
-                QtConcurrent::run([&fe, focus_result, bmp_clone_shared, panel, viewer, &startTime, &mMgr, &focusBusy]() {
-
-                    double score = fe.EvaluateBitmapFocus(bmp_clone_shared.get());
-                    //qDebug("[dbg] Focus score: %.2f", score);
-
-                    auto now = std::chrono::steady_clock::now();
-                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-                    qreal relativeTime = elapsed.count() / 1000.0;
-
-                    QMetaObject::invokeMethod(
-                        qApp,
-                        [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
-
-                            mMgr.setFocusOptimal(score >= 0.65);
-                            focus_result->updateTextandColor(score, mMgr);
-                            viewer->focus_score = score;
-
-                            if (panel && panel->getFocusMetricsController()) {
-                                QHash<QString, qreal> focusMetrics;
-                                focusMetrics["FocusQuality"] = score;
-                                panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
-                            }
-                        },
-                        Qt::QueuedConnection
-                    );
-                    focusBusy.store(false);
-                });
-            }
+        if (!fe.focusToolEnabled.load(std::memory_order_acquire)) {
+            return;
         }
+
+        auto localFrame = framePtr; // create copy of shared pointer
+        if (!localFrame) {
+            return;
+        }
+
+        if (!focusBusy.exchange(true)) {
+            QtConcurrent::run([&fe, focus_result, localFrame, panel, viewer, &startTime, &mMgr, &focusBusy]() {
+
+                double score = fe.EvaluateBitmapFocus(localFrame.get());
+                //qDebug("[dbg] Focus score: %.2f", score);
+
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+                qreal relativeTime = elapsed.count() / 1000.0;
+
+                QMetaObject::invokeMethod(
+                    qApp,
+                    [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
+
+                        mMgr.setFocusOptimal(score >= 0.65);
+                        focus_result->updateTextandColor(score, mMgr);
+                        viewer->focus_score = score;
+
+                        if (panel && panel->getFocusMetricsController()) {
+                            QHash<QString, qreal> focusMetrics;
+                            focusMetrics["FocusQuality"] = score;
+                            panel->getFocusMetricsController()->addData(relativeTime, focusMetrics);
+                        }
+                    },
+                    Qt::QueuedConnection
+                );
+                focusBusy.store(false);
+                });
+        }
+        
 
         // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
         if (!fe.focusToolEnabled) {
@@ -277,15 +285,24 @@ int main(int argc, char *argv[])
     });
 
     QObject::connect(&gradeTimer, &QTimer::timeout, [&]() {
-        if (circleDetectionEnabled.load(std::memory_order_acquire) && bmp_clone_shared) {
+        if (!fe.focusToolEnabled) {
+            return;
+        }
+
+        auto localFrame = framePtr; // create copy of shared pointer
+        if (!localFrame) {
+            return;
+        }
+
+        if (circleDetectionEnabled.load(std::memory_order_acquire) && localFrame) {
             if (!gradeBusy.exchange(true)) {
-                QtConcurrent::run([focus_result, bmp_clone_shared, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
+                QtConcurrent::run([focus_result, localFrame, panel, viewer, &startTime, &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
 
                     int circleCount = 0;
                     bool hasHook = false;
                     auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
 
-                    circles = cmd.DetectCircleMarkers(bmp_clone_shared.get());
+                    circles = cmd.DetectCircleMarkers(localFrame.get());
                     circleCount = static_cast<int>(circles.size());
 
                     if (circleCount > 0) {
@@ -371,23 +388,18 @@ int main(int argc, char *argv[])
                 const int stride = w * bytesPerPixel;
 
                 auto* raw_bmp = bmp_pool.acquire(w, h, int(outBpp), stride);
-
                 frame->Rasterize(*cam, raw_bmp);
 
-                // Clone current frame in all cases for timed focus/grade
-                auto* bmp_clone = bmp_pool.acquire(w, h, int(outBpp), stride);
-                    std::memcpy(bmp_clone->GetBits(), raw_bmp->GetBits(), size_t(h * stride));
-                    bmp_clone_shared = std::shared_ptr<CameraLibrary::Bitmap>(
-                        bmp_clone,
-                        [&bmp_pool](CameraLibrary::Bitmap* b) { bmp_pool.release(b); }
+                // Set up shared bmp resource for display, focus, and lens grade purposes
+                framePtr = std::shared_ptr<CameraLibrary::Bitmap>(
+                    raw_bmp,
+                    [pool = &bmp_pool](CameraLibrary::Bitmap* b) { pool->release(b); }
                 );
 
                 // repaint video widget with new frame
-                QMetaObject::invokeMethod(viewer->videoContainer(), [raw_bmp, viewer, &bmp_pool](){
-                    viewer->videoWidget()->updateFrameFromBitmap(raw_bmp);
-                    bmp_pool.release(raw_bmp);
+                QMetaObject::invokeMethod(viewer->videoContainer(), [framePtr, viewer](){
+                    viewer->videoWidget()->updateFrameFromBitmap(framePtr.get());
                 }, Qt::QueuedConnection);
-
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
@@ -401,7 +413,6 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&](){
         if (viewer)
             viewer->close();
-
         guard.finalize();
     });
 
