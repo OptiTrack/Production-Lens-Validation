@@ -127,7 +127,7 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "C:/opencv/build_x64_vs2026")
+set(OpenCV_DIR "$ENV{OPENCV_DIR}")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -292,7 +292,7 @@ endforeach()
     )
 
 # Copy OpenCV DLLs (Debug/Release aware)
-set(OPENCV_BIN_DIR "C:/opencv/build_x64_vs2026/bin")
+set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
 
 
 # OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
