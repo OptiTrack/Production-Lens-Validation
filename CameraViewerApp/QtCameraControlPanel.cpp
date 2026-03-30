@@ -47,15 +47,15 @@ void CameraControlPanel::buildUi() {
     root->setContentsMargins(0,0,0,0);
     root->setSpacing(6);
 
-    leftTabWidget = new QTabWidget(this);
+    rightTabWidget = new QTabWidget(this);
     // use the 'underline' tab style (sleek blue underline for active tab)
-    if (leftTabWidget->tabBar()) {
-        leftTabWidget->tabBar()->setProperty("underline", true);
+    if (rightTabWidget->tabBar()) {
+        rightTabWidget->tabBar()->setProperty("underline", true);
         // give the left tab bar a stable object name so CSS can target it precisely
-        leftTabWidget->tabBar()->setObjectName("leftControlTabs");
+        rightTabWidget->tabBar()->setObjectName("leftControlTabs");
     }
-    leftTabWidget->setMinimumWidth(450);
-    leftTabWidget->setMaximumWidth(450);
+    rightTabWidget->setMinimumWidth(450);
+    rightTabWidget->setMaximumWidth(450);
 
     /*
     ********** Tab: Camera Controls and Video Modes ***************
@@ -284,7 +284,7 @@ void CameraControlPanel::buildUi() {
     });
     edge_button->setToolTip("Click to enable edge detection overlay");
 
-    leftTabWidget->addTab(scrollArea0, QString());
+    rightTabWidget->addTab(scrollArea0, QString());
 
     // add camera controls and video modes to tab
     v0->addWidget(cam_group);
@@ -350,7 +350,7 @@ void CameraControlPanel::buildUi() {
     focusToolLayout->addWidget(focus_button);
     focusToolLayout->addWidget(focusHUD_button);
 
-    leftTabWidget->addTab(scrollArea1, QString());
+    rightTabWidget->addTab(scrollArea1, QString());
     v1->addWidget(focusToolGroup);
 
     // Group: Lens Inspection
@@ -613,7 +613,7 @@ void CameraControlPanel::buildUi() {
     compLayout->addWidget(compressionCtrlsWidget);
     gammaLayout->addWidget(gammaCtrlsWidget);
 
-    leftTabWidget->addTab(scrollArea2, QString());
+    rightTabWidget->addTab(scrollArea2, QString());
     v2->addWidget(compression_group);
     v2->addWidget(gamma_group);
     v2->addStretch();
@@ -648,7 +648,7 @@ void CameraControlPanel::buildUi() {
     vStats->addWidget(lens_metrics_widgets->groupBox);
     vStats->addStretch();
 
-    leftTabWidget->addTab(scrollAreaStats, "Statistics");
+    rightTabWidget->addTab(scrollAreaStats, "Statistics");
 
 
 	/*
@@ -737,9 +737,9 @@ void CameraControlPanel::buildUi() {
     vExpo->addWidget(exporter_group);
 	vExpo->addStretch();
 
-    leftTabWidget->addTab(scrollAreaExpo, QString());
+    rightTabWidget->addTab(scrollAreaExpo, QString());
 
-    root->addWidget(leftTabWidget);
+    root->addWidget(rightTabWidget);
 
 	retranslateUi();
 }
@@ -991,12 +991,12 @@ void CameraControlPanel::retranslateUi()
         edge_button->setEnabled(isEdgeDetectCompatible(mode));
     }
 
-    if (leftTabWidget) {
-        leftTabWidget->setTabText(0, tr("Controls"));
-        leftTabWidget->setTabText(1, tr("Lens"));
-        leftTabWidget->setTabText(2, tr("Color"));
-        leftTabWidget->setTabText(3, tr("Statistics"));
-        leftTabWidget->setTabText(4, tr("Exporter"));
+    if (rightTabWidget) {
+        rightTabWidget->setTabText(0, tr("Controls"));
+        rightTabWidget->setTabText(1, tr("Lens"));
+        rightTabWidget->setTabText(2, tr("Color"));
+        rightTabWidget->setTabText(3, tr("Statistics"));
+        rightTabWidget->setTabText(4, tr("Exporter"));
     }
 
     if (focus_metrics_widgets && focus_metrics_widgets->groupBox) {
@@ -1090,71 +1090,71 @@ void CameraControlPanel::onSetVideoMode(int modeEnum) {
 
 void CameraControlPanel::onSetTab0Visibility() {
     // check if first tab in widget is visible
-    if (this->leftTabWidget->isTabVisible(0)) {
-        this->leftTabWidget->setTabVisible(0, false);
-        if (!(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2) ) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
-            this->leftTabWidget->setVisible(false);
+    if (this->rightTabWidget->isTabVisible(0)) {
+        this->rightTabWidget->setTabVisible(0, false);
+        if (!(this->rightTabWidget->isTabVisible(1)) && !(this->rightTabWidget->isTabVisible(2) ) && !(this->rightTabWidget->isTabVisible(3)) && !(this->rightTabWidget->isTabVisible(4))) {
+            this->rightTabWidget->setVisible(false);
         }
     }
     else {
-        this->leftTabWidget->setTabVisible(0, true);
-        this->leftTabWidget->setVisible(true);
+        this->rightTabWidget->setTabVisible(0, true);
+        this->rightTabWidget->setVisible(true);
     }
 }
 
 void CameraControlPanel::onSetTab1Visibility() {
     // check if first tab in widget is visible
-    if (this->leftTabWidget->isTabVisible(1)) {
-        this->leftTabWidget->setTabVisible(1, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
-            this->leftTabWidget->setVisible(false);
+    if (this->rightTabWidget->isTabVisible(1)) {
+        this->rightTabWidget->setTabVisible(1, false);
+        if (!(this->rightTabWidget->isTabVisible(0)) && !(this->rightTabWidget->isTabVisible(2)) && !(this->rightTabWidget->isTabVisible(3)) && !(this->rightTabWidget->isTabVisible(4))) {
+            this->rightTabWidget->setVisible(false);
         }
     }
     else {
-        this->leftTabWidget->setTabVisible(1, true);
-        this->leftTabWidget->setVisible(true);
+        this->rightTabWidget->setTabVisible(1, true);
+        this->rightTabWidget->setVisible(true);
     }
 }
 
 void CameraControlPanel::onSetTab2Visibility() {
     // check if first tab in widget is visible
-    if (this->leftTabWidget->isTabVisible(2)) {
-        this->leftTabWidget->setTabVisible(2, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(3)) && !(this->leftTabWidget->isTabVisible(4))) {
-            this->leftTabWidget->setVisible(false);
+    if (this->rightTabWidget->isTabVisible(2)) {
+        this->rightTabWidget->setTabVisible(2, false);
+        if (!(this->rightTabWidget->isTabVisible(0)) && !(this->rightTabWidget->isTabVisible(1)) && !(this->rightTabWidget->isTabVisible(3)) && !(this->rightTabWidget->isTabVisible(4))) {
+            this->rightTabWidget->setVisible(false);
         }
     }
     else {
-        this->leftTabWidget->setTabVisible(2, true);
-        this->leftTabWidget->setVisible(true);
+        this->rightTabWidget->setTabVisible(2, true);
+        this->rightTabWidget->setVisible(true);
     }
 }
 
 void CameraControlPanel::onSetTab3Visibility() {
     // check if first tab in widget is visible
-    if (this->leftTabWidget->isTabVisible(3)) {
-        this->leftTabWidget->setTabVisible(3, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(4))) {
-            this->leftTabWidget->setVisible(false);
+    if (this->rightTabWidget->isTabVisible(3)) {
+        this->rightTabWidget->setTabVisible(3, false);
+        if (!(this->rightTabWidget->isTabVisible(0)) && !(this->rightTabWidget->isTabVisible(1)) && !(this->rightTabWidget->isTabVisible(2)) && !(this->rightTabWidget->isTabVisible(4))) {
+            this->rightTabWidget->setVisible(false);
         }
     }
     else {
-        this->leftTabWidget->setTabVisible(3, true);
-        this->leftTabWidget->setVisible(true);
+        this->rightTabWidget->setTabVisible(3, true);
+        this->rightTabWidget->setVisible(true);
     }
 }
 
 void CameraControlPanel::onSetTab4Visibility() {
     // check if first tab in widget is visible
-    if (this->leftTabWidget->isTabVisible(4)) {
-        this->leftTabWidget->setTabVisible(4, false);
-        if (!(this->leftTabWidget->isTabVisible(0)) && !(this->leftTabWidget->isTabVisible(1)) && !(this->leftTabWidget->isTabVisible(2)) && !(this->leftTabWidget->isTabVisible(3))) {
-            this->leftTabWidget->setVisible(false);
+    if (this->rightTabWidget->isTabVisible(4)) {
+        this->rightTabWidget->setTabVisible(4, false);
+        if (!(this->rightTabWidget->isTabVisible(0)) && !(this->rightTabWidget->isTabVisible(1)) && !(this->rightTabWidget->isTabVisible(2)) && !(this->rightTabWidget->isTabVisible(3))) {
+            this->rightTabWidget->setVisible(false);
         }
     }
     else {
-        this->leftTabWidget->setTabVisible(4, true);
-        this->leftTabWidget->setVisible(true);
+        this->rightTabWidget->setTabVisible(4, true);
+        this->rightTabWidget->setVisible(true);
     }
 }
 

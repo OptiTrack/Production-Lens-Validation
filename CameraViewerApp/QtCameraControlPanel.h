@@ -91,7 +91,7 @@ private:
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
 
-    QTabWidget* leftTabWidget{nullptr};
+    QTabWidget* rightTabWidget{nullptr};
     QGroupBox* cam_group{nullptr};
     QGroupBox* focus_tool_group{nullptr};
     QGroupBox* video_group{nullptr};
