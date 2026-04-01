@@ -10,7 +10,8 @@
 #include <QByteArray>
 #include <atomic>
 #include <mutex>
-
+#include <QtSvg/qsvgrenderer.h>
+#include <QOpenGLTexture>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -31,6 +32,10 @@ public:
         cv::Point2f centroid;
     };
 
+signals:
+    // quadrant: 0=TL, 1=TR, 2=BL, 3=BR (col+row*2), 4=center diamond (ROI zoom only)
+    void pixelClicked(int x, int y, int quadrant);
+
 public slots:
     void updateFrameFromBitmap(CameraLibrary::Bitmap* bmp);
     void setNewZoomValue(float zoom);
@@ -39,7 +44,8 @@ protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
-
+	void mousePressEvent(QMouseEvent* event) override;
+	
 private:
     GLuint gl_texture = 0;
     int    texture_width = 0;
@@ -78,14 +84,35 @@ private:
 
     float ROIZoomScale = 1.f; // degree of zoom for ROI quadrants
 
-    // Temporal smoothing for ROI centroids to prevent glitching
-    std::vector<cv::Point2f> prev_roi_centroids;
-    const float centroid_smoothing_alpha = 0.05f; 		// Lower = more smoothing (0.1-0.3)
-    const float centroid_matching_threshold = 10000.0f; // Max distance squared for tracking
+    // Per-slot tracking: each of the 5 display slots (TL, TR, BL, BR, center) independently
+    // tracks its chosen marker across frames, selecting the closest candidate each frame.
+    struct QuadrantSlot {
+        cv::Point2f centroid{0.0f, 0.0f};
+        bool hasTrack = false;
+        double circularity = 0.0;
+    };
+
+    // Lock icon for quadrant marker select
+    QSvgRenderer lockOverlay;
+    QImage lockImg;
+    std::unique_ptr<QOpenGLTexture> lockTexture;
+    
+	cv::Point clickedPixel{ -1, -1 }; // Last clicked pixel in frame coordinates
+    int clickedQuadrant = -1;          // Quadrant of last click: 0=TL,1=TR,2=BL,3=BR,4=Center
+
+    // Slots 0-3: col + row * 2, 0=TL,1=TR,2=BL,3=BR, 4=Center
+	std::array<cv::Point2f, 5> quadrantClickPositions{
+        cv::Point2f(-1,-1), cv::Point2f(-1,-1), cv::Point2f(-1,-1),
+        cv::Point2f(-1,-1), cv::Point2f(-1,-1)
+    };
+    std::array<QuadrantSlot, 5> quadrantSlots{};
+
+    const float centroid_smoothing_alpha = 0.05f;        // EMA weight on new detection (lower = smoother)
+    const float centroid_matching_threshold = 150000.0f; // Max sq dist to keep a slot's track (150,000 -> ~387px)
 
     // ROI detection parameters
-    const int roi_extraction_margin = 30; 		// Margin around detected contours (pixels)
-    const size_t roi_max_count = 5; 			// Maximum number of ROIs to detect
+    const int roi_extraction_margin = 45; 		// Margin around detected contours (pixels)
+    const size_t roi_max_count = 128; 			// Candidate pool size (select 1 per slot from these)
 
     // Edge detection parameters
     const double canny_low_threshold = 100.0; 	// Canny low threshold
@@ -110,6 +137,7 @@ private:
         struct RoiLabel {
             cv::Point2f combinedPos; ///< Center position in combined-image coordinates
             double circularity;      ///< Circularity value (0..100, 100 = perfect circle)
+            int id;
         };
         std::vector<RoiLabel> roiLabels; ///< One entry per detected ROI placed this frame
 
@@ -133,6 +161,7 @@ private:
 private:
     void ensureProgram();
     void ensureVaoVbo();
+    void SetupLockOverlay();
     void updateQuad(float dstX, float dstY, float dstW, float dstH);
     void setSwizzleIfNeeded(SwizzleMode want);
     void applyEdgeDetection(cv::Mat& gray, int w, int h);
@@ -141,7 +170,20 @@ private:
 	void drawCircleMarkers(float dstX, float dstY, float dstW, float dstH);
 	void updateCircleMarkersTexture();  ///< Generate texture from detected markers with circularity labels
     std::vector<RoiInfo> extractROIs(const cv::Mat& gray, const cv::Mat& edges, int margin, size_t maxROIs);
-	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom);
+	cv::Mat zoomCrop(const cv::Mat& src, const cv::Point2f& center, float zoom);
+
+    /// Inverts a single zoom-crop+resize step: maps quadrant coords (lx, ly) back to
+    /// original image coordinates, using prevCentroid to reconstruct the crop origin.
+    cv::Point2f inverseZoomCrop(cv::Point2f prevCentroid, float lx, float ly, int panelW, int panelH) const;
+
+    /// Maps a click at (px, py) in frame space to original image coordinates.
+    /// When ROI zoom is inactive or no marker is being actively tracked, returns (px, py) unchanged.
+    cv::Point2f mapClickToImageCoords(int px, int py, int quadrant) const;
+
+    /// Searches detectedCircleMarkers for the circle closest to centroid that lies within
+    /// the current zoom-crop window (radius = min(frame_w, frame_h) / (2 * zoom)).
+    /// Returns the matched marker's center, or incoming centroid unchanged if no match is found.
+    cv::Point2f snapCentroidToCircle(cv::Point2f centroid);
 
     // Circle marker detection storage
     std::vector<CircleMarkerDetector::CircleMarker> detectedCircleMarkers;

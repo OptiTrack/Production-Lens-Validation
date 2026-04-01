@@ -2,18 +2,11 @@
 
 #include <QApplication>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QComboBox>
 #include <QTimer>
 #include <QStackedLayout>
 #include <QStyleFactory>
 #include <QPushButton>
-#include <QScreen>
-#include <QDateTime>
-#include <QLineEdit>
-#include <QFileDialog>
-#include <QCheckBox>
-#include <QCoreApplication>
 
 #include "./widgets/graphwidget.h"
 #include "QtCameraConnectionManager.h"
@@ -75,9 +68,9 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 
 void QtCameraViewer::buildUi()
 {
-	auto* mainLayout = new QVBoxLayout(this);
-	auto* v = new QVBoxLayout(this);
-	auto* h2 = new QHBoxLayout(this);
+	auto* mainLayout = new QVBoxLayout(this);	// 'this' places layout onto the main widget
+	auto* v = new QVBoxLayout();				// no parent
+	auto* h2 = new QHBoxLayout();				// no parent
 
 	// Row 1: Camera picker
 	camera_picker = new CameraPicker(camera_manager, this);
@@ -174,16 +167,36 @@ void QtCameraViewer::buildUi()
     auto* toggle_tabs_box = new QHBoxLayout(toggle_tabs_bar);
     toggle_tabs_box->setContentsMargins(6,0,6,0);
     auto* toggle_label = new QLabel("Toggle Tabs:", toggle_tabs_bar);
+    const QString tabToggleStyle = "QPushButton:checked { color: cyan; border-color: cyan; } ";
+
     auto* tab0_visibility_button = new QPushButton("Controls", toggle_tabs_bar);
-    // tab0_visibility_button->setMaximumSize(50, 50);
+    tab0_visibility_button->setCheckable(true);
+    tab0_visibility_button->setChecked(true);
+    tab0_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
+
     auto* tab1_visibility_button = new QPushButton("Lens", toggle_tabs_bar);
+    tab1_visibility_button->setCheckable(true);
+    tab1_visibility_button->setChecked(true);
+    tab1_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
-    auto* tab2_visibility_button = new QPushButton("Quality", toggle_tabs_bar);
+
+    auto* tab2_visibility_button = new QPushButton("Color", toggle_tabs_bar);
+    tab2_visibility_button->setCheckable(true);
+    tab2_visibility_button->setChecked(true);
+    tab2_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
+
     auto* tab3_visibility_button = new QPushButton("Statistics", toggle_tabs_bar);
+    tab3_visibility_button->setCheckable(true);
+    tab3_visibility_button->setChecked(true);
+    tab3_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
-	auto* tab4_visibility_button = new QPushButton("Exporter", toggle_tabs_bar);
+
+    auto* tab4_visibility_button = new QPushButton("Exporter", toggle_tabs_bar);
+    tab4_visibility_button->setCheckable(true);
+    tab4_visibility_button->setChecked(true);
+    tab4_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab4_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab4Visibility);
 
     toggle_tabs_box->addWidget(toggle_label);

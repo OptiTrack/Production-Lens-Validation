@@ -17,19 +17,17 @@
 
 
 #include "FocusEval.h"
-#include "CircleMarkerDetector.h"
 
 using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
 
 	std::deque<FocusEvaluator::frameScore> frameScoreSet;
-	size_t sampleCount = 64;				
+	size_t sampleCount = 65535;		
+
 	double maxInstanceScore = 0.0;
+	double smoothedRatio = 0.0;
 
-	const double hiFocusThreshold = 0.95;
-	const double midFocusThreshold = 0.6;
 	const double loFocusThreshold = 0.3;
-
 	const double decayRate = 0.93; // per evaluation, forget old max val a little bit
 
 	/// <summary>
@@ -82,17 +80,11 @@ using frameScore = FocusEvaluator::frameScore;
 		cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
 		cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
 
-		/*
-		cv::imshow("Canny", edges);
-		cv::waitKey(500);
-		cv::destroyAllWindows();
-		*/
-
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarchy;
 		cv::findContours(edges, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-		double totalCircularity = 0.0;
+		double weightedCircularity = 0.0;
 		double totalArea = 0.0;
 		int validContours = 0;
 
@@ -103,19 +95,18 @@ using frameScore = FocusEvaluator::frameScore;
 			// Filter out noise / tiny fragments
 			if (perimeter > 0 && area > 10.0) {
 				double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
-				totalCircularity += circularity;
+				weightedCircularity += circularity * area; // use area as weight
 				validContours++;
 				totalArea += area;
 			}
 		}
 
 		FocusEvaluator::frameScore fs{};
-		if (validContours > 0) {
+		if (validContours > 0 && totalArea > 0.0) {
 			fs.avgContourArea = totalArea / validContours;
-			fs.cirularity = totalCircularity / validContours;
+			fs.circularity = weightedCircularity / totalArea;
 			fs.contourCount = validContours;
 		}
-
 		return fs;
 	}
 
@@ -123,22 +114,22 @@ using frameScore = FocusEvaluator::frameScore;
 	/// Determines the best focus score in the current set
 	/// </summary>
 	/// <returns></returns>
-	double FocusEvaluator::bestLocalFocus() {
+	double FocusEvaluator::getBestLocalFocus() {
 
 		if (frameScoreSet.empty()) {
 			return 0.0;
 		}
 
-		double maxScore = 0.0;
-
+		std::vector<double> scores;
+		scores.reserve(frameScoreSet.size());
 		for (const auto& fs : frameScoreSet) {
-			// highest circularity / area ratio preferred
-			double f = fs.cirularity / (fs.avgContourArea + 1e-6);
-			if (f > maxScore) {
-				maxScore = f;
-			}
+			scores.push_back(fs.circularity / (fs.avgContourArea + 1e-6));
 		}
-		return maxScore;
+		// sort and retrieve 90th percentile values, ignoring outlier peaks
+		std::sort(scores.begin(), scores.end());
+		size_t idx = static_cast<size_t>(scores.size() * 0.9);
+		if (idx >= scores.size()) idx = scores.size() - 1;
+		return scores[idx];
 	}
 
 	/// <summary>
@@ -148,16 +139,22 @@ using frameScore = FocusEvaluator::frameScore;
 	/// <returns></returns>
 	double FocusEvaluator::compareScoreToMax(const frameScore& fs) {
 
+		// Reject frames with too few contours - score would be unreliable
+		const int minContourCount = 3;
+		if (fs.contourCount < minContourCount) {
+			return smoothedRatio;
+		}
+
 		// current frame's focus metric
-	    double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+	    double curr = fs.circularity / (fs.avgContourArea + 1e-6);
 
 		// Update global max if better focus achieved
 		if (curr > maxInstanceScore) {
 			maxInstanceScore = curr;
 		}
 
-		// compare best from dataset to global max
-		double maxFocus = std::max(bestLocalFocus(), maxInstanceScore);
+		// compare best from dataset to global max (percentile-based baseline)
+		double maxFocus = std::max(getBestLocalFocus(), maxInstanceScore);
 
 		// Avoid division by near-zero
 		if (maxFocus < 1e-6) {
@@ -176,26 +173,16 @@ using frameScore = FocusEvaluator::frameScore;
 			return maxFocus;
 		}
 
-		// otherwise, classify quality
-		if (ratio >= hiFocusThreshold) {
-			qDebug("[dbg] Focus optimal!");
-		} 
-		else if (ratio >= midFocusThreshold) {
-			qDebug("[dbg] Focus close to optimal...");
-		} 
-		else if (ratio > loFocusThreshold) {
-			qDebug("[dbg] Focus improving...");
-		} 
-		else {
-			qDebug("[dbg] Focus poor.");
-		}
-
 		// decay max slowly in case we grabbed a transient peak
 		double oldMax = maxInstanceScore;
 		maxInstanceScore = std::max(curr, maxInstanceScore * decayRate);
 		//qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
 
-		return ratio;
+		// apply EMA smoothing to ratio
+		const double alpha = 0.2;
+		smoothedRatio = alpha * ratio + (1.0 - alpha) * smoothedRatio;
+
+		return smoothedRatio;
 	}
 
 	/// <summary>
@@ -206,8 +193,18 @@ using frameScore = FocusEvaluator::frameScore;
 		frameScoreSet.push_back(fs);
 		if (frameScoreSet.size() > sampleCount) {
 			frameScoreSet.pop_front();
-			//qDebug("[dbg] Removed old focus score.");
 		}
+	}
+
+	/// <summary>
+	/// Clears existing focus data, to reset the tool to a "cold start" state. 
+	/// Necessary when video mode is changed.
+	/// </summary>
+	void FocusEvaluator::onResetFocusStats() {
+		qDebug("[dbg] FocusEvaluator reset: clearing data and resetting max score");
+		frameScoreSet.clear();
+		maxInstanceScore = 0.0;
+		smoothedRatio = 0.0;
 	}
 
 	/// <summary>
@@ -216,54 +213,10 @@ using frameScore = FocusEvaluator::frameScore;
 	/// <param name="bmp">Incoming frame data from camera</param>
 	/// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal focus</returns>
 	double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
-		
 		frameScore fs = gradeFrame(bmp);
-
-		/*
-		qDebug("\n");
-		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
-		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
-		qDebug("[dbg] Contours: %d", fs.contourCount);
-		qDebug("\n");
-		*/
-		
 		double score = compareScoreToMax(fs);
 		addFrameScore(fs);
-
 		return score;
-	}
-
-	/// <summary>
-	/// Detects circular markers in the bitmap frame using Hough Circle detection
-	/// </summary>
-	/// <param name="bmp">Input frame bitmap from camera</param>
-	/// <returns>Vector of detected circle markers</returns>
-	std::vector<CircleMarkerDetector::CircleMarker> FocusEvaluator::DetectCircleMarkers(CameraLibrary::Bitmap* bmp) {
-		if (!m_circleDetector) {
-			qWarning("[dbg] Circle detector not initialized");
-			return std::vector<CircleMarkerDetector::CircleMarker>();
-		}
-
-		try {
-			auto circles = m_circleDetector->DetectCircles(bmp);
-			
-			if (!circles.empty()) {
-				qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
-				for (size_t i = 0; i < circles.size(); ++i) {
-					const auto& circle = circles[i];
-					const char* shapeStr = (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? "Circle" :
-											(circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? "Oval" : "Hook";
-					qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f, c: %.2f (%s)",
-						i, circle.center.x, circle.center.y, circle.radius, circle.circularity, shapeStr);
-				}
-			}
-
-			return circles;
-		}
-		catch (const std::exception& e) {
-			qWarning("[dbg] Circle detection failed: %s", e.what());
-			return std::vector<CircleMarkerDetector::CircleMarker>();
-		}
 	}
 
 	/// <summary>

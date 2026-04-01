@@ -16,13 +16,17 @@
 #include <qopenglbuffer.h>
 #include <qopenglshaderprogram.h>
 #include <qopenglwindow.h>
+#include <QOpenGLTexture>
 #include <QPainter>
 #include <QImage>
 #include <QFont>
+#include <QThread>
+#include <QMouseEvent>
 #include <QFontMetrics>
 #include <vector>
 #include <opencv2/core/types.hpp>
 #include <limits>
+#include <qdir.h>
 
 // Specialized GL Viewer for displaying bitmaps from a camera
 
@@ -30,16 +34,18 @@ using namespace CameraLibrary;
 using RoiInfo = VideoWidget::RoiInfo;
 
 namespace {
-struct Vertex { float x, y, u, v; };
+    struct Vertex { float x, y, u, v; };
 
-// Convert widget pixel coords to NDC (-1..1), with origin top-left in pixels
-inline float toNdcX(float x, float W) { return (x / W) * 2.0F - 1.0F; }
-inline float toNdcY(float y, float H) { return 1.0F - (y / H) * 2.0F; }
+    // Convert widget pixel coords to NDC (-1..1), with origin top-left in pixels
+    inline float toNdcX(float x, float W) { return (x / W) * 2.0F - 1.0F; }
+    inline float toNdcY(float y, float H) { return 1.0F - (y / H) * 2.0F; }
 }
 
 VideoWidget::VideoWidget(UpdateBehavior behavior)
     : QOpenGLWindow(behavior) {
-    QSurfaceFormat f = format(); f.setSwapInterval(0); setFormat(f);
+    QSurfaceFormat f = format(); 
+    f.setSwapInterval(0); 
+    setFormat(f);
 }
 
 VideoWidget::~VideoWidget() {
@@ -53,9 +59,41 @@ VideoWidget::~VideoWidget() {
     doneCurrent();
 }
 
+void VideoWidget::SetupLockOverlay() {
+    // Load reusable lock overlay asset
+	makeCurrent();
+    QString exeDir = QCoreApplication::applicationDirPath();
+    QString svgPath = QDir(exeDir).filePath("Assets/Lock-On.svg");
+
+    if (!lockOverlay.load(svgPath)) {
+        qWarning() << "[!] Failed to load SVG:" << svgPath;
+    }
+    else {
+        qDebug() << "[+] Successfully load asset:" << svgPath;
+    }
+
+    QSize svgSize = lockOverlay.defaultSize();
+    if (!svgSize.isValid()) {
+        svgSize = QSize(32, 32);
+    }
+
+    lockImg = QImage(QSize(svgSize.width()*3, svgSize.height()*3), QImage::Format_RGBA8888); // RGBA8 for OpenGL
+    lockImg.fill(Qt::transparent);
+
+    QPainter p(&lockImg);
+    p.setOpacity(1.0);
+    lockOverlay.render(&p);
+    p.end();
+
+    lockTexture = std::make_unique<QOpenGLTexture>(lockImg);
+    lockTexture->setMinificationFilter(QOpenGLTexture::Linear);
+    lockTexture->setMagnificationFilter(QOpenGLTexture::Linear);
+    lockTexture->setWrapMode(QOpenGLTexture::ClampToEdge);
+	doneCurrent();
+}
+
 void VideoWidget::initializeGL() {
     initializeOpenGLFunctions();
-
     glGenTextures(1, &gl_texture);
     glBindTexture(GL_TEXTURE_2D, gl_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -90,12 +128,20 @@ void VideoWidget::initializeGL() {
                           reinterpret_cast<const void*>(offsetof(Vertex, u)));
     vertext_buffer.release();
     vertex_array.release();
+    SetupLockOverlay();
 }
 
 void VideoWidget::resizeGL(int w, int h) {
     const float dpr = devicePixelRatio();
     glViewport(0, 0, int(w * dpr), int(h * dpr));
 }
+
+// default x/y offset of lock image for center quadrant at default window size
+const float defaultOffset = 38.0f;
+
+// size of videowidget at default window size
+const float defaultW = 922.0f;
+const float defaultH = 640.0f;
 
 void VideoWidget::paintGL() {
     glClearColor(background_color.redF(), background_color.greenF(), background_color.blueF(), 1.0f);
@@ -215,17 +261,22 @@ void VideoWidget::paintGL() {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl_texture);
     program_shader->setUniformValue(sampler_uniform, 0);
+
     // Bind edge mask on texture unit 1 and provide overlay color/alpha
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, edgeMaskTex);
     program_shader->setUniformValue(edge_mask_uniform, 1);
+
     // Neon blue (possibly implement QT element to change color?)
     program_shader->setUniformValue(edge_color_uniform, QVector3D(0.00f, 0.65f, 1.0f));
+
     // Only show overlay when edge detection is enabled: alpha = 1.0 (showing) else 0.0 (transparent)
     const float alpha = edge_detect_enabled.load(std::memory_order_relaxed) ? 1.0f : 0.0f;
     program_shader->setUniformValue(edge_alpha_uniform, alpha);
+
     // Draw quad and cleanup
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
     // Restore GL state: unbind textures on both units
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -291,6 +342,65 @@ void VideoWidget::paintGL() {
     }
     // Draw detected circle markers for error checking (simple overlay)
     drawCircleMarkers(dstX, dstY, dstW, dstH);
+
+    // Draw lock overlay for every quadrant that has a manually pinned marker
+    if (lockTexture)
+    {
+        const float texW   = float(lockTexture->width());
+        const float texH   = float(lockTexture->height());
+        const float margin = 5.0f;
+
+        // Corner position (top-left of icon) for each quadrant: 0=TL,1=TR,2=BL,3=BR
+        float scaleFactor = std::min(W / defaultW, H / defaultH);
+        float scaledOffset = defaultOffset * scaleFactor;
+
+        const float corners[5][2] = {
+            { margin,              margin              }, // TL
+            { W - texW - margin,   margin              }, // TR
+            { margin,              H - texH - margin   }, // BL
+            { W - texW - margin,   H - texH - margin   }, // BR
+            { (W - texW) / 2 - scaledOffset, (H - texH) / 2 - scaledOffset }  //center
+        };
+
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
+
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0, W, H, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+
+        for (int q = 0; q <= 4; ++q)
+        {
+            if (quadrantClickPositions[q].x == -1)
+                continue;
+
+            const float x = corners[q][0];
+            const float y = corners[q][1];
+
+            lockTexture->bind();
+            glBegin(GL_TRIANGLE_STRIP);
+            glTexCoord2f(0.0f, 1.0f); glVertex2f(x,        y + texH);
+            glTexCoord2f(1.0f, 1.0f); glVertex2f(x + texW, y + texH);
+            glTexCoord2f(0.0f, 0.0f); glVertex2f(x,        y       );
+            glTexCoord2f(1.0f, 0.0f); glVertex2f(x + texW, y       );
+            glEnd();
+            lockTexture->release();
+        }
+
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        glDisable(GL_TEXTURE_2D);
+        glDisable(GL_BLEND);
+    }
 }
 
 
@@ -504,42 +614,277 @@ void VideoWidget::setNewZoomValue(float value) {
     }
 }
 
-/// <summary>
-/// Focuses the view onto the outermost four markers and center marker by zooming into each region
-/// </summary>
-/// <param name="src">Source bitmap data</param>
-/// <param name="gray">Converted gray mat from bitmap source</param>
-/// <param name="w">image width</param>
-/// <param name="h">image height</param>
-/// <param name="stride">Bitmap stride</param>
-/// <returns>Combined image WITHOUT shapes (for edge detection), shapes are drawn afterward</returns>
+/*
+ Mouse button down event handler for QtVideoWidget
+
+ Left click specifies a marker/contour location, right click clears the selection of a particular quadrant.
+ If no marker is specified, default behavior is to automatically select a contour in the quadrant.
+
+ Some conversion between click coordinates and original image pixels is required:
+ Conversion: Widget px -> frame px (undoes window letterbox scaling) -> original px (undoing ROI zoom + resize, using mapClickToImageCoords)
+*/
+void VideoWidget::mousePressEvent(QMouseEvent* event)
+{
+    bool clearSelection = (event->button() == Qt::RightButton);
+
+    if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton)
+        return;
+
+    // click position in widget pixels
+    QPoint c = event->pos(); 
+
+	// Convert widget pixel coordinates to frame pixel coordinates by undoing the letterbox scaling.
+    // The camera frame is drawn letterboxed (aspect-ratio preserved) inside the widget, which causes black bars to appear.
+    // Compute the scale factor and the top-left offset of the drawn image rect.
+    int w = width();
+    int h = height();
+    float scale = std::min(float(w) / float(frame_width), float(h) / float(frame_height));
+    int drawW = int(frame_width * scale);
+    int drawH = int(frame_height * scale);
+
+    int offsetX = (w - drawW) / 2;
+    int offsetY = (h - drawH) / 2;
+
+    // Ignore clicks outside the video area.
+    if (c.x() < offsetX || c.x() >= offsetX + drawW ||
+        c.y() < offsetY || c.y() >= offsetY + drawH) {
+        return;
+    }
+
+    // Convert widget pixel to frame pixel by removing the letterbox offset and undoing the scale.
+    int px = (c.x() - offsetX) / scale;
+    int py = (c.y() - offsetY) / scale;
+
+    // Determine which quadrant was clicked
+    // Check the center diamond first since it overlaps the 4x quadrant grid, then fall
+    // back to a simple quadrant split for the four corner slots.
+    int quadrant = -1;
+
+    if (roiZoomEnabled.load(std::memory_order_relaxed) && shapeParams.isValid
+        && shapeParams.combinedW > 0 && shapeParams.combinedH > 0) {
+        // Remap the frame-pixel click into combined-image coordinates so we can test
+        // it against the diamond polygon (which lives in combined-image space).
+        float cx = float(px) * float(shapeParams.combinedW) / float(frame_width);
+        float cy = float(py) * float(shapeParams.combinedH) / float(frame_height);
+        if (cv::pointPolygonTest(shapeParams.diamondPts, cv::Point2f(cx, cy), false) >= 0.0f) {
+            quadrant = 4; // point lies inside center diamond, select quadrant 4
+        }
+    }
+
+    if (quadrant < 0) {
+        // Point not in the diamond, now check the four quadrants.
+        // Slots are numbered: 0=TL, 1=TR, 2=BL, 3=BR  (col + row * 2).
+        int col = (px > frame_width  / 2) ? 1 : 0;
+        int row = (py > frame_height / 2) ? 1 : 0;
+        quadrant = col + row * 2;
+    }
+
+    // Retain the original framep px location for drawing the crosshair overlay.
+    clickedPixel    = cv::Point(px, py);
+    clickedQuadrant = quadrant;
+    
+    /*
+        Finally, convert frame pixels to original image pixels
+        When ROI zoom is active each panel shows a zoomed crop of the original image, resized to fill the quadrant.  
+        mapClickToImageCoords reverses that transform to produce the position of the clicked point in the original (un-zoomed) camera image.
+    
+        On right-click we skip this and store point (-1,-1) to clear the pinned marker instead.
+    */
+
+    cv::Point2f imagePt;
+    cv::Point newPoint;
+
+    if (clearSelection) {
+        imagePt = cv::Point2f(float(px), float(py));
+        newPoint = cv::Point(-1, -1);
+    }
+    else {
+        imagePt = mapClickToImageCoords(px, py, quadrant);
+        newPoint = cv::Point(int(imagePt.x), int(imagePt.y));
+    }
+
+    quadrantClickPositions[quadrant] = newPoint;
+
+    qDebug("Clicked pixel: (%d, %d) -> image: (%d, %d) in quadrant %d", px, py, newPoint.x, newPoint.y, quadrant);
+    emit pixelClicked(newPoint.x, newPoint.y, quadrant);
+    requestUpdate();
+}
+
+// Reverses a single zoomCrop+resize step for one display panel.
+//
+// When ROI zoom is active, each quadrant shows a small square crop of the original image
+// that has been zoomed in and then stretched to fill the panel (panelW x panelH pixels).
+// A user click at panel-local position (lx, ly) therefore corresponds to some point
+// inside that original crop window — this function works out which one.
+//
+//   prevCentroid — the zoom center used when the panel was rendered (in original image coords)
+//   lx, ly       — click position relative to the top-left corner of the panel (combined-image coords)
+//   panelW/H     — pixel dimensions of the panel in the combined image
+//
+// Returns: Corresponding point in original image coordinates
+cv::Point2f VideoWidget::inverseZoomCrop(cv::Point2f prevCentroid, float lx, float ly, int panelW, int panelH) const {
+
+    // Reproduce the same crop window that zoomCrop used when rendering this panel.
+    // side = the square crop size in the original image (smaller = more zoomed in).
+    int side = static_cast<int>(std::min(frame_width, frame_height) / ROIZoomScale);
+
+    // Clamp the crop origin so the window doesn't go outside the image (same logic as zoomCrop).
+    int cropX = std::max(0, std::min(int(prevCentroid.x) - side / 2, frame_width  - side));
+    int cropY = std::max(0, std::min(int(prevCentroid.y) - side / 2, frame_height - side));
+
+    // The panel stretches the crop window over (panelW x panelH) pixels, so divide by
+    // that scale to convert panel-local pixels back to original-image pixels.
+    return { cropX + lx * float(side) / float(panelW),
+             cropY + ly * float(side) / float(panelH) };
+}
+
+// Converts a click at frame-pixel position (px, py) back to original image coordinates.
+//
+// When ROI zoom is active, what the user sees on screen is NOT the raw camera image.
+// The view is a combined image made of five zoomed panels that has then been rescaled to fit
+// the frame dimensions. A click therefore lands somewhere inside one of those panels,
+// and we need to undo two layers of scaling to find where the user actually clicked in
+// the original camera image:
+//
+//   Layer 1: frame to combined image  (the combined image was resized to frame dimensions)
+//   Layer 2: combined image to original image  (each panel is a zoomed crop, via inverseZoomCrop)
+//
+// If ROI zoom is not active, or the clicked quadrant has never acquired a marker (no zoom
+// center to invert from), the frame-pixel coordinates are returned unchanged.
+cv::Point2f VideoWidget::mapClickToImageCoords(int px, int py, int quadrant) const {
+    if (!roiZoomEnabled.load(std::memory_order_relaxed)
+            || !shapeParams.isValid
+            || shapeParams.combinedW <= 0 || shapeParams.combinedH <= 0)
+        return cv::Point2f(float(px), float(py));
+
+    // Layer 1: rescale frame pixels → combined-image pixels.
+    float cx = float(px) * float(shapeParams.combinedW) / float(frame_width);
+    float cy = float(py) * float(shapeParams.combinedH) / float(frame_height);
+
+    // Layer 2: subtract the panel's top-left origin within the combined image, then
+    // call inverseZoomCrop to undo the zoom+resize for that specific panel.
+    if (quadrant == 4 && quadrantSlots[4].hasTrack) {
+        // Center diamond panel: its top-left is at (diamondX, diamondY) in combined-image space.
+        float lx = cx - float(shapeParams.diamondX);
+        float ly = cy - float(shapeParams.diamondY);
+        return inverseZoomCrop(quadrantSlots[4].centroid, lx, ly,
+                               shapeParams.diamondW, shapeParams.diamondH);
+    }
+    if (quadrant >= 0 && quadrant <= 3 && quadrantSlots[quadrant].hasTrack) {
+        // Corner quadrant panels are tiled: slot (col, row) starts at (col*quadW, row*quadH).
+        int col = quadrant % 2;
+        int row = quadrant / 2;
+        float lx = cx - float(col * shapeParams.quadW);
+        float ly = cy - float(row * shapeParams.quadH);
+        return inverseZoomCrop(quadrantSlots[quadrant].centroid, lx, ly,
+                               shapeParams.quadW, shapeParams.quadH);
+    }
+
+    return cv::Point2f(float(px), float(py));
+}
+
+// Refines a slot's zoom-center to the sub-pixel-accurate center reported by the
+// CircleMarkerDetector, rather than using the coarser contour centroid from extractROIs.
+//
+// The circle detector runs a separate, more precise detection pass and stores its
+// results in detectedCircleMarkers.  This function searches that list for the circle
+// closest to the current quadrant centroid that also falls within the quadrant's visible crop
+// window, then returns its center.  If no such circle exists the original centroid is
+// returned unchanged, so the quadrant continues to use the contour-based position.
+//
+// The crop window constraint prevents snapping to a circle from a different marker that
+// happens to be closer in absolute image distance but is not actually visible in this panel.
+cv::Point2f VideoWidget::snapCentroidToCircle(cv::Point2f centroid) {
+    // Reproduce the crop window size from zoomCrop so we know the maximum distance a
+    // circle can be from the centroid and still be visible inside the zoomed panel.
+    const int side        = static_cast<int>(std::min(frame_width, frame_height) / ROIZoomScale);
+    const float maxDistSq = float(side / 2) * float(side / 2); // squared to avoid sqrt
+
+    std::lock_guard<std::mutex> lock(circleMarkersMutex);
+
+    float bestDistSq = maxDistSq; // reject any circle farther away than the crop window half-side
+    const CircleMarkerDetector::CircleMarker* best = nullptr;
+
+    for (const auto& marker : detectedCircleMarkers) {
+        float dx  = marker.center.x - centroid.x;
+        float dy  = marker.center.y - centroid.y;
+        float dSq = dx * dx + dy * dy;
+        if (dSq < bestDistSq) {
+            bestDistSq = dSq;
+            best       = &marker;
+        }
+    }
+
+    return best ? best->center : centroid;
+}
+
+// Builds the "combined image" that is displayed when ROI zoom mode is active.
+//
+// OVERVIEW
+// ---------
+// The combined image is a single cv::Mat that tiles five zoomed views of the camera frame:
+//
+//   ┌────────────┬────────────┐
+//   │  TL (0)    │  TR (1)    │
+//   │        ◇ center ◇       │
+//   │  BL (2)    │  BR (3)    │
+//   └────────────┴────────────┘
+//
+// Each corner panel (quadrants 0-3) is a zoomed crop centered on the outermost marker dot
+// in that corner of the original image. The center diamond panel (quadrant 4) shows the
+// center marker. Zooming in lets the user inspect circularity and focus quality up close.
+//
+// QUADRANT NUMBERING
+// -------------------
+// Quadrants are indexed as  col + row * 2:
+//   0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right, 4 = center diamond
+//
+// PER-QUADRANT STATE  (quadrantSlots[])
+// --------------------------------------
+// Each quadrant carries:
+//   centroid    — the zoom center in original image coordinates (updated every frame)
+//   circularity — how circular the tracked marker contour is (0=line, 1=perfect circle)
+//   hasTrack    — whether the quadrant has ever acquired a marker this session
+//
+// RETURNS
+// ---------
+// The combined image WITHOUT any overlay shapes drawn on it.
+// Shapes (grid lines, diamond border, circularity labels) are drawn afterward in drawShapesOverlay() so that edge
+// detection sees clean pixel data.  
+// 
+// Returns an empty Mat if no edges were found.
 cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int w, int h, int stride) {
-
-    // some constants defining the viewing area
     const int diamondW = 600;
-    const int diamondH = 0.8 * diamondW;    // approximation from Git issue screenshot
+    const int diamondH = 0.8 * diamondW;    // aspect ratio from reference screenshot
 
-    int combinedW = gray.cols + diamondW;   // original image width + diamond width
-    int combinedH = gray.rows + diamondH;   // original image height + diamond height
+    int combinedW = gray.cols + diamondW;
+    int combinedH = gray.rows + diamondH;
 
-    cv::Mat combined(combinedH, combinedW, gray.type(), cv::Scalar(0));
+    cv::Mat combined(combinedH, combinedW, gray.type(), cv::Scalar(0)); // black canvas
 
-    int quadW = combinedW / 2;
-    int quadH = combinedH / 2;
+    int quadW = combinedW / 2;  // width of each corner panel
+    int quadH = combinedH / 2;  // height of each corner panel
 
+    // Center of the combined canvas — also the center of the diamond panel.
     int imgCenterX = combined.cols / 2;
     int imgCenterY = combined.rows / 2;
 
+    // Top-left corner of the diamond panel rect within the combined image.
     int diamondX = imgCenterX - (diamondW / 2);
     int diamondY = imgCenterY - (diamondH / 2);
 
+    // Diamond polygon vertices in diamond-local coordinates (origin = diamondX, diamondY).
+    // Used both for masking the rendered crop and for hit-testing mouse clicks.
     std::vector<cv::Point> diamondPts{
-        {diamondW / 2, 0},
-        {diamondW - 1, diamondH / 2},
-        {diamondW / 2, diamondH - 1},
-        {0, diamondH / 2}
+        {diamondW / 2, 0},           // top
+        {diamondW - 1, diamondH / 2},// right
+        {diamondW / 2, diamondH - 1},// bottom
+        {0, diamondH / 2}            // left
     };
 
+    // --- Detect marker candidates via edge detection ---
+    // Run Canny on the grayscale frame to find edges, then extractROIs groups those
+    // edges into individual marker blobs with bounding rects, centroids, and circularity.
     cv::Mat edges;
     cv::Canny(gray, edges, canny_low_threshold, canny_high_threshold, canny_kernel_size);
 
@@ -549,113 +894,227 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
         if (!rois.empty()) {
             shapeParams.roiLabels.clear();
 
-            // Apply EWM smoothing to prevent glitching when subject moves
-            if (!prev_roi_centroids.empty() && prev_roi_centroids.size() == rois.size()) {
+            cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
+
+            // --- Assign ROIs to quadrants ---
+            // Quadrant 4 (center diamond): the ROI whose centroid is closest to the image center.
+            int centerIdx = -1;
+            {
+                float minDistSq = std::numeric_limits<float>::max();
                 for (size_t i = 0; i < rois.size(); ++i) {
+                    float dx = rois[i].centroid.x - imageCenter.x;
+                    float dy = rois[i].centroid.y - imageCenter.y;
+                    float d = dx*dx + dy*dy;
+                    
+                    if (d < minDistSq) { 
+                        minDistSq = d; 
+                        centerIdx = static_cast<int>(i); 
+                    }
+                }
+            }
 
-                    // Find closest previous centroid to current ROI
-                    float minDistSq = std::numeric_limits<float>::max();
-                    int bestMatch = -1;
+            // Quadrants 0-3 (corner panels): bin every other ROI into the quadrant that contains its centroid.  
+            // The center marker (centerIdx) is excluded from this pool.
+            std::array<std::vector<size_t>, 4> slotCandidates;
+            for (size_t i = 0; i < rois.size(); ++i) {
+                if (static_cast<int>(i) == centerIdx) continue;
+                int col = (rois[i].centroid.x > imageCenter.x) ? 1 : 0;
+                int row = (rois[i].centroid.y > imageCenter.y) ? 1 : 0;
+                slotCandidates[col + row * 2].push_back(i);
+            }
 
-                    for (size_t j = 0; j < prev_roi_centroids.size(); ++j) {
-                        float dx = rois[i].centroid.x - prev_roi_centroids[j].x;
-                        float dy = rois[i].centroid.y - prev_roi_centroids[j].y;
-                        float distSq = dx * dx + dy * dy;
-                        if (distSq < minDistSq) {
-                            minDistSq = distSq;
-                            bestMatch = static_cast<int>(j);
+            /*
+                --- Select the best candidate for the four square quadrants and update centroid ---
+            
+                Priority order for choosing which candidate to zoom into:
+                1. Manual pin  — user clicked a specific marker; pick the ROI closest to that point.
+                2. Active track — quadrant has a marker, so pick the candidate closest to the
+                                 last-known centroid (frame-to-frame continuity).
+                                 If nothing is close enough the track is considered lost.
+                3. First acquisition / track lost — pick the candidate closest to this quadrant's
+                                 corner of the image (i.e. the outermost marker in that corner).
+            
+                Once a candidate is chosen, the centroid is updated via exponential moving average
+                (EMA) to smooth jitter. A manual pin bypasses EMA and locks the centroid directly.
+            */
+            int id = 0;
+            for (int slot = 0; slot < 4; ++slot) {
+
+                const auto& cands = slotCandidates[slot];
+
+                // No markers detected in this quadrant this frame, quadrant is blank
+                if (cands.empty()) {
+                    quadrantSlots[slot].hasTrack = false;
+                    continue;
+                }
+
+                int chosen = -1;
+                const cv::Point2f& clickPos = quadrantClickPositions[slot];
+
+                // Priority 1: manual pin — find the candidate nearest the clicked point.
+                if (clickPos.x != -1 && clickPos.y != -1) {
+                    float minDist = std::numeric_limits<float>::max();
+                    for (size_t idx : cands) {
+                        float dx = rois[idx].centroid.x - clickPos.x;
+                        float dy = rois[idx].centroid.y - clickPos.y;
+                        float d = dx*dx + dy*dy;
+                        if (d < minDist) { 
+                            minDist = d; 
+                            chosen = static_cast<int>(idx); 
                         }
                     }
+                } 
 
-                    // Apply exponential smoothing if match found and close enough
-                    if (bestMatch >= 0 && minDistSq < centroid_matching_threshold) {
-                        rois[i].centroid.x = centroid_smoothing_alpha * rois[i].centroid.x +
-                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].x;
-                        rois[i].centroid.y = centroid_smoothing_alpha * rois[i].centroid.y +
-                                             (1.0f - centroid_smoothing_alpha) * prev_roi_centroids[bestMatch].y;
+                // Priority 2: active track - find the candidate nearest the previous centroid.
+                else if (quadrantSlots[slot].hasTrack) {
+                    float minDist = std::numeric_limits<float>::max();
+                    for (size_t idx : cands) {
+                        float dx = rois[idx].centroid.x - quadrantSlots[slot].centroid.x;
+                        float dy = rois[idx].centroid.y - quadrantSlots[slot].centroid.y;
+                        float d = dx*dx + dy*dy;
+                        if (d < minDist) { minDist = d; chosen = static_cast<int>(idx); }
+                    }
+                    if (minDist >= centroid_matching_threshold) chosen = -1; // too far - track lost
+                }
+
+                // Priority 3: no track — pick the candidate closest to this slot's image corner
+                if (chosen < 0) {
+                    int col = slot % 2;
+                    int row = slot / 2;
+                    cv::Point2f corner(float(col * gray.cols), float(row * gray.rows));
+                    float minDist = std::numeric_limits<float>::max();
+                    for (size_t idx : cands) {
+                        float dx = rois[idx].centroid.x - corner.x;
+                        float dy = rois[idx].centroid.y - corner.y;
+                        float d = dx*dx + dy*dy;
+                        if (d < minDist) { minDist = d; chosen = static_cast<int>(idx); }
                     }
                 }
-            }
 
-            // Update cache for next frame
-            prev_roi_centroids.clear();
-            for (const auto& roi : rois) {
-                prev_roi_centroids.push_back(roi.centroid);
-            }
+                // Update this slot's state with the chosen candidate.
+                auto& s = quadrantSlots[slot];
+                if (quadrantClickPositions[slot].x != -1 && quadrantClickPositions[slot].y != -1) {
+                    // Manual pin: lock centroid directly to the clicked image coordinate.
+                    s.centroid.x = quadrantClickPositions[slot].x;
+                    s.centroid.y = quadrantClickPositions[slot].y;
+                } else {
+                    if (s.hasTrack) {
+                        // EMA smoothing: blend the new detection toward the previous centroid.
+                        // alpha (centroid_smoothing_alpha) controls how quickly the centroid
+                        // follows movement — lower = smoother but slower to react.
+                        s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x
+                            + (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+                        s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y
+                            + (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+                    } else {
+                        // First acquisition: snap directly with no blending.
+                        s.centroid = rois[chosen].centroid;
+                    }
+                }
+                s.hasTrack = true;
+                // Record circularity from the chosen candidate so the displayed score
+                // always corresponds to the marker this slot is actually zoomed into.
+                s.circularity = rois[chosen].circularity;
 
-            // Find center-most ROI
-            cv::Point2f imageCenter(gray.cols / 2.0f, gray.rows / 2.0f);
-            
-            int centerIdx = -1;
-            float minDistSq = std::numeric_limits<float>::max();
-
-            for (size_t i = 0; i < rois.size(); ++i) {
-                cv::Point2f c = rois[i].centroid;
-                float dx = c.x - imageCenter.x;
-                float dy = c.y - imageCenter.y;
-                float distSq = dx * dx + dy * dy;
-                if (distSq < minDistSq) {
-                    minDistSq = distSq;
-                    centerIdx = static_cast<int>(i);
+                // Optional refinement: if the CircleMarkerDetector is running, replace the
+                // contour centroid with its more precise circle center for a tighter zoom.
+                // Only done when the user has not manually pinned this slot.
+                if (quadrantClickPositions[slot].x == -1
+                        && circleDetectionEnabled.load(std::memory_order_relaxed)) {
+                    s.centroid = snapCentroidToCircle(s.centroid);
                 }
             }
 
-            // Place remaining ROIs in quadrants
-            for (size_t i = 0; i < rois.size(); ++i) {
+            // --- Render corner panels into the combined image ---
+            for (int slot = 0; slot < 4; ++slot) {
+                if (!quadrantSlots[slot].hasTrack) continue;
+                int col = slot % 2;
+                int row = slot / 2;
+                int x = col * quadW; // top-left x of this panel in the combined image
+                int y = row * quadH; // top-left y of this panel in the combined image
 
-                VideoWidget::RoiInfo& roi = rois[i];
-
-                //skip center ROI
-                if (static_cast<int>(i) == centerIdx) { 
-                    continue; 
-                }
-
-                int col = (roi.centroid.x > imageCenter.x) ? 1 : 0;
-                int row = (roi.centroid.y > imageCenter.y) ? 1 : 0;
-
-                int x = col * (quadW);
-                int y = row * (quadH);
-
-                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
+                // Crop a square region around the tracked centroid and stretch it to panel size.
+                cv::Mat cropped = zoomCrop(gray, quadrantSlots[slot].centroid, ROIZoomScale);
                 cv::Mat resized;
                 cv::resize(cropped, resized, cv::Size(quadW, quadH));
-
                 resized.copyTo(combined(cv::Rect(x, y, quadW, quadH)));
 
+                // Record the panel center and circularity so drawShapesOverlay can label it.
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(x + quadW / 2), float(y + quadH / 2)),
-                    roi.circularity
+                    quadrantSlots[slot].circularity,
+                    id
                 });
+                id++;
             }
 
-            // Place center ROI in diamond area with mask
+            // --- Update and render the center diamond panel (slot 4) ---
             if (centerIdx >= 0) {
-                VideoWidget::RoiInfo& roi = rois[centerIdx];
+                auto& s = quadrantSlots[4];
 
-                // Crop the center region of the original image
-                int cropSize = std::min(gray.cols, gray.rows) / 2;
+                // Same priority order as corner slots:
+                //   1. Manual click overrides everything.
+                //   2. EMA toward detected centroid when already tracking.
+                //   3. Hard-snap on first acquisition.
+                if (quadrantClickPositions[4].x != -1 && quadrantClickPositions[4].y != -1) {
+                    s.centroid.x = quadrantClickPositions[4].x;
+                    s.centroid.y = quadrantClickPositions[4].y;
+                } else if (s.hasTrack) {
+                    s.centroid.x = centroid_smoothing_alpha * rois[centerIdx].centroid.x
+                        + (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+                    s.centroid.y = centroid_smoothing_alpha * rois[centerIdx].centroid.y
+                        + (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+                } else {
+                    s.centroid = rois[centerIdx].centroid;
+                }
+                s.hasTrack = true;
 
-                int cropX = (gray.cols - cropSize) / 2;
-                int cropY = (gray.rows - cropSize) / 2;
+                // Circularity: when the user has manually pinned this slot, find the ROI whose
+                // centroid is closest to the clicked point so we report the score for the selected marker.
+                {
+                    int circularityIdx = centerIdx;
+                    const cv::Point2f& clickPos4 = quadrantClickPositions[4];
+                    if (clickPos4.x != -1 && clickPos4.y != -1) {
+                        float minDistSq = std::numeric_limits<float>::max();
+                        for (size_t i = 0; i < rois.size(); ++i) {
+                            float dx = rois[i].centroid.x - clickPos4.x;
+                            float dy = rois[i].centroid.y - clickPos4.y;
+                            float d = dx*dx + dy*dy;
+                            if (d < minDistSq) { minDistSq = d; circularityIdx = static_cast<int>(i); }
+                        }
+                    }
+                    s.circularity = rois[circularityIdx].circularity;
+                }
 
-                cv::Mat cropped = zoomCrop(gray, roi.centroid, ROIZoomScale);
+                // Optional circle-detector refinement (same as corner slots).
+                if (quadrantClickPositions[4].x == -1
+                        && circleDetectionEnabled.load(std::memory_order_relaxed)) {
+                    s.centroid = snapCentroidToCircle(s.centroid);
+                }
 
+                // Crop and resize the center marker view, then copy it into the combined image
+                // through a diamond-shaped mask so only the diamond area is filled.
+                cv::Mat cropped = zoomCrop(gray, s.centroid, ROIZoomScale);
                 cv::Mat centerResized;
                 cv::resize(cropped, centerResized, cv::Size(diamondW, diamondH));
 
                 cv::Mat diamondMask = cv::Mat::zeros(diamondH, diamondW, CV_8UC1);
                 cv::fillPoly(diamondMask, std::vector<std::vector<cv::Point>>{diamondPts}, cv::Scalar(255));
-
                 centerResized.copyTo(combined(cv::Rect(diamondX, diamondY, diamondW, diamondH)), diamondMask);
 
                 shapeParams.roiLabels.push_back({
                     cv::Point2f(float(diamondX + diamondW / 2), float(diamondY + diamondH / 2)),
-                    rois[static_cast<size_t>(centerIdx)].circularity
+                    s.circularity,
+                    id
                 });
+            } else {
+                quadrantSlots[4].hasTrack = false;
             }
         }
 
-        // Save parameters for drawing shapes AFTER edge detection
+        // Cache all layout geometry needed by drawShapesOverlay() and mapClickToImageCoords().
+        // These values are derived from the combined image dimensions computed above and must
+        // stay in sync with what was actually rendered this frame.
         shapeParams.quadW = quadW;
         shapeParams.quadH = quadH;
         shapeParams.imgCenterX = imgCenterX;
@@ -666,6 +1125,9 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
         shapeParams.diamondH = diamondH;
         shapeParams.combinedW = combinedW;
         shapeParams.combinedH = combinedH;
+
+        // Translate diamond vertices from diamond-local coords to combined-image coords
+        // so pointPolygonTest in mousePressEvent can use them directly.
         shapeParams.diamondPts.clear();
         for (auto& p : diamondPts) {
             shapeParams.diamondPts.push_back(cv::Point(p.x + diamondX, p.y + diamondY));
@@ -675,36 +1137,36 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char* src, cv::Mat& gray, int 
         return combined;
     }
 
-    // If no edges detected, return empty Mat
+    // No edges found this frame — signal that the combined image is not valid.
     shapeParams.isValid = false;
     shapeParams.roiLabels.clear();
     return cv::Mat();
 }
 
-/// <summary>
-/// Produces a zoomed crop of the source image centered at 'center' point
-/// </summary>
-/// <param name="src">Source image data</param>
-/// <param name="center">Center point to zoom and crop about</param>
-/// <param name="zoom">Zoom scale</param>
-/// <returns>Mat of cropped/zoomed image area</returns>
-cv::Mat VideoWidget::zoomCrop(const cv::Mat& src, const cv::Point& center, float zoom) {
-    // Determine the square side length
+// Extracts a square crop from `src` centered on point `center` and zoomed in by `zoom` amount.
+//
+// A zoom of 1.0 would crop the entire shorter dimension of the image (no zoom).
+// A zoom of 2.0 crops half that area, making objects appear twice as large when the
+// result is stretched back to the same display size.  Higher zoom = tighter crop.
+//
+// The crop is always square (side = min(src width, src height) / zoom) so that
+// stretching it to a rectangular panel doesn't add extra distortion beyond the aspect ratio.
+cv::Mat VideoWidget::zoomCrop(const cv::Mat& src, const cv::Point2f& center, float zoom) {
     int side = static_cast<int>(std::min(src.cols, src.rows) / zoom);
 
-    // Compute top-left corner to center the crop
+    // Place the crop window so `center` is in the middle of it.
     int cropX = center.x - side / 2;
     int cropY = center.y - side / 2;
 
-    // Clamp to image bounds
+    // Clamp so the window stays fully inside the image.
     cropX = std::max(0, std::min(cropX, src.cols - side));
     cropY = std::max(0, std::min(cropY, src.rows - side));
 
     return src(cv::Rect(cropX, cropY, side, side)).clone();
 }
 
-/// <summary>
-/// Given a grayscale image and its edge map, extracts largest N marker ROIs based on detected contours
+/// <summary> 
+/// Finds all markers in the frame and returns them as a list of RoiInfo structs.
 /// </summary>
 /// <param name="gray"></param>
 /// <param name="edges"></param>
@@ -720,7 +1182,7 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
         cv::Rect r = cv::boundingRect(c);
         r.x = std::max(0, r.x - margin);
         r.y = std::max(0, r.y - margin);
-        r.width = std::min(gray.cols - r.x, r.width + 1 * margin);
+        r.width  = std::min(gray.cols - r.x, r.width  + 1 * margin);
         r.height = std::min(gray.rows - r.y, r.height + 1 * margin);
 
         cv::Moments m = cv::moments(c);
@@ -735,7 +1197,6 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
                     cv::RotatedRect ellipse = cv::fitEllipse(c);
                     float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
                     float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
-                    
                     if (majorAxis > 0) {
                         circularity = std::clamp(static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
                     }
@@ -747,13 +1208,14 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat& gray, const cv::Mat
         rois.push_back({ circularity, r, centroid });
     }
 
-    // Keep top N largest by area
+    // Sort largest-area first so that the most prominent markers appear at the front of
+    // the list, then truncate to the caller's requested cap.
     std::sort(rois.begin(), rois.end(), [](const RoiInfo& a, const RoiInfo& b) {
         return a.rect.area() > b.rect.area();
-        });
-    if (rois.size() > maxROIs) {
+    });
+    if (rois.size() > maxROIs)
         rois.resize(maxROIs);
-    }
+
     return rois;
 }
 
@@ -882,17 +1344,26 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW, float ds
                 float sx = toScreenX(lbl.combinedPos.x);
                 float sy = toScreenY(lbl.combinedPos.y);
 
-                double circPct = lbl.circularity * 100.0;  // Scale from 0-1 to 0-100
-                QString text = QString("c:%1%").arg(circPct, 0, 'f', 1);
-                int textW = fm.horizontalAdvance(text);
-                int tx = static_cast<int>(sx) - textW / 2;
-                // Position text below the marker (instead of at center)
-                int ty = static_cast<int>(sy) + fm.height() / 2 + 12;
+                QString circularityText =
+                    QString("c:%1%\nID:%2")
+                    .arg(lbl.circularity * 100.0f, 0, 'f', 1)
+                    .arg(lbl.id);
 
-                QRect bgRect(tx - 2, ty - 1, textW + 4, fm.height() + 2);
-                painter.fillRect(bgRect, QColor(0, 0, 0, 160));
+                QRect textRect = fm.boundingRect(
+                    QRect(0, 0, 200, 100),  // max bounds
+                    Qt::TextWordWrap,
+                    circularityText
+                );
+
+                int tx = static_cast<int>(sx) - textRect.width() / 2;
+                int ty = static_cast<int>(sy) + 16;
+
+                QRect drawRect(tx, ty, textRect.width(), textRect.height());
+
+                painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 160));
                 painter.setPen(cyanColor);
-                painter.drawText(tx, ty + fm.ascent(), text);
+
+                painter.drawText(drawRect, Qt::AlignCenter, circularityText);
             }
         }
 
@@ -1065,7 +1536,6 @@ void VideoWidget::updateCircleMarkersTexture() {
             circlePen.setCapStyle(Qt::RoundCap);
             painter.setPen(circlePen);
 
-            // Draw each marker
             for (const auto& marker : detectedCircleMarkers) {
                 int sx = static_cast<int>(marker.center.x);
                 int sy = static_cast<int>(marker.center.y);
@@ -1075,23 +1545,28 @@ void VideoWidget::updateCircleMarkersTexture() {
                     continue;
                 }
 
-                QString circularityText = QString("c:%1").arg(marker.circularity * 100.0f, 0, 'f', 1);
-                
-                // Position text below the circle, centered horizontally
+                QString circularityText =
+                    QString("c:%1%\nID:%2")
+                    .arg(marker.circularity * 100.0f, 0, 'f', 1)
+                    .arg(marker.id);
+
                 QFontMetrics fm(painter.font());
-                int textX = sx - (fm.horizontalAdvance(circularityText) / 2);
-                int textY = sy + sr + 12;
-                
-                // Draw text with background for readability
-                QRect textRect = fm.boundingRect(circularityText);
-                textRect.moveTo(textX, textY);
-                textRect.adjust(-2, -1, 2, 1);
-                painter.fillRect(textRect, QColor(0, 0, 0, 180));
-                
-                // Draw text in cyan
-                painter.setPen(QPen(cyanColor));
-                painter.drawText(textX, textY + fm.ascent(), circularityText);
-                painter.setPen(circlePen);  // Restore circle pen
+
+                QRect textRect = fm.boundingRect(
+                    QRect(0, 0, 200, 100),
+                    Qt::TextWordWrap,
+                    circularityText
+                );
+
+                int tx = sx - textRect.width() / 2;
+                int ty = sy + sr + 16;
+
+                QRect drawRect(tx, ty, textRect.width(), textRect.height());
+
+                painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 180));
+                painter.setPen(cyanColor);
+                painter.drawText(drawRect, Qt::AlignCenter, circularityText);
+                painter.setPen(circlePen);
             }
         }
 

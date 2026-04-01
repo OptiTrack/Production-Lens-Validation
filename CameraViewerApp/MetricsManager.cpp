@@ -11,12 +11,13 @@
 #include <cstdlib>
 #include <algorithm>
 #include <QCoreApplication>
+#include <qmessagebox.h>
 
 const char* ENHeaders[] = {
-	"Serial number",
-	"Disposition",
-	"Marker appearance",
-	"Circularity score",
+	"Lens Serial Number",
+	"Lens Disposition",
+	"Marker Appearance",
+	"Circularity Score",
 	"Position X (px)",
 	"Position Y (px)",
 	"Lens focus optimal?",
@@ -25,7 +26,7 @@ const char* ENHeaders[] = {
 // TODO retranslate these headers
 const char* CNHeaders[] = {
 	u8"序列号",
-	u8"处置方式",
+	u8"镜头布局",
 	u8"标记外观",
 	u8"圆度评分",
 	u8"X 坐标 (像素)",
@@ -41,12 +42,12 @@ using lensMetrics = MetricsManager::lensMetrics;
 /// <returns>True if export succeeded, false otherwise</returns>
 bool MetricsManager::ExportMetrics() {
 
-	if (m_metrics.visibleMarkers.empty()) {
-		qDebug("[!] No contour data to export!");
+	if (m_snapshot.visibleMarkers.empty()) {
+		QMessageBox::warning(nullptr, "No data!", "No lens data is available for export.\rCheck lens focus and try again.");
 		return false;
 	}
 
-	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_metrics.lensSerial.c_str());
+	QString defaultFileName = QString("lens_metrics_%1.csv").arg(m_snapshot.lensSerial.c_str());
 
 	QString filePath = QFileDialog::getSaveFileName(
 		nullptr,
@@ -56,21 +57,20 @@ bool MetricsManager::ExportMetrics() {
 	);
 
 	if (filePath.isEmpty()) {
-		qDebug("[!] No filename provided!");
+		QMessageBox::warning(nullptr, "No output path!", "No output path has been selected for export.\rSelect an output folder and try again.");
 		return false;
 	}
 
 	std::ofstream out(filePath.toStdString(), std::ios::binary);
 	if (!out.is_open()) {
-		qDebug("[!] File creation failed!");
+		QMessageBox::critical(nullptr, "Failed to create file!", "Could not create export file.\rCheck folder permissions and try again.");
 		return false;
 	}
 
 	const char** hTable = nullptr;
 	size_t hCount = 0;
 
-	// language check
-	if (m_metrics.lang == MetricsManager::English) {
+	if (m_snapshot.lang == MetricsManager::English) {
 		hTable = ENHeaders;
 		hCount = std::size(ENHeaders);
 	}
@@ -86,14 +86,14 @@ bool MetricsManager::ExportMetrics() {
 	}
 	out << "\n";
 
-	for (const auto& d : m_metrics.visibleMarkers) {
-		out << m_metrics.lensSerial << ","
-			<< LensDispositionToString(m_metrics.lensDisp) << ","
+	for (const auto& d : m_snapshot.visibleMarkers) {
+		out << m_snapshot.lensSerial << ","
+			<< LensDispositionToString(m_snapshot.lensDisp) << ","
 			<< MarkerClassifierToString(d.mClass) << ","
 			<< d.circularityScore << ","
 			<< d.centroid.x << ","
 			<< d.centroid.y << ","
-			<< (m_metrics.lensFocusOptimal ? "true" : "false") << ","
+			<< (m_snapshot.lensFocusOptimal ? "true" : "false") << ","
 			<< "\n";
 	}
 
@@ -135,7 +135,28 @@ void MetricsManager::testMM() {
 }
 
 /// <summary>
-/// Given a collection of markers, evaluate overall lens condition
+/// Convert and add all circles from a detection pass, then evaluate once.
+/// </summary>
+void MetricsManager::addMarkers(const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
+	for (const auto& circle : circles) {
+		contourData circ = {
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? markerClass::circle :
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Oval)   ? markerClass::oval   :
+			(circle.shapeType == CircleMarkerDetector::ShapeType::Hook)   ? markerClass::hook   :
+			markerClass::circle,
+			circle.center,
+			circle.circularity
+		};
+		m_metrics.visibleMarkers.push_back(circ);
+	}
+
+	UpdateLensDisposition();
+}
+
+/// <summary>
+/// Given a collection of markers, evaluate overall lens condition.
+/// Saves a snapshot of the result whenever markers are present so
+/// ExportMetrics() always has data regardless of render loop timing.
 /// </summary>
 void MetricsManager::UpdateLensDisposition() {
 
@@ -145,26 +166,18 @@ void MetricsManager::UpdateLensDisposition() {
 		return;
 	}
 
-	// any quantity of hooks fail the lens immediately.
-	if (std::any_of(
-		m_metrics.visibleMarkers.begin(),
-		m_metrics.visibleMarkers.end(),
-		[](const auto& m) 
-		{
-			return m.mClass == markerClass::hook;
-		})) 
-	{
-		m_metrics.lensDisp = lensDisposition::fail;
-		m_metrics.lensScore = 0;
-		qDebug("[dbg] Hook in collection! Lens fails.");
-		return;
-	}
-		
 	// score starts at max value, apply penalties as required
 	double maxScore = 1.0 * m_metrics.visibleMarkers.size();
 	double score = maxScore;
+	bool hasHook = false;
 
-	for (const auto& m : m_metrics.visibleMarkers) {
+	for (auto& m : m_metrics.visibleMarkers) {
+
+		// hooks fail immediately
+		if (m.mClass == markerClass::hook) {
+			hasHook = true;
+			continue;
+		}
 
 		double penalty = 0;
 
@@ -173,7 +186,7 @@ void MetricsManager::UpdateLensDisposition() {
 		// Scale penalty with circularity for more dynamic scoring.
 		if (m.mClass == markerClass::oval) {
 
-			qDebug("\n[dbg] Oval marker at (%.1f, %.1f) with circularity %.2f", m.centroid.x, m.centroid.y, m.circularityScore);
+			qDebug("\n[dbg] Oval marker at (%.2f, %.2f) with circularity %.2f", m.centroid.x, m.centroid.y, m.circularityScore);
 
 			if (hypotToCenter == 0.0) {
 				qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
@@ -184,9 +197,9 @@ void MetricsManager::UpdateLensDisposition() {
 													std::abs(imageCenter.y - m.centroid.y));
 
 			// marker centroid deviation from true image center as weight
-			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter); 
+			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter);
 
-			qDebug("[dbg] Max hypot: %.1f, marker hypot: %.1f, Distance weight: %.1f",
+			qDebug("[dbg] Max hypot: %.2f, marker hypot: %.2f, Distance weight: %.2f",
 				hypotToCenter,
 				markerHypotToCenter,
 				scaledMultiplier);
@@ -194,15 +207,22 @@ void MetricsManager::UpdateLensDisposition() {
 			// scale distance with non-circularity
 			penalty = scaledMultiplier * (1 - m.circularityScore);
 
-			qDebug("[dbg] Calculated oval marker penalty: %.1f", penalty);
+			qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
 		}
 
 		// if circular, apply penalty proportional to circularity
 		else if (m.mClass == markerClass::circle) {
 			penalty = (1 - m.circularityScore); // apply unweighted circularity score
-			qDebug("[dbg] Calculated circle marker penalty: %.1f", penalty);
+			qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
 		}
 		score -= penalty;
+	}
+
+	if (hasHook) {
+		qDebug("[dbg] Hook in collection! Lens fails.");
+		m_metrics.lensDisp = lensDisposition::fail;
+		m_metrics.lensScore = 0;
+		return;
 	}
 
 	// assign disposition to metrics object
@@ -217,7 +237,10 @@ void MetricsManager::UpdateLensDisposition() {
 		m_metrics.lensDisp = lensDisposition::fail;
 	}
 	m_metrics.lensScore = scorePct;
-	qDebug("[dbg] Overall lens health: %.1f%\n", scorePct * 100.f);
+	qDebug("[dbg] Overall lens health: %.2f%\n", scorePct * 100.f);
+
+	// Retain this result so ExportMetrics() always has the last valid frame data
+	m_snapshot = m_metrics;
 }
 
 

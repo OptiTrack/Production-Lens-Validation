@@ -26,13 +26,19 @@ public:
         ShapeType shapeType = ShapeType::Circle;  ///< Categorized shape type
         std::vector<cv::Point> contour;  ///< Contour points for rendering
         float quality = 1.0f;            ///< Detection quality metric
+        int id;
     };
+
+	/// @brief Detect circular markers in a frame
+	/// @param bmp Bitmap frame to analyze
+	/// @return Vector of detected circle markers
+	std::vector<CircleMarker> DetectCircleMarkers(CameraLibrary::Bitmap* bmp);
 
     struct DetectionParams {
         double dp = 1.0;         ///< Inverse ratio of accumulator resolution
-        double minDist = 10.0;   ///< Minimum distance between circles
-        double param1 = 300.0;   ///< Upper threshold for Canny edge detection
-        double param2 = 10.0;    ///< Accumulator threshold for circle detection
+        double minDist = 5.0;   ///< Minimum distance between circles
+        double param1 = 100.0;   ///< Upper threshold for Canny edge detection
+        double param2 = 1.0;    ///< Accumulator threshold for circle detection
         double minRadius = 1.0;  ///< Minimum circle radius
         double maxRadius = 30.0; ///< Maximum circle radius
     };

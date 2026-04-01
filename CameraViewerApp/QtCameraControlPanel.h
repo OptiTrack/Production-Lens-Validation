@@ -26,6 +26,7 @@ class VideoWidget;
 struct MetricWidgets {
     QString name;
     QString units;
+    qreal passingThreshold{1.0};
     QGroupBox* groupBox{nullptr};
     QVector<QLabel*> dataLabels;
     QVector<QLabel*> descriptionLabels;
@@ -52,7 +53,8 @@ public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsManager& mMgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
-    
+	MetricController* getLensMetricsController() const { return lensMetricsController; }
+
     /// @brief Update circle detection count display
     void updateCircleCount(int count);
     bool const returnFocusToolState() { return focusState; }
@@ -70,6 +72,7 @@ signals:
     void edgeDetectToggled(bool enabled);
     void onMarkerZoomToggled(bool enabled);
     void focusToolToggled(bool enabled);
+    void resetFocusStats();
     void zoomValueChanged(float val);
     void focusHUDToggled(bool enabled);
     void exportMetricsRequested();
@@ -88,7 +91,7 @@ private:
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
 
-    QTabWidget* leftTabWidget{nullptr};
+    QTabWidget* rightTabWidget{nullptr};
     QGroupBox* cam_group{nullptr};
     QGroupBox* focus_tool_group{nullptr};
     QGroupBox* video_group{nullptr};
@@ -106,19 +109,16 @@ private:
     QSlider* exposure_slider{nullptr};
     QLabel* exposure_label{nullptr};
     QLabel* exposure_title_label{nullptr};
-    QPushButton* exposure_button{nullptr};
 
     QLineEdit* fps_edit{nullptr};
     QSlider* fps_slider{nullptr};
     QLabel* fps_label{nullptr};
     QLabel* fps_title_label{nullptr};
-    QPushButton* fps_button{nullptr};
 
     QLineEdit* gain_edit{nullptr};
     QSlider* gain_slider{nullptr};
     QLabel* gain_label{nullptr};
     QLabel* gain_title_label{nullptr};
-    QPushButton* gain_button{nullptr};
 
     QLineEdit* zoom_edit{ nullptr };
     QSlider* zoom_slider{ nullptr };
@@ -139,13 +139,11 @@ private:
     QLabel* bitrate_label{nullptr};
     QLabel* bitrate_title_label{nullptr};
     QComboBox* mode_combo{nullptr};
-    QPushButton* set_compression_button{nullptr};
 
     QLineEdit* gamma_edit{nullptr};
     QSlider* gamma_slider{nullptr};
     QLabel* gamma_label{nullptr};
     QLabel* gamma_title_label{nullptr};
-    QPushButton* gamma_button{nullptr};
 
     // Droplist for selecting the video mode (replaces multiple mode buttons)
     QComboBox* video_mode_combo{nullptr};

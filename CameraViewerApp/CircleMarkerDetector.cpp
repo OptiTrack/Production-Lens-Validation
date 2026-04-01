@@ -1,4 +1,5 @@
 #include "CircleMarkerDetector.h"
+#include <QtLogging>
 
 CircleMarkerDetector::CircleMarkerDetector()
     : m_params()
@@ -39,6 +40,35 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
     return DetectCirclesFromMat(mat);
 }
 
+/// <summary>
+/// Detects circular markers in the bitmap frame using Hough Circle detection
+/// </summary>
+/// <param name="bmp">Input frame bitmap from camera</param>
+/// <returns>Vector of detected circle markers</returns>
+std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap* bmp) {
+
+    try {
+        auto circles = DetectCircles(bmp);
+
+        if (!circles.empty()) {
+            //qDebug("[dbg] Circle Detection: Found %d circles", static_cast<int>(circles.size()));
+            for (size_t i = 0; i < circles.size(); ++i) {
+                const auto& circle = circles[i];
+                const char* shapeStr = (circle.shapeType == CircleMarkerDetector::ShapeType::Circle) ? "Circle" :
+                    (circle.shapeType == CircleMarkerDetector::ShapeType::Oval) ? "Oval" : "Hook";
+                //qDebug("[dbg]   Circle %zu: center=(%.1f, %.1f), radius=%.1f, c: %.2f (%s)",
+                //    i, circle.center.x, circle.center.y, circle.radius, circle.circularity, shapeStr);
+            }
+        }
+
+        return circles;
+    }
+    catch (const std::exception& e) {
+        qWarning("[dbg] Circle detection failed: %s", e.what());
+        return std::vector<CircleMarkerDetector::CircleMarker>();
+    }
+}
+
 std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat& mat)
 {
     // Convert to grayscale
@@ -55,7 +85,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     // Detect circles using Hough Circle Transform
     cv::Mat blurred;
-    cv::GaussianBlur(gray, blurred, cv::Size(7, 7), 1.5);
+    cv::GaussianBlur(gray, blurred, cv::Size(3, 3), 1.0);
     std::vector<cv::Vec3f> circles;
     cv::HoughCircles(
         blurred,
@@ -82,6 +112,7 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
 
     // Convert results to CircleMarker objects
     std::vector<CircleMarker> result;
+    int id = 0;
     for (const auto& circle : circles) {
         CircleMarker marker;
         marker.center = cv::Point2f(circle[0], circle[1]);
@@ -100,7 +131,10 @@ std::vector<CircleMarkerDetector::CircleMarker> CircleMarkerDetector::DetectCirc
         } else {
             marker.quality = 0.0f;
         }
-        
+
+        marker.id = id;
+        id++;
+
         result.push_back(marker);
     }
 
@@ -168,7 +202,7 @@ float CircleMarkerDetector::CalculateCircularity(const cv::Point2f& center, floa
 CircleMarkerDetector::ShapeType CircleMarkerDetector::CategorizeShape(float circularity)
 {
     // Thresholds for shape categorization
-    const float OVAL_UPPER_THRESHOLD = 0.75f;
+    const float OVAL_UPPER_THRESHOLD = 0.84f;
     const float OVAL_LOWER_THRESHOLD = 0.65f;
     
     if (circularity > OVAL_UPPER_THRESHOLD) {
