@@ -50,6 +50,8 @@ Daniel Green (Scrum Master) --> greend5@oregonstate.edu
 ### Installation
 1. **Clone** this repository. *⚠️Avoid placing it too deep in your file system; Windows max-path issues can break the build script.*
 2. **Set environment variables (configure-time only)** 
+  - `OPENCV_DIR = ..\opencv\build`
+  - `OPENCV_BIN_DIR = ..\opencv\build\bin`
   - `Qt6_DIR = ..\Qt\6.10.0\msvc2022_64\lib\cmake\Qt6` 
   - `QT_PLUGIN_PATH = ..\Qt\6.10.0\msvc2022_64\plugins` *Avoid setting `QT_PLUGIN_PATH` globally; deployment handles plugins.*
 3. **Build** using the provided script: 
