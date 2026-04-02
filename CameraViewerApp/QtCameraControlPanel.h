@@ -52,6 +52,7 @@ class CameraControlPanel : public QWidget {
 public:
     explicit CameraControlPanel(CameraConnectionManager* mgr, MetricsManager& mMgr, QWidget* parent = nullptr);
     void setSelectedSerial(unsigned serial) { selected_serial = serial; }
+    void setMarkerZoomPossible(bool tf) { markerZoomPossible = tf; }
     MetricController* getFocusMetricsController() const { return focusMetricsController; }
 	MetricController* getLensMetricsController() const { return lensMetricsController; }
 
@@ -70,6 +71,7 @@ signals:
     // Update circle detection param2 (accumulator threshold)
     void circleParam2Changed(double param2);
     void edgeDetectToggled(bool enabled);
+    void onMarkerZoomPossible(bool enabled);
     void onMarkerZoomToggled(bool enabled);
     void focusToolToggled(bool enabled);
     void resetFocusStats();
@@ -80,16 +82,19 @@ signals:
 private:
     void buildUi();
     bool currentSerialValid() const;
+    bool isMarkerZoomPossible() const;
     MetricWidgets* createMetricWidgets(const QString name, const QString units, QVector<QString> labels, QVector<QString> descriptions, QVector<bool> graphs);
     void updateFocusButtonText();
     void updateFocusHudButtonText();
     void updateOverlayButtonText();
     void updateSliderLabels();
     void repopulateVideoModes();
+    void repopulateLensInspectionModes();
     void repopulateCompressionModes();
 
     QPointer<CameraConnectionManager> camera_manager;
     unsigned selected_serial{0};
+    bool markerZoomPossible = false;
 
     QTabWidget* rightTabWidget{nullptr};
     QGroupBox* cam_group{nullptr};
@@ -129,6 +134,9 @@ private:
     bool              focusState{true};
     QCheckBox*        focusHUD_button{nullptr};
     bool              focusHUDState{true};
+
+    QLabel* lens_inspection_mode_label{nullptr};
+    QComboBox* lens_inspection_mode_combo{nullptr};
 
     QLineEdit* quality_edit{nullptr};
     QSlider* quality_slider{nullptr};

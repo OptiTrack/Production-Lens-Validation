@@ -14,6 +14,7 @@
 #include <QScrollArea>
 #include <QDateTime>
 #include <QCoreApplication>
+#include <QStandardItemModel>
 #include <QGuiApplication.h>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
@@ -39,6 +40,10 @@ CameraControlPanel::CameraControlPanel(CameraConnectionManager* mgr, MetricsMana
 
 bool CameraControlPanel::currentSerialValid() const {
     return selected_serial != 0;
+}
+
+bool CameraControlPanel::isMarkerZoomPossible() const {
+    return markerZoomPossible;
 }
 
 void CameraControlPanel::buildUi() {
@@ -230,15 +235,15 @@ void CameraControlPanel::buildUi() {
         // find mode value from current data and request it
         QVariant itemData = video_mode_combo->itemData(idx);
         int mode;
-        bool markerZoom = false;
 
         // Check if data is a list (Grayscale modes) or a single int (other modes)
         if (itemData.canConvert<QVariantList>()) {
             QVariantList dataList = itemData.toList();
             mode = dataList[0].toInt();
-            markerZoom = dataList[1].toBool();
+            setMarkerZoomPossible(true);
         } else {
             mode = itemData.toInt();
+            setMarkerZoomPossible(false);
         }
 
         onSetVideoMode(mode);
@@ -247,11 +252,30 @@ void CameraControlPanel::buildUi() {
         const bool isCompatible = isEdgeDetectCompatible(mode);
         edge_button->setEnabled(isCompatible);
 
+        // // Disable ROI Zoom option in combo box
+        // QStandardItemModel *model =
+        //     qobject_cast<QStandardItemModel *>(lens_inspection_mode_combo->model());
+        // Q_ASSERT(model != nullptr);
+        // bool disabled = true;
+        // QStandardItem *item = model->item(1);
+        // item->setFlags(disabled ? item->flags() & ~Qt::ItemIsEnabled
+        //                         : item->flags() | Qt::ItemIsEnabled);
+        // lens_inspection_mode_combo->show();
+
         // handle ROI-Zoom UI behavior
-        zoom_button->setEnabled(markerZoom);
-        zoom_slider->setEnabled(markerZoom);
-        if (!markerZoom) {
+        bool possible = isMarkerZoomPossible();
+        lens_inspection_mode_combo->setEnabled(possible);
+        zoom_button->setEnabled(possible);
+        zoom_slider->setEnabled(possible);
+        if (!possible) {
+            qDebug("marker zoom not possible");
             zoom_slider->setValue(1.0);
+            // lens_inspection_mode_combo->setItemData(1, false, Qt::UserRole -1);
+            lens_inspection_mode_combo->setCurrentIndex(0);
+        }
+        else {
+            qDebug("marker zoom is possible");
+            // lens_inspection_mode_combo->setItemData(1, true, Qt::UserRole -1);
         }
 
         if (!isCompatible && edge_button->isChecked()) {
@@ -260,7 +284,7 @@ void CameraControlPanel::buildUi() {
         }
 
         // Handle ROI marker zoom case with grayscale mode
-        emit onMarkerZoomToggled(markerZoom);
+        emit onMarkerZoomPossible(possible);
     });
 
     // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -357,6 +381,41 @@ void CameraControlPanel::buildUi() {
 
     auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
     auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
+    
+    lens_inspection_mode_label = new QLabel("Mode:", lensInspectionGroup);
+    lens_inspection_mode_label->setMaximumWidth(60);
+    lens_inspection_mode_label->setMinimumWidth(60);
+    lens_inspection_mode_combo = new QComboBox(tab1);
+    repopulateLensInspectionModes();
+
+    connect(lens_inspection_mode_combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [this](int idx){
+        if (!currentSerialValid()) {
+            emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
+            lens_inspection_mode_combo->setCurrentIndex(0);
+            return;
+        }
+        if (!isMarkerZoomPossible()) { 
+            emit showWarning(tr("Wrong Video Mode"), tr("Must turn on Grayscale Mode to use the zoom feature."));
+            // lens_inspection_mode_combo->setItemData(1, false, Qt::UserRole -1);
+            lens_inspection_mode_combo->setCurrentIndex(0);
+            return;
+        }
+
+        // find mode value from current data and request it
+        QVariant itemData = lens_inspection_mode_combo->itemData(idx);
+        bool markerZoomToggled = false;
+
+        // markerZoomToggled becomes true or false based on item selected
+        markerZoomToggled = itemData.toBool();
+        qDebug("[dbg] markerZoomToggled = %d", markerZoomToggled);
+
+        // Handle ROI marker zoom case with grayscale mode
+        emit onMarkerZoomToggled(markerZoomToggled);
+    });
+
+    // Set initial state based on first item in combo (no zoom)
+    const int lens_inspection_initial_mode = lens_inspection_mode_combo->itemData(0).toInt();
+
     // Zoom Slider: 1.0x to 20.0x in 0.1x steps
     // The slider displays tenths-of-zoom (range 10–200), divided by 10.0f to get the true value.
     zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
@@ -378,7 +437,7 @@ void CameraControlPanel::buildUi() {
         });
 
     zoom_button = new QPushButton("Reset", lensInspectionGroup);
-    zoom_button->setProperty("primary", true);
+    zoom_button->setProperty("secondary", true);
     zoom_button->setToolTip("Click to reset zoom to default");
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
         zoom_slider->setValue(10); // 10*0.1 = 1.0x initial zoom
@@ -397,6 +456,8 @@ void CameraControlPanel::buildUi() {
     zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
     zoomLayoutW->addWidget(zoom_button);
 
+    lensInspectionLayout->addWidget(lens_inspection_mode_label);
+    lensInspectionLayout->addWidget(lens_inspection_mode_combo);
     lensInspectionLayout->addWidget(zoomWidget);
 
     // Hough Circle Detection
@@ -872,12 +933,6 @@ void CameraControlPanel::repopulateVideoModes()
     video_mode_combo->setItemData(video_mode_combo->count() - 1,
         tr("8bpp camera preview"), Qt::ToolTipRole);
 
-    video_mode_combo->addItem(tr("Grayscale with ROI Zoom"), QVariantList{
-        static_cast<int>(Core::GrayscaleMode),
-        true });
-    video_mode_combo->setItemData(video_mode_combo->count() - 1,
-        tr("8bpp camera preview with center/edge marker focus"), Qt::ToolTipRole);
-
     video_mode_combo->addItem(tr("Object"), QVariant(static_cast<int>(Core::ObjectMode)));
     video_mode_combo->setItemData(video_mode_combo->count() - 1,
         tr("Object mode: runs detection pipeline"), Qt::ToolTipRole);
@@ -904,6 +959,37 @@ void CameraControlPanel::repopulateVideoModes()
     video_mode_combo->setCurrentIndex(targetIdx);
     video_mode_combo->blockSignals(false);
 }
+
+void CameraControlPanel::repopulateLensInspectionModes()
+{
+    if (!lens_inspection_mode_combo) return;
+
+    const QVariant currentData = lens_inspection_mode_combo->currentData();
+    lens_inspection_mode_combo->blockSignals(true);
+    lens_inspection_mode_combo->clear();
+
+    lens_inspection_mode_combo->addItem(tr("No Zoom"), QVariant(false));
+    lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
+        tr("8bpp camera preview"), Qt::ToolTipRole);
+
+    lens_inspection_mode_combo->addItem(tr("ROI Zoom"), QVariant(true));
+    lens_inspection_mode_combo->setItemData(lens_inspection_mode_combo->count() - 1,
+        tr("8bpp camera preview with center/edge marker focus"), Qt::ToolTipRole);
+
+    int targetIdx = -1;
+    for (int i = 0; i < lens_inspection_mode_combo->count(); ++i) {
+        if (videoModeDataEqual(lens_inspection_mode_combo->itemData(i), currentData)) {
+            targetIdx = i;
+            break;
+        }
+    }
+    if (targetIdx < 0 && lens_inspection_mode_combo->count() > 0) {
+        targetIdx = 0;
+    }
+    lens_inspection_mode_combo->setCurrentIndex(targetIdx);
+    lens_inspection_mode_combo->blockSignals(false);
+}
+
 
 void CameraControlPanel::repopulateCompressionModes()
 {
