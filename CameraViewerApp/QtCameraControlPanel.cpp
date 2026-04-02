@@ -241,9 +241,11 @@ void CameraControlPanel::buildUi() {
             QVariantList dataList = itemData.toList();
             mode = dataList[0].toInt();
             setMarkerZoomPossible(true);
-        } else {
+        } 
+        else {
             mode = itemData.toInt();
             setMarkerZoomPossible(false);
+            onMarkerZoomToggled(false);
         }
 
         onSetVideoMode(mode);
