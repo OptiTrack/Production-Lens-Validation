@@ -112,26 +112,25 @@ void MetricsManager::testMM() {
 	// create some contour data, two ovals with same circularity, different distances from the center
 	setActiveResolution(cv::Size(640,480));
 
-	contourData oval1 = { markerClass::oval, cv::Point2f(300,220), 0.75 };
-	addMarker(oval1);
+	std::vector<CircleMarkerDetector::CircleMarker> collA = {
+		{ cv::Point2f(300,220), 0.0f, true,  0.75f, CircleMarkerDetector::ShapeType::Oval, {}, 1.0f, 0 },
+		{ cv::Point2f(120,64),  0.0f, true,  0.75f, CircleMarkerDetector::ShapeType::Oval, {}, 1.0f, 1 },
+		{ cv::Point2f(320,240), 0.0f, false, 0.38f, CircleMarkerDetector::ShapeType::Hook, {}, 1.0f, 2 }
+	};
 
-	// We would expect this contour to be graded higher since it's closer to the center.
-	contourData oval2 = { markerClass::oval, cv::Point2f(120,64), 0.75 };
-	addMarker(oval2);
-
-	// This marker should fail the lens. No hooks allowed.
-	contourData hook1 = { markerClass::hook, cv::Point2f(320,240), 0.38 };
-	addMarker(hook1);
+	addMarkers(collA);
 
 	clearMarkers();
 
 	// Some circles
-	contourData circle1 = { markerClass::circle, cv::Point2f(320,240), 0.94 };
-	addMarker(circle1);
-	contourData circle2 = { markerClass::circle, cv::Point2f(320,240), 0.92 };
-	addMarker(circle2);
-	contourData circle3 = { markerClass::circle, cv::Point2f(320,240), 0.98 };
-	addMarker(circle3);
+	std::vector<CircleMarkerDetector::CircleMarker> collB = {
+		{ cv::Point2f(320,240), 0.0f, true, 0.94f, CircleMarkerDetector::ShapeType::Circle, {}, 1.0f, 0 },
+		{ cv::Point2f(320,240), 0.0f, true, 0.92f, CircleMarkerDetector::ShapeType::Circle, {}, 1.0f, 1 },
+		{ cv::Point2f(320,240), 0.0f, true, 0.98f, CircleMarkerDetector::ShapeType::Circle, {}, 1.0f, 2 }
+	};
+	addMarkers(collB);
+
+	clearMarkers();
 }
 
 /// <summary>
@@ -197,9 +196,10 @@ void MetricsManager::UpdateLensDisposition() {
 													std::abs(imageCenter.y - m.centroid.y));
 
 			// marker centroid deviation from true image center as weight
-			double scaledMultiplier = 1 - (markerHypotToCenter / hypotToCenter);
+			// added scaling value to increase severity
+			double scaledMultiplier = 2.2 * 1 - (markerHypotToCenter / hypotToCenter);
 
-			qDebug("[dbg] Max hypot: %.2f, marker hypot: %.2f, Distance weight: %.2f",
+			qDebug("[dbg] Max hypot: %.2f, marker hypot to center: %.2f, Distance weight: %.2f",
 				hypotToCenter,
 				markerHypotToCenter,
 				scaledMultiplier);

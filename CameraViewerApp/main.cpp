@@ -108,6 +108,8 @@ int main(int argc, char *argv[])
     LensResultLabel* lens_result = new LensResultLabel("Unknown");
 
     MetricsManager mMgr;
+    mMgr.testMM();
+
     QTimer focusTimer, gradeTimer;
 
     // set when QtConcurrent focus/grade is running
@@ -122,7 +124,7 @@ int main(int argc, char *argv[])
 
 
     focusTimer.start(125);
-    gradeTimer.start(750); 
+    gradeTimer.start(250); 
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
