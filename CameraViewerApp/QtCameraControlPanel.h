@@ -100,6 +100,7 @@ private:
     QGroupBox* cam_group{nullptr};
     QGroupBox* focus_tool_group{nullptr};
     QGroupBox* video_group{nullptr};
+    QGroupBox* lens_inspection_group{nullptr};
     QGroupBox* compression_group{nullptr};
     QGroupBox* gamma_group{nullptr};
     QGroupBox* exporter_group{nullptr};
@@ -128,6 +129,7 @@ private:
     QLineEdit* zoom_edit{ nullptr };
     QSlider* zoom_slider{ nullptr };
     QLabel* zoom_label{ nullptr };
+    QLabel* zoom_title_label{nullptr};
     QPushButton* zoom_button{ nullptr };
 
     QCheckBox*        focus_button{nullptr};
@@ -160,8 +162,11 @@ private:
     // Hough Circle detection controls
     QPushButton* circle_detect_button{nullptr};
     QLabel* circle_count_label{nullptr};
+    QLabel* hough_circle_header_label{nullptr};
+    QLabel* circle_param2_title_label{nullptr};
     QLineEdit* circle_param2_edit{nullptr};
     QSlider* circle_param2_slider{nullptr};
+    int circle_detected_count{0};
 
     // Exporter Tab
     QLineEdit*        serial_input{nullptr};

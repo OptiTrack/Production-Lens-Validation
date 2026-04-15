@@ -126,15 +126,15 @@ void QtCameraViewer::buildUi()
 
 	lens_result_label = new QLabel("Lens Grade:", focus_result_bar);
 	lens_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-	lens_result_label->setMinimumWidth(80);
+	lens_result_label->setMinimumWidth(70);
 
 	focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-	focus_result->setMinimumWidth(200);
-	focus_result->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+	focus_result->setMinimumWidth(110);
+	focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
 	lens_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-	lens_result->setMinimumWidth(80);
-	lens_result->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+	lens_result->setMinimumWidth(70);
+	lens_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
 	second_box->addWidget(focus_result_label);
 	second_box->addWidget(focus_result);
@@ -166,34 +166,34 @@ void QtCameraViewer::buildUi()
     toggle_tabs_bar = new QWidget(this);
     auto* toggle_tabs_box = new QHBoxLayout(toggle_tabs_bar);
     toggle_tabs_box->setContentsMargins(6,0,6,0);
-    auto* toggle_label = new QLabel("Toggle Tabs:", toggle_tabs_bar);
+	toggle_label = new QLabel("Toggle Tabs:", toggle_tabs_bar);
     const QString tabToggleStyle = "QPushButton:checked { color: cyan; border-color: cyan; } ";
 
-    auto* tab0_visibility_button = new QPushButton("Controls", toggle_tabs_bar);
+	tab0_visibility_button = new QPushButton("Controls", toggle_tabs_bar);
     tab0_visibility_button->setCheckable(true);
     tab0_visibility_button->setChecked(true);
     tab0_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab0_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab0Visibility);
 
-    auto* tab1_visibility_button = new QPushButton("Lens", toggle_tabs_bar);
+	tab1_visibility_button = new QPushButton("Lens", toggle_tabs_bar);
     tab1_visibility_button->setCheckable(true);
     tab1_visibility_button->setChecked(true);
     tab1_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab1_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab1Visibility);
 
-    auto* tab2_visibility_button = new QPushButton("Color", toggle_tabs_bar);
+	tab2_visibility_button = new QPushButton("Color", toggle_tabs_bar);
     tab2_visibility_button->setCheckable(true);
     tab2_visibility_button->setChecked(true);
     tab2_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab2_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab2Visibility);
 
-    auto* tab3_visibility_button = new QPushButton("Statistics", toggle_tabs_bar);
+	tab3_visibility_button = new QPushButton("Statistics", toggle_tabs_bar);
     tab3_visibility_button->setCheckable(true);
     tab3_visibility_button->setChecked(true);
     tab3_visibility_button->setStyleSheet(tabToggleStyle);
     connect(tab3_visibility_button, &QPushButton::clicked, camera_controls, &CameraControlPanel::onSetTab3Visibility);
 
-    auto* tab4_visibility_button = new QPushButton("Exporter", toggle_tabs_bar);
+	tab4_visibility_button = new QPushButton("Exporter", toggle_tabs_bar);
     tab4_visibility_button->setCheckable(true);
     tab4_visibility_button->setChecked(true);
     tab4_visibility_button->setStyleSheet(tabToggleStyle);
@@ -356,23 +356,26 @@ void QtCameraViewer::retranslateUi()
 	if (lens_result_label) {
 		lens_result_label->setText(QCoreApplication::translate("QtCameraViewer", "Lens Grade:"));
 	}
+	if (focus_score_label) {
+		focus_score_label->setText(QCoreApplication::translate("QtCameraViewer", "Focus Score:"));
+	}
 	if (toggle_label) {
 		toggle_label->setText(QCoreApplication::translate("QtCameraViewer", "Toggle Tabs:"));
 	}
 	if (tab0_visibility_button) {
-		tab0_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Control Tab"));
+		tab0_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Controls"));
 	}
 	if (tab1_visibility_button) {
-		tab1_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Video Modes Tab"));
+		tab1_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Lens"));
 	}
 	if (tab2_visibility_button) {
-		tab2_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Color Tab"));
+		tab2_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Color"));
 	}
 	if (tab3_visibility_button) {
 		tab3_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Statistics"));
 	}
 	if (tab4_visibility_button) {
-		tab4_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Exporter Tab"));
+		tab4_visibility_button->setText(QCoreApplication::translate("QtCameraViewer", "Exporter"));
 	}
 	if (empty_label) {
 		empty_label->setText(QCoreApplication::translate("QtCameraViewer", "No Cameras Connected"));
@@ -381,8 +384,8 @@ void QtCameraViewer::retranslateUi()
 		language_label->setText(QCoreApplication::translate("QtCameraViewer", "Language:"));
 	}
 	if (language_combo && language_combo->count() >= 2) {
-		language_combo->setItemText(0, QCoreApplication::translate("QtCameraViewer", "English"));
-		language_combo->setItemText(1, QCoreApplication::translate("QtCameraViewer", "Simplified Chinese"));
+		language_combo->setItemText(0, QStringLiteral("English"));
+		language_combo->setItemText(1, QStringLiteral("Simplified Chinese"));
 	}
 	if (camera_picker) {
 		camera_picker->retranslateUi();

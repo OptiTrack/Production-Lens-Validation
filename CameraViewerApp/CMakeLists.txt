@@ -127,7 +127,10 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "$ENV{OPENCV_DIR}")
+# Respect an explicit -DOpenCV_DIR first; otherwise fall back to environment.
+if(NOT OpenCV_DIR AND DEFINED ENV{OPENCV_DIR} AND NOT "$ENV{OPENCV_DIR}" STREQUAL "")
+    set(OpenCV_DIR "$ENV{OPENCV_DIR}")
+endif()
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -291,18 +294,40 @@ endforeach()
         VERBATIM
     )
 
-# Copy OpenCV DLLs (Debug/Release aware)
+# Copy OpenCV runtime DLLs.
+# Supports both layouts:
+# 1) flat: <bin>/*.dll
+# 2) split: <bin>/Debug and <bin>/Release
 set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
 
+# If OPENCV_BIN_DIR is not provided, infer from OpenCV_DIR.
+if(NOT OPENCV_BIN_DIR)
+    if(OpenCV_DIR)
+        get_filename_component(_opencv_cfg_parent "${OpenCV_DIR}" DIRECTORY)
+        if(EXISTS "${_opencv_cfg_parent}/bin")
+            set(OPENCV_BIN_DIR "${_opencv_cfg_parent}/bin")
+        elseif(EXISTS "${OpenCV_DIR}/bin")
+            set(OPENCV_BIN_DIR "${OpenCV_DIR}/bin")
+        endif()
+    endif()
+endif()
 
-# OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
-# MinSizeRel to Release so the copy always finds a valid source directory.
-add_custom_command(TARGET CameraViewerApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
-        "$<TARGET_FILE_DIR:CameraViewerApp>"
-)
+if(OPENCV_BIN_DIR)
+    set(_opencv_runtime_src "${OPENCV_BIN_DIR}")
+    if(EXISTS "${OPENCV_BIN_DIR}/Debug" OR EXISTS "${OPENCV_BIN_DIR}/Release")
+        # If config-specific folders exist, map non-Debug configs to Release.
+        set(_opencv_runtime_src "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>")
+    endif()
+
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs from ${_opencv_runtime_src}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${_opencv_runtime_src}"
+            "$<TARGET_FILE_DIR:CameraViewerApp>"
+    )
+else()
+    message(WARNING "OPENCV_BIN_DIR is not set and could not be inferred from OpenCV_DIR; OpenCV runtime DLLs will not be copied.")
+endif()
 
 elseif(UNIX)
     target_link_libraries(CameraViewerApp

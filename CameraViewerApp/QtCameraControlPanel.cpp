@@ -381,10 +381,10 @@ void CameraControlPanel::buildUi() {
 
     // Group: Lens Inspection
 
-    auto* lensInspectionGroup = new QGroupBox("Lens Inspection");
-    auto* lensInspectionLayout = new QVBoxLayout(lensInspectionGroup); lensInspectionLayout->setContentsMargins(6,6,6,6);
+    lens_inspection_group = new QGroupBox(tr("Lens Inspection"));
+    auto* lensInspectionLayout = new QVBoxLayout(lens_inspection_group); lensInspectionLayout->setContentsMargins(6,6,6,6);
     
-    lens_inspection_mode_label = new QLabel("Mode:", lensInspectionGroup);
+    lens_inspection_mode_label = new QLabel(tr("Mode:"), lens_inspection_group);
     lens_inspection_mode_label->setMaximumWidth(60);
     lens_inspection_mode_label->setMinimumWidth(60);
     lens_inspection_mode_combo = new QComboBox(tab1);
@@ -420,14 +420,14 @@ void CameraControlPanel::buildUi() {
 
     // Zoom Slider: 1.0x to 20.0x in 0.1x steps
     // The slider displays tenths-of-zoom (range 10–200), divided by 10.0f to get the true value.
-    zoom_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
+    zoom_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
     zoom_slider->setRange(10, 200);
     zoom_slider->setValue(10);
     zoom_slider->setSingleStep(1);   // 0.1x per arrow-key tick
     zoom_slider->setPageStep(5);     // 0.5x per page-up/down
     zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     zoom_slider->setToolTip("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)");
-    zoom_label = new QLabel("1.0x", lensInspectionGroup);
+    zoom_label = new QLabel("1.0x", lens_inspection_group);
     zoom_label->setMaximumWidth(60);
     zoom_label->setMinimumWidth(60);
 
@@ -438,7 +438,7 @@ void CameraControlPanel::buildUi() {
         onSetZoom(false);
         });
 
-    zoom_button = new QPushButton("Reset", lensInspectionGroup);
+    zoom_button = new QPushButton(tr("Reset"), lens_inspection_group);
     zoom_button->setProperty("secondary", true);
     zoom_button->setToolTip("Click to reset zoom to default");
     connect(zoom_button, &QPushButton::clicked, this, [this]() {
@@ -447,13 +447,13 @@ void CameraControlPanel::buildUi() {
     zoom_button->setEnabled(false);
 	zoom_slider->setEnabled(false);
 
-    auto* zoomWidget = new QWidget(lensInspectionGroup);
+    auto* zoomWidget = new QWidget(lens_inspection_group);
     zoomWidget->setToolTip("Zooms into captured image. Available only in Grayscale + ROI Zoom mode.");
     auto* zoomLayoutW = new QVBoxLayout(zoomWidget); zoomLayoutW->setContentsMargins(0, 0, 0, 0); zoomLayoutW->setSpacing(8);
-    auto* zoomLbl = new QLabel("Zoom:", zoomWidget);
-    zoomLbl->setMinimumWidth(80);
-    zoomLbl->setMaximumWidth(80);
-    zoomLayoutW->addWidget(zoomLbl, 0, Qt::AlignLeft);
+    zoom_title_label = new QLabel(tr("Zoom:"), zoomWidget);
+    zoom_title_label->setMinimumWidth(80);
+    zoom_title_label->setMaximumWidth(80);
+    zoomLayoutW->addWidget(zoom_title_label, 0, Qt::AlignLeft);
     zoomLayoutW->addWidget(zoom_slider);
     zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
     zoomLayoutW->addWidget(zoom_button);
@@ -463,7 +463,7 @@ void CameraControlPanel::buildUi() {
     lensInspectionLayout->addWidget(zoomWidget);
 
     // Hough Circle Detection
-    circle_detect_button = new QPushButton("Enable Circle Detection", lensInspectionGroup);
+    circle_detect_button = new QPushButton(tr("Enable Circle Detection"), lens_inspection_group);
     circle_detect_button->setCheckable(true);
     circle_detect_button->setChecked(false);
     circle_detect_button->setProperty("secondary", true);
@@ -472,16 +472,16 @@ void CameraControlPanel::buildUi() {
         emit circleDetectionToggled(checked);
     });
 
-    circle_count_label = new QLabel("Circles Detected: 0", lensInspectionGroup);
+    circle_count_label = new QLabel(tr("Circles Detected: %1").arg(0), lens_inspection_group);
 
     // Circle detection param2 (accumulator threshold)
-    circle_param2_slider = new QSlider(Qt::Horizontal, lensInspectionGroup);
+    circle_param2_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
     circle_param2_slider->setRange(1, 100);
     circle_param2_slider->setValue(10);
     circle_param2_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     circle_param2_slider->setToolTip("Click to adjust accumulator threshold parameter value for circle marker detection");
 
-    circle_param2_edit = new QLineEdit(lensInspectionGroup);
+    circle_param2_edit = new QLineEdit(lens_inspection_group);
     circle_param2_edit->setText("10");
     circle_param2_edit->setMaximumWidth(60);
     circle_param2_edit->setToolTip("Enter a new accumulator threshold value here");
@@ -491,7 +491,7 @@ void CameraControlPanel::buildUi() {
     });
 
     // Build circle detection controls widget
-    auto* circleCtrlsWidget = new QWidget(lensInspectionGroup);
+    auto* circleCtrlsWidget = new QWidget(lens_inspection_group);
     auto* circleCtrlsLayout = new QVBoxLayout(circleCtrlsWidget); 
     circleCtrlsLayout->setContentsMargins(0, 0, 0, 0); 
     circleCtrlsLayout->setSpacing(8);
@@ -500,20 +500,21 @@ void CameraControlPanel::buildUi() {
     circleCtrlsLayout->addWidget(circle_count_label, 0, Qt::AlignLeft);
     
     auto* param2LblLayout = new QHBoxLayout();
-    auto* param2Lbl = new QLabel("Param2 (Threshold):", circleCtrlsWidget);
-    param2Lbl->setMinimumWidth(120);
-    param2Lbl->setMaximumWidth(120);
-    param2LblLayout->addWidget(param2Lbl, 0, Qt::AlignLeft);
+    circle_param2_title_label = new QLabel(tr("Param2 (Threshold):"), circleCtrlsWidget);
+    circle_param2_title_label->setMinimumWidth(120);
+    circle_param2_title_label->setMaximumWidth(120);
+    param2LblLayout->addWidget(circle_param2_title_label, 0, Qt::AlignLeft);
     param2LblLayout->addWidget(circle_param2_slider);
     param2LblLayout->addWidget(circle_param2_edit);
     param2LblLayout->addStretch();
     circleCtrlsLayout->addLayout(param2LblLayout);
 
     lensInspectionLayout->addSpacing(12);
-    lensInspectionLayout->addWidget(new QLabel("<b>Hough Circle Detection</b>", lensInspectionGroup));
+    hough_circle_header_label = new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")), lens_inspection_group);
+    lensInspectionLayout->addWidget(hough_circle_header_label);
     lensInspectionLayout->addWidget(circleCtrlsWidget);
 
-    v1->addWidget(lensInspectionGroup);
+    v1->addWidget(lens_inspection_group);
     v1->addStretch();
 
 
@@ -1022,6 +1023,7 @@ void CameraControlPanel::retranslateUi()
     if (cam_group) cam_group->setTitle(tr("General Camera Controls"));
     if (focus_tool_group) focus_tool_group->setTitle(tr("Focus Tool"));
     if (video_group) video_group->setTitle(tr("Video Mode"));
+    if (lens_inspection_group) lens_inspection_group->setTitle(tr("Lens Inspection"));
     if (compression_group) compression_group->setTitle(tr("Color Compression"));
     if (gamma_group) gamma_group->setTitle(tr("Gamma"));
     if (exporter_group) exporter_group->setTitle(tr("Exporter"));
@@ -1033,7 +1035,7 @@ void CameraControlPanel::retranslateUi()
     if (bitrate_title_label) bitrate_title_label->setText(tr("Bitrate:"));
     if (gamma_title_label) gamma_title_label->setText(tr("Gamma:"));
 
-    exposure_unit_ms = tr("ms");
+    exposure_unit_ms = tr("scanlines");
     fps_unit = tr("fps");
     gain_unit_db = tr("dB");
     updateSliderLabels();
@@ -1060,12 +1062,35 @@ void CameraControlPanel::retranslateUi()
     updateFocusHudButtonText();
     updateOverlayButtonText();
 
+    if (lens_inspection_mode_label) {
+        lens_inspection_mode_label->setText(tr("Mode:"));
+    }
+    if (zoom_title_label) {
+        zoom_title_label->setText(tr("Zoom:"));
+    }
+    if (zoom_button) {
+        zoom_button->setText(tr("Reset"));
+    }
+    if (circle_detect_button) {
+        circle_detect_button->setText(tr("Enable Circle Detection"));
+    }
+    if (circle_count_label) {
+        circle_count_label->setText(tr("Circles Detected: %1").arg(circle_detected_count));
+    }
+    if (circle_param2_title_label) {
+        circle_param2_title_label->setText(tr("Param2 (Threshold):"));
+    }
+    if (hough_circle_header_label) {
+        hough_circle_header_label->setText(QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")));
+    }
+
     if (edge_button) {
         edge_button->setText(tr("Edge Detect"));
         edge_button->setToolTip(tr("Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes"));
     }
 
     repopulateVideoModes();
+    repopulateLensInspectionModes();
     repopulateCompressionModes();
     if (video_mode_combo && edge_button) {
         const QVariant itemData = video_mode_combo->currentData();
@@ -1260,8 +1285,9 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode)
 
 void CameraControlPanel::updateCircleCount(int count)
 {
+    circle_detected_count = count;
     if (circle_count_label) {
-        circle_count_label->setText(QString("Circles Detected: %1").arg(count));
+        circle_count_label->setText(tr("Circles Detected: %1").arg(count));
     }
 }
 

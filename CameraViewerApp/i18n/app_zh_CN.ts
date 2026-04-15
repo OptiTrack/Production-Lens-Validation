@@ -24,28 +24,36 @@
         <translation>对焦结果：</translation>
     </message>
     <message>
+        <source>Lens Grade:</source>
+        <translation>镜头等级：</translation>
+    </message>
+    <message>
         <source>Toggle Tabs:</source>
         <translation>切换选项卡：</translation>
     </message>
     <message>
-        <source>Control Tab</source>
-        <translation>控制选项卡</translation>
+        <source>Controls</source>
+        <translation>控制</translation>
     </message>
     <message>
-        <source>Video Modes Tab</source>
-        <translation>视频模式选项卡</translation>
+        <source>Lens</source>
+        <translation>镜头</translation>
     </message>
     <message>
-        <source>Color Tab</source>
-        <translation>颜色选项卡</translation>
+        <source>Color</source>
+        <translation>颜色</translation>
     </message>
     <message>
         <source>Statistics</source>
         <translation>统计</translation>
     </message>
     <message>
-        <source>Exporter Tab</source>
-        <translation>导出选项卡</translation>
+        <source>Exporter</source>
+        <translation>导出</translation>
+    </message>
+    <message>
+        <source>Focus Score:</source>
+        <translation>对焦分数：</translation>
     </message>
     <message>
         <source>No Cameras Connected</source>
@@ -130,6 +138,10 @@
     <message>
         <source>dB</source>
         <translation>dB</translation>
+    </message>
+    <message>
+        <source>scanlines</source>
+        <translation>扫描行</translation>
     </message>
     <message>
         <source>Focus Enabled</source>
@@ -330,6 +342,50 @@
     <message>
         <source>Constant Bitrate</source>
         <translation>恒定码率</translation>
+    </message>
+    <message>
+        <source>Lens</source>
+        <translation>镜头</translation>
+    </message>
+    <message>
+        <source>Lens Inspection</source>
+        <translation>镜头检测</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式：</translation>
+    </message>
+    <message>
+        <source>No Zoom</source>
+        <translation>无缩放</translation>
+    </message>
+    <message>
+        <source>ROI Zoom</source>
+        <translation>ROI 缩放</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>缩放：</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>重置</translation>
+    </message>
+    <message>
+        <source>Enable Circle Detection</source>
+        <translation>启用圆形检测</translation>
+    </message>
+    <message>
+        <source>Circles Detected: %1</source>
+        <translation>检测到圆形：%1</translation>
+    </message>
+    <message>
+        <source>Param2 (Threshold):</source>
+        <translation>参数2（阈值）：</translation>
+    </message>
+    <message>
+        <source>Hough Circle Detection</source>
+        <translation>霍夫圆检测</translation>
     </message>
 </context>
 <context>
