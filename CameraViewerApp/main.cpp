@@ -36,6 +36,7 @@
 #include <qlogging.h>
 #include <QtConcurrent/qtconcurrentrun.h>
 #include "FocusResultLabel.h"
+#include "FocusScoreLabel.h"
 #include "LensResultLabel.h"
 #include <qobject.h>
 
@@ -105,6 +106,7 @@ int main(int argc, char *argv[])
     CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/ };
 
     FocusResultLabel* focus_result = new FocusResultLabel("Disabled");
+    FocusScoreLabel* focus_score = new FocusScoreLabel("0");
     LensResultLabel* lens_result = new LensResultLabel("Unknown");
 
     MetricsManager mMgr;
@@ -126,7 +128,7 @@ int main(int argc, char *argv[])
 
     // The core UI/window for the program
     auto* viewer = new QtCameraViewer(mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-                                      fps_calculator, focus_result, lens_result, mMgr, nullptr);
+                                      fps_calculator, focus_result, focus_score, lens_result, mMgr, nullptr);
 
 
     // Remove any current installed translators to ensure a clean slate, then install the appropriate ones based on the current locale
@@ -180,7 +182,7 @@ int main(int argc, char *argv[])
 
     viewer->resize(1400, 800);
     viewer->show();
-    viewer->focus_score = 0;
+    // viewer->focus_score = 0;
 
     // Bitmap resource
     BitmapPool bmp_pool([](int w, int h, int bpp, int stride) -> Bitmap* {
@@ -236,7 +238,7 @@ int main(int argc, char *argv[])
         }
 
         if (!focusBusy.exchange(true)) {
-            QtConcurrent::run([&fe, focus_result, localFrame, panel, viewer, &startTime, &mMgr, &focusBusy]() {
+            QtConcurrent::run([&fe, focus_result, focus_score, localFrame, panel, viewer, &startTime, &mMgr, &focusBusy]() {
 
                 double score = fe.EvaluateBitmapFocus(localFrame.get());
                 //qDebug("[dbg] Focus score: %.2f", score);
@@ -247,11 +249,12 @@ int main(int argc, char *argv[])
 
                 QMetaObject::invokeMethod(
                     qApp,
-                    [focus_result, score, panel, viewer, relativeTime, &mMgr]() {
+                    [focus_result, focus_score, score, panel, viewer, relativeTime, &mMgr]() {
 
                         mMgr.setFocusOptimal(score >= 0.65);
                         focus_result->updateTextandColor(score, mMgr);
-                        viewer->focus_score = score;
+                        focus_score->updateNumber(score, mMgr);
+                        // viewer->focus_score = score;
 
                         if (panel && panel->getFocusMetricsController()) {
                             QHash<QString, qreal> focusMetrics;
@@ -269,12 +272,13 @@ int main(int argc, char *argv[])
         // if the focus tool isn't enabled, set the score to 0 and result to "disabled"
         if (!fe.focusToolEnabled) {
             if (!focusBusy.exchange(true)) {
-                QFuture<void> result = QtConcurrent::run([&focus_result, viewer, &mMgr, &focusBusy]() {
+                QFuture<void> result = QtConcurrent::run([&focus_result, &focus_score, viewer, &mMgr, &focusBusy]() {
                     QMetaObject::invokeMethod(
                         qApp,
-                        [focus_result, viewer, mMgr]() {
+                        [focus_result, focus_score, viewer, mMgr]() {
                             focus_result->updateTextandColor(-1, mMgr);
-                            viewer->focus_score = 0;
+                            focus_score->updateNumber(0, mMgr);
+                            // viewer->focus_score = 0;
                         },
                         Qt::QueuedConnection
                     );
