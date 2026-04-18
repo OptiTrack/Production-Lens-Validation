@@ -252,7 +252,10 @@ if(WIN32)
         VERBATIM
     )
 	
-	    # Derive Qt bin dir from qmake (works regardless of install location)
+
+    # QT Main and Platform DLLs #
+
+	# Derive Qt bin dir from qmake (works regardless of install location)
     get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     get_filename_component(QT_INSTALL_PREFIX "${QT_BIN_DIR}" DIRECTORY)
@@ -277,6 +280,32 @@ foreach(_dll ${QT_DLLS})
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${QT_BIN_DIR}/${_dll}"
                 "$<TARGET_FILE_DIR:CameraViewerApp>"
+    )
+endforeach()
+
+# Path to Qt platforms plugins
+get_filename_component(QT_ROOT "${QT_BIN_DIR}/.." ABSOLUTE)
+set(QT_PLATFORMS_DIR "${QT_ROOT}/plugins/platforms")
+
+# List of platform plugin DLLs
+# Only qwindows.dll required for Windows, can be expanded if necessary.
+set(QT_PLATFORM_DLLS
+    qwindows${QT_DEBUG_SUFFIX}.dll
+)
+
+# Ensure target platforms directory exists
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
+)
+
+# Copy platform plugin DLLs
+foreach(_dll ${QT_PLATFORM_DLLS})
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt platform plugin DLL: ${_dll}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT_PLATFORMS_DIR}/${_dll}"
+                "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
     )
 endforeach()
 
