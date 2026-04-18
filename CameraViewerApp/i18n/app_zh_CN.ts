@@ -140,10 +140,6 @@
         <translation>dB</translation>
     </message>
     <message>
-        <source>scanlines</source>
-        <translation>扫描行</translation>
-    </message>
-    <message>
         <source>Focus Enabled</source>
         <translation>对焦已启用</translation>
     </message>

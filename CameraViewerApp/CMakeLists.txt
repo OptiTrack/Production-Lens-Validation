@@ -283,6 +283,19 @@ foreach(_dll ${QT_DLLS})
     )
 endforeach()
 
+    # Deploy the Qt platform plugin required at runtime on Windows.
+    # Without this, the app fails with: "Could not find the Qt platform plugin 'windows'".
+    set(QT_PLATFORM_DLL "qwindows${QT_DEBUG_SUFFIX}.dll")
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt platform plugin: ${QT_PLATFORM_DLL}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_INSTALL_PREFIX}/plugins/platforms/${QT_PLATFORM_DLL}"
+            "$<TARGET_FILE_DIR:CameraViewerApp>/platforms/${QT_PLATFORM_DLL}"
+        VERBATIM
+    )
+
     # Copy Qt's zh_CN base translations into <exe>/translations/ so that
     # QLibraryInfo::TranslationsPath (which qt.conf redirects there) resolves them.
     add_custom_command(TARGET CameraViewerApp POST_BUILD

@@ -175,11 +175,6 @@
         <translation>dB</translation>
     </message>
     <message>
-        <source>scanlines</source>
-        <translation>scanlines</translation>
-    </message>
-
-    <message>
         <source>Focus Enabled</source>
         <translation>Focus Enabled</translation>
     </message>

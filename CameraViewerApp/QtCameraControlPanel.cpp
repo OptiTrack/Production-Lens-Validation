@@ -1035,7 +1035,7 @@ void CameraControlPanel::retranslateUi()
     if (bitrate_title_label) bitrate_title_label->setText(tr("Bitrate:"));
     if (gamma_title_label) gamma_title_label->setText(tr("Gamma:"));
 
-    exposure_unit_ms = tr("scanlines");
+    exposure_unit_ms = tr("ms");
     fps_unit = tr("fps");
     gain_unit_db = tr("dB");
     updateSliderLabels();
