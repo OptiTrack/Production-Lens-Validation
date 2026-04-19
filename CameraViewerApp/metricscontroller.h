@@ -6,22 +6,22 @@
 #include "./widgets/graphwidget.h"
 #include "QtCameraControlPanel.h"
 
+#include <QGroupBox>
+#include <QHash>
+#include <QLabel>
 #include <QObject>
 #include <QString>
-#include <QGroupBox>
-#include <QLabel>
-#include <QHash>
 
 class MetricController : public QObject {
-    Q_OBJECT
+  Q_OBJECT
 
 public:
-    MetricController(MetricWidgets *metricWidgets);
-    void addData(qreal id, QHash<QString, qreal> metrics);
-    MetricWidgets *getMetricWidgets();
-    QList<QVector<qreal>>getGraphData(int i);
+  MetricController(MetricWidgets *metricWidgets);
+  void addData(qreal id, QHash<QString, qreal> metrics);
+  MetricWidgets *getMetricWidgets();
+  QList<QVector<qreal>> getGraphData(int i);
 
 private:
-    MetricWidgets *m_metricWidgets;
+  MetricWidgets *m_metricWidgets;
 };
 #endif // METRICSCONTROLLER_H
