@@ -31,23 +31,28 @@
     </message>
 
     <message>
+        <source>Lens Grade:</source>
+        <translation>Lens Grade:</translation>
+    </message>
+
+    <message>
         <source>Toggle Tabs:</source>
         <translation>Toggle Tabs:</translation>
     </message>
 
     <message>
-        <source>Control Tab</source>
-        <translation>Control Tab</translation>
+        <source>Controls</source>
+        <translation>Controls</translation>
     </message>
 
     <message>
-        <source>Video Modes Tab</source>
-        <translation>Video Modes Tab</translation>
+        <source>Lens</source>
+        <translation>Lens</translation>
     </message>
 
     <message>
-        <source>Color Tab</source>
-        <translation>Color Tab</translation>
+        <source>Color</source>
+        <translation>Color</translation>
     </message>
 
     <message>
@@ -56,8 +61,13 @@
     </message>
 
     <message>
-        <source>Exporter Tab</source>
-        <translation>Exporter Tab</translation>
+        <source>Exporter</source>
+        <translation>Exporter</translation>
+    </message>
+
+    <message>
+        <source>Focus Score:</source>
+        <translation>Focus Score:</translation>
     </message>
 
     <message>
@@ -164,7 +174,6 @@
         <source>dB</source>
         <translation>dB</translation>
     </message>
-
     <message>
         <source>Focus Enabled</source>
         <translation>Focus Enabled</translation>
@@ -366,6 +375,50 @@
     <message>
         <source>Constant Bitrate</source>
         <translation>Constant Bitrate</translation>
+    </message>
+    <message>
+        <source>Lens</source>
+        <translation>Lens</translation>
+    </message>
+    <message>
+        <source>Lens Inspection</source>
+        <translation>Lens Inspection</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode:</translation>
+    </message>
+    <message>
+        <source>No Zoom</source>
+        <translation>No Zoom</translation>
+    </message>
+    <message>
+        <source>ROI Zoom</source>
+        <translation>ROI Zoom</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>Zoom:</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Reset</translation>
+    </message>
+    <message>
+        <source>Enable Circle Detection</source>
+        <translation>Enable Circle Detection</translation>
+    </message>
+    <message>
+        <source>Circles Detected: %1</source>
+        <translation>Circles Detected: %1</translation>
+    </message>
+    <message>
+        <source>Param2 (Threshold):</source>
+        <translation>Param2 (Threshold):</translation>
+    </message>
+    <message>
+        <source>Hough Circle Detection</source>
+        <translation>Hough Circle Detection</translation>
     </message>
 </context>
 
