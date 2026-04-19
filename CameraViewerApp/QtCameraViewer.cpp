@@ -48,6 +48,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 	std::atomic<unsigned>& activeSerial,
 	CameraHelper::FrameRateCalculator& fpsCalc,
 	FocusResultLabel* focusResult,
+	FocusScoreLabel* focusScore,
 	LensResultLabel* lensResult,
 	MetricsManager& MetricsManager,
 	QWidget* parent)
@@ -59,6 +60,7 @@ QtCameraViewer::QtCameraViewer(CameraConnectionManager* mgr,
 	, active_serial(activeSerial)
 	, fps_calculator(fpsCalc)
 	, focus_result(focusResult)
+	, focus_score(focusScore)
 	, lens_result(lensResult)
 	, metrics_manager(MetricsManager)
 {
@@ -150,11 +152,15 @@ void QtCameraViewer::buildUi()
 	third_box->setContentsMargins(6,0,6,0);
 	focus_score_label = new QLabel("Focus Score:", focus_score_bar);
 	focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
-	focus_score_display = new QLabel(focus_score_bar);
-	focus_score_display->setText(QString::number(focus_score));
-	focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
+	// focus_score_display = new QLabel(focus_score_bar);
+	// focus_score_display->setText(QString::number(focus_score));
+	// focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
+	focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
+	focus_score->setMinimumWidth(200);
+	focus_score->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
 	third_box->addWidget(focus_score_label);
-	third_box->addWidget(focus_score_display);
+	// third_box->addWidget(focus_score_display);
+	third_box->addWidget(focus_score);
 	third_box->addStretch(1);
 
 	v->addWidget(focus_score_bar);

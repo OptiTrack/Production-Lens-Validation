@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include "FocusResultLabel.h"
+#include "FocusScoreLabel.h"
 #include "LensResultLabel.h"
 #include "MetricsManager.h"
 
@@ -40,6 +41,7 @@ public:
 		std::atomic<unsigned>& activeSerial,
 		CameraHelper::FrameRateCalculator& fpsCalc,
 		FocusResultLabel* focus_result,
+		FocusScoreLabel* focus_score,
 		LensResultLabel* lens_result,
 		MetricsManager& mMgr,
 		QWidget* parent = nullptr);
@@ -49,7 +51,7 @@ public:
 	QWidget* videoContainer() const { return viewer_container; }
 	VideoWidget* videoWidget()    const { return gl_viewer_window; }
 	CameraControlPanel* getControlPanel() const { return camera_controls; }
-	float focus_score{ 0.0f };
+	// float focus_score{ 0.0f };
 	void retranslateUi();
 	QString currentLanguage() const;
 
@@ -94,6 +96,7 @@ private:
 	std::atomic<unsigned>& active_serial;
 	CameraHelper::FrameRateCalculator& fps_calculator;
 	FocusResultLabel* focus_result;
+	FocusScoreLabel* focus_score;
 	LensResultLabel* lens_result;
 	MetricsManager& metrics_manager;
 

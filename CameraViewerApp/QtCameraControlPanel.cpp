@@ -15,10 +15,9 @@
 #include <QDateTime>
 #include <QCoreApplication>
 #include <QStandardItemModel>
-#include <QGuiApplication.h>
+#include <qguiapplication.h>
 #include "widgets/graphwidget.h"
 #include "metricscontroller.h"
-#include <QGuiApplication.h>
 #include "QtCameraControlPanel.h"
 #include "QtCameraConnectionManager.h"
 #include "QtCameraViewer.h"

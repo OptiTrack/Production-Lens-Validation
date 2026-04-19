@@ -127,10 +127,7 @@ add_custom_command(
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-# Respect an explicit -DOpenCV_DIR first; otherwise fall back to environment.
-if(NOT OpenCV_DIR AND DEFINED ENV{OPENCV_DIR} AND NOT "$ENV{OPENCV_DIR}" STREQUAL "")
-    set(OpenCV_DIR "$ENV{OPENCV_DIR}")
-endif()
+set(OpenCV_DIR "$ENV{OPENCV_DIR}")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -255,7 +252,10 @@ if(WIN32)
         VERBATIM
     )
 	
-	    # Derive Qt bin dir from qmake (works regardless of install location)
+
+    # QT Main and Platform DLLs #
+
+	# Derive Qt bin dir from qmake (works regardless of install location)
     get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     get_filename_component(QT_INSTALL_PREFIX "${QT_BIN_DIR}" DIRECTORY)
@@ -283,18 +283,31 @@ foreach(_dll ${QT_DLLS})
     )
 endforeach()
 
-    # Deploy the Qt platform plugin required at runtime on Windows.
-    # Without this, the app fails with: "Could not find the Qt platform plugin 'windows'".
-    set(QT_PLATFORM_DLL "qwindows${QT_DEBUG_SUFFIX}.dll")
-    add_custom_command(TARGET CameraViewerApp POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
+# Path to Qt platforms plugins
+get_filename_component(QT_ROOT "${QT_BIN_DIR}/.." ABSOLUTE)
+set(QT_PLATFORMS_DIR "${QT_ROOT}/plugins/platforms")
+
+# List of platform plugin DLLs
+# Only qwindows.dll required for Windows, can be expanded if necessary.
+set(QT_PLATFORM_DLLS
+    qwindows${QT_DEBUG_SUFFIX}.dll
+)
+
+# Ensure target platforms directory exists
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
-        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt platform plugin: ${QT_PLATFORM_DLL}"
+)
+
+# Copy platform plugin DLLs
+foreach(_dll ${QT_PLATFORM_DLLS})
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt platform plugin DLL: ${_dll}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${QT_INSTALL_PREFIX}/plugins/platforms/${QT_PLATFORM_DLL}"
-            "$<TARGET_FILE_DIR:CameraViewerApp>/platforms/${QT_PLATFORM_DLL}"
-        VERBATIM
+                "${QT_PLATFORMS_DIR}/${_dll}"
+                "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
     )
+endforeach()
 
     # Copy Qt's zh_CN base translations into <exe>/translations/ so that
     # QLibraryInfo::TranslationsPath (which qt.conf redirects there) resolves them.
@@ -307,40 +320,18 @@ endforeach()
         VERBATIM
     )
 
-# Copy OpenCV runtime DLLs.
-# Supports both layouts:
-# 1) flat: <bin>/*.dll
-# 2) split: <bin>/Debug and <bin>/Release
+# Copy OpenCV DLLs (Debug/Release aware)
 set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
 
-# If OPENCV_BIN_DIR is not provided, infer from OpenCV_DIR.
-if(NOT OPENCV_BIN_DIR)
-    if(OpenCV_DIR)
-        get_filename_component(_opencv_cfg_parent "${OpenCV_DIR}" DIRECTORY)
-        if(EXISTS "${_opencv_cfg_parent}/bin")
-            set(OPENCV_BIN_DIR "${_opencv_cfg_parent}/bin")
-        elseif(EXISTS "${OpenCV_DIR}/bin")
-            set(OPENCV_BIN_DIR "${OpenCV_DIR}/bin")
-        endif()
-    endif()
-endif()
 
-if(OPENCV_BIN_DIR)
-    set(_opencv_runtime_src "${OPENCV_BIN_DIR}")
-    if(EXISTS "${OPENCV_BIN_DIR}/Debug" OR EXISTS "${OPENCV_BIN_DIR}/Release")
-        # If config-specific folders exist, map non-Debug configs to Release.
-        set(_opencv_runtime_src "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>")
-    endif()
-
-    add_custom_command(TARGET CameraViewerApp POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs from ${_opencv_runtime_src}"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${_opencv_runtime_src}"
-            "$<TARGET_FILE_DIR:CameraViewerApp>"
-    )
-else()
-    message(WARNING "OPENCV_BIN_DIR is not set and could not be inferred from OpenCV_DIR; OpenCV runtime DLLs will not be copied.")
-endif()
+# OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
+# MinSizeRel to Release so the copy always finds a valid source directory.
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
+        "$<TARGET_FILE_DIR:CameraViewerApp>"
+)
 
 elseif(UNIX)
     target_link_libraries(CameraViewerApp
