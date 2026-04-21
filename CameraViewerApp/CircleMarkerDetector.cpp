@@ -48,8 +48,6 @@ CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap *bmp) {
     auto circles = DetectCircles(bmp);
 
     if (!circles.empty()) {
-      // qDebug("[dbg] Circle Detection: Found %d circles",
-      // static_cast<int>(circles.size()));
       for (size_t i = 0; i < circles.size(); ++i) {
         const auto &circle = circles[i];
         const char *shapeStr =

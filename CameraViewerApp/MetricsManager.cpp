@@ -204,70 +204,49 @@ void MetricsManager::UpdateLensDisposition() {
     return;
   }
 
-  // score starts at max value, apply penalties as required
-  double maxScore = 1.0 * m_metrics.visibleMarkers.size();
-  double score = maxScore;
-  bool hasHook = false;
+  // radial exponent k gives quadratic emphasis on corner markers.
+  const double k = 2.0;
+
+  double totalWeight = 0.0;
+  double weightedScore = 0.0;
 
   for (auto &m : m_metrics.visibleMarkers) {
 
-    // hooks fail immediately
+    // Compute radial fraction (0 = image center, 1 = corner)
+    double radialFraction = 0.0;
+    if (hypotToCenter > 0.0) {
+      double dist = std::hypot(imageCenter.x - m.centroid.x,
+                               imageCenter.y - m.centroid.y);
+      radialFraction = dist / hypotToCenter;
+    } else {
+      qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
+    }
+
+    // baseWeight starts at 0.25 at center ranges to 1.00 at edges.
+    // quadratic curve means the outer ~25% of the image contributes most to lens quality
+    double baseWeight = 0.25;
+    double radialWeight = baseWeight + 0.75 * std::pow(radialFraction, k);
+
+    // hooks = immediate fail
     if (m.mClass == markerClass::hook) {
-      hasHook = true;
-      continue;
+      qDebug("[dbg] Hook marker at (%.2f, %.2f), radial fraction %.2f — LENS FAIL",
+              m.centroid.x, m.centroid.y, radialFraction);
+      m_metrics.lensDisp = lensDisposition::fail;
+      m_metrics.lensScore = 0;
+      m_snapshot = m_metrics;
+      return;
     }
 
-    double penalty = 0;
+    qDebug("[dbg] Marker (%s) at (%.2f, %.2f): circularity=%.2f, radialFraction=%.2f, weight=%.2f",
+           MarkerClassifierToString(m.mClass), m.centroid.x, m.centroid.y,
+           m.circularityScore, radialFraction, radialWeight);
 
-    // if oval, determine distance from center the centroid is, and apply scaled
-    // penalty based on distance. The further from center, the greater penalty,
-    // as we expect more deformation/pincushion there. Scale penalty with
-    // circularity for more dynamic scoring.
-    if (m.mClass == markerClass::oval) {
-
-      qDebug("\n[dbg] Oval marker at (%.2f, %.2f) with circularity %.2f",
-             m.centroid.x, m.centroid.y, m.circularityScore);
-
-      if (hypotToCenter == 0.0) {
-        qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
-        continue;
-      }
-
-      double markerHypotToCenter =
-          std::hypot(std::abs(imageCenter.x - m.centroid.x),
-                     std::abs(imageCenter.y - m.centroid.y));
-
-      // marker centroid deviation from true image center as weight
-      // added scaling value to increase severity
-      double scaledMultiplier = 2.2 * 1 - (markerHypotToCenter / hypotToCenter);
-
-      qDebug("[dbg] Max hypot: %.2f, marker hypot to center: %.2f, Distance "
-             "weight: %.2f",
-             hypotToCenter, markerHypotToCenter, scaledMultiplier);
-
-      // scale distance with non-circularity
-      penalty = scaledMultiplier * (1 - m.circularityScore);
-
-      qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
-    }
-
-    // if circular, apply penalty proportional to circularity
-    else if (m.mClass == markerClass::circle) {
-      penalty = (1 - m.circularityScore); // apply unweighted circularity score
-      qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
-    }
-    score -= penalty;
+    totalWeight += radialWeight;
+    weightedScore += radialWeight * m.circularityScore;
   }
 
-  if (hasHook) {
-    qDebug("[dbg] Hook in collection! Lens fails.");
-    m_metrics.lensDisp = lensDisposition::fail;
-    m_metrics.lensScore = 0;
-    return;
-  }
-
-  // assign disposition to metrics object
-  double scorePct = score / maxScore;
+  // weighted mean circularity has corner markers contribute more to the final score
+  double scorePct = (totalWeight > 0.0) ? weightedScore / totalWeight : 0.0;
   if (scorePct >= passingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::pass;
   } else if (scorePct >= checkingScoreThreshold) {
@@ -276,7 +255,7 @@ void MetricsManager::UpdateLensDisposition() {
     m_metrics.lensDisp = lensDisposition::fail;
   }
   m_metrics.lensScore = scorePct;
-  qDebug("[dbg] Overall lens health: %.2f%\n", scorePct * 100.f);
+  qDebug("[dbg] Overall lens health: %.2f%%\n", scorePct * 100.0);
 
   // Retain this result so ExportMetrics() always has the last valid frame data
   m_snapshot = m_metrics;
