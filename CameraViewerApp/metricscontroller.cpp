@@ -34,9 +34,17 @@ void MetricController::addData(qreal id, QHash<QString, qreal> metrics) {
         dataLabel->setText(QString::number(value, 'f', 3) + unitsSuffix);
 
         const bool passing = value >= metricWidgets->passingThreshold;
-        dataLabel->setStyleSheet(
-            passing ? "color: cyan; font-weight: 700;"
-                    : "color: #ddd; font-weight: 700;");
+        const int metricFontSizePx =
+            dataLabel->property("metricFontSizePx").toInt();
+        QString labelStyle = passing ? QStringLiteral("color: cyan;")
+                                     : QStringLiteral("color: #ddd;");
+        labelStyle += QStringLiteral(" font-weight: 700; padding-left: 0px; "
+                                     "padding-right: 0px;");
+        if (metricFontSizePx > 0) {
+          labelStyle +=
+              QStringLiteral(" font-size: %1px;").arg(metricFontSizePx);
+        }
+        dataLabel->setStyleSheet(labelStyle);
 
         GraphWidget *metricGraph = metricGraphs.at(i);
         if (metricGraph) {

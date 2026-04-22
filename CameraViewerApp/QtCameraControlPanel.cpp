@@ -161,11 +161,11 @@ void CameraControlPanel::buildUi() {
     QLabel *focusScoreDataLabel =
         general_focus_metrics_widgets->dataLabels.first();
     QFont focusScoreFont = focusScoreDataLabel->font();
-    focusScoreFont.setPixelSize(86);
+    focusScoreFont.setPixelSize(58);
     focusScoreFont.setBold(true);
     focusScoreDataLabel->setFont(focusScoreFont);
-    focusScoreDataLabel->setMinimumWidth(220);
-    focusScoreDataLabel->setMaximumWidth(220);
+    focusScoreDataLabel->setProperty("metricFontSizePx", 58);
+    focusScoreDataLabel->setFixedWidth(165);
   }
   vGeneral->addWidget(general_focus_metrics_widgets->groupBox);
 
@@ -1100,15 +1100,16 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     dataLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     dataLabel->setMinimumHeight(graphHeight);
     dataLabel->setMaximumHeight(graphHeight);
-    dataLabel->setMinimumWidth(qMax(170, graphHeight * 2));
-    dataLabel->setMaximumWidth(qMax(170, graphHeight * 2));
+    dataLabel->setFixedWidth(qMax(170, graphHeight * 2));
     dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont labelFont = dataLabel->font();
-    labelFont.setPixelSize(qMax(54, graphHeight - 10));
+    const int labelFontPx = qMax(54, graphHeight - 10);
+    labelFont.setPixelSize(labelFontPx);
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
+    dataLabel->setProperty("metricFontSizePx", labelFontPx);
     dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
-    rowLayout->addWidget(dataLabel, 0, Qt::AlignVCenter);
+    rowLayout->addWidget(dataLabel);
 
     if (metricGraph) {
       rowLayout->addWidget(metricGraph, 1);
