@@ -91,13 +91,24 @@ private:
                                      QVector<QString> labels,
                                      QVector<QString> descriptions,
                                      QVector<bool> graphs);
+  MetricWidgets *
+  createCompactMetricWidgets(const QString &name, const QString &units,
+                             const QVector<QString> &labels,
+                             const QVector<QString> &descriptions,
+                             const QVector<bool> &graphs, int graphHeight = 72);
   void updateFocusButtonText();
   void updateFocusHudButtonText();
   void updateOverlayButtonText();
   void updateSliderLabels();
+  void updateGeneralExposureLabel(int value);
+  void updateGeneralZoomLabel(int value);
+  void updateMarkerZoomControlsEnabled(bool enabled);
+  void setLensInspectionModeIndex(int index);
+  void applyLensInspectionModeSelection(int index);
   void repopulateVideoModes();
   void repopulateLensInspectionModes();
   void repopulateCompressionModes();
+  void toggleTabVisibility(int index);
 
   QPointer<CameraConnectionManager> camera_manager;
   unsigned selected_serial{0};
@@ -113,10 +124,16 @@ private:
   QGroupBox *exporter_group{nullptr};
   MetricWidgets *focus_metrics_widgets{nullptr};
   MetricWidgets *lens_metrics_widgets{nullptr};
+  MetricWidgets *general_focus_metrics_widgets{nullptr};
+  MetricWidgets *general_lens_metrics_widgets{nullptr};
 
   // Metrics controllers for Statistics tab
   MetricController *focusMetricsController{nullptr};
   MetricController *lensMetricsController{nullptr};
+
+  QSlider *general_exposure_slider{nullptr};
+  QLabel *general_exposure_label{nullptr};
+  QLabel *general_exposure_title_label{nullptr};
 
   QLineEdit *exposure_edit{nullptr};
   QSlider *exposure_slider{nullptr};
@@ -146,6 +163,12 @@ private:
 
   QLabel *lens_inspection_mode_label{nullptr};
   QComboBox *lens_inspection_mode_combo{nullptr};
+  QLabel *general_lens_inspection_mode_label{nullptr};
+  QComboBox *general_lens_inspection_mode_combo{nullptr};
+
+  QSlider *general_zoom_slider{nullptr};
+  QLabel *general_zoom_label{nullptr};
+  QLabel *general_zoom_title_label{nullptr};
 
   QLineEdit *quality_edit{nullptr};
   QSlider *quality_slider{nullptr};
@@ -199,6 +222,7 @@ public slots:
   void onSetTab2Visibility();
   void onSetTab3Visibility();
   void onSetTab4Visibility();
+  void onSetTab5Visibility();
 
 private slots:
   void onSetExposure();

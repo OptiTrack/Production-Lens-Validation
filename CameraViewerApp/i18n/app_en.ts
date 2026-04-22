@@ -41,6 +41,11 @@
     </message>
 
     <message>
+        <source>General</source>
+        <translation>General</translation>
+    </message>
+
+    <message>
         <source>Controls</source>
         <translation>Controls</translation>
     </message>
@@ -129,6 +134,11 @@
         <source>Exposure:</source>
         <translation>Exposure:</translation>
     </message>
+
+    <message>
+        <source>Zoom Mode:</source>
+        <translation>Zoom Mode:</translation>
+    </message>
     
     <message>
         <source>FPS:</source>
@@ -209,6 +219,11 @@
         <translation>Enable edge overlay in viewer: Works on Grayscale, Precision, and MJPEG modes</translation>
     </message>
     <message>
+        <source>General</source>
+        <translation>General</translation>
+    </message>
+
+    <message>
         <source>Controls</source>
         <translation>Controls</translation>
     </message>
@@ -228,6 +243,16 @@
         <source>Exporter</source>
         <translation>Exporter</translation>
     </message>
+    <message>
+        <source>Focus Score</source>
+        <translation>Focus Score</translation>
+    </message>
+
+    <message>
+        <source>Lens Score</source>
+        <translation>Lens Score</translation>
+    </message>
+
     <message>
         <source>Focus Statistics</source>
         <translation>Focus Statistics</translation>

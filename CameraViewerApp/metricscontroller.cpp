@@ -1,34 +1,69 @@
 #include "metricscontroller.h"
 
 MetricController::MetricController(MetricWidgets *metricWidgets)
-    : m_metricWidgets(metricWidgets) {}
+{
+  addMetricWidgets(metricWidgets);
+}
+
+void MetricController::addMetricWidgets(MetricWidgets *metricWidgets) {
+  if (!metricWidgets || m_metricWidgets.contains(metricWidgets)) {
+    return;
+  }
+  m_metricWidgets.append(metricWidgets);
+}
 
 void MetricController::addData(qreal id, QHash<QString, qreal> metrics) {
-  QVector<QLabel *> &dataLabels = m_metricWidgets->dataLabels;
-  QVector<GraphWidget *> &metricGraphs = m_metricWidgets->metricGraphs;
+  for (MetricWidgets *metricWidgets : m_metricWidgets) {
+    if (!metricWidgets) {
+      continue;
+    }
 
-  for (int i = 0; i < dataLabels.count(); ++i) {
-    QLabel *dataLabel = dataLabels.at(i);
-    QString key = dataLabel->objectName().remove("DataLabel");
+    QVector<QLabel *> &dataLabels = metricWidgets->dataLabels;
+    QVector<GraphWidget *> &metricGraphs = metricWidgets->metricGraphs;
 
-    if (metrics.contains(key)) {
-      qreal value = metrics.value(key);
-      dataLabel->setText(QString::number(value, 'f', 3) + " " +
-                         m_metricWidgets->units);
+    for (int i = 0; i < dataLabels.count(); ++i) {
+      QLabel *dataLabel = dataLabels.at(i);
+      QString key = dataLabel->objectName().remove("DataLabel");
 
-      const bool passing = value >= m_metricWidgets->passingThreshold;
-      dataLabel->setStyleSheet(passing ? "color: cyan;" : "");
+      if (metrics.contains(key)) {
+        qreal value = metrics.value(key);
+        const QString unitsSuffix =
+            metricWidgets->units.isEmpty() ? QString()
+                                           : QStringLiteral(" ") +
+                                                 metricWidgets->units;
+        dataLabel->setText(QString::number(value, 'f', 3) + unitsSuffix);
 
-      GraphWidget *metricGraph = metricGraphs.at(i);
-      if (metricGraph) {
-        metricGraph->addData(id, value);
+        const bool passing = value >= metricWidgets->passingThreshold;
+        const int metricFontSizePx =
+            dataLabel->property("metricFontSizePx").toInt();
+        QString labelStyle = passing ? QStringLiteral("color: cyan;")
+                                     : QStringLiteral("color: #ddd;");
+        labelStyle += QStringLiteral(" font-weight: 700; padding-left: 0px; "
+                                     "padding-right: 0px;");
+        if (metricFontSizePx > 0) {
+          labelStyle +=
+              QStringLiteral(" font-size: %1px;").arg(metricFontSizePx);
+        }
+        dataLabel->setStyleSheet(labelStyle);
+
+        GraphWidget *metricGraph = metricGraphs.at(i);
+        if (metricGraph) {
+          metricGraph->addData(id, value);
+        }
       }
     }
   }
 }
 
-MetricWidgets *MetricController::getMetricWidgets() { return m_metricWidgets; }
+MetricWidgets *MetricController::getMetricWidgets() {
+  return m_metricWidgets.isEmpty() ? nullptr : m_metricWidgets.first();
+}
 
 QList<QVector<qreal>> MetricController::getGraphData(int i) {
-  return m_metricWidgets->metricGraphs[i]->getData();
+  MetricWidgets *metricWidgets = getMetricWidgets();
+  if (!metricWidgets || i < 0 || i >= metricWidgets->metricGraphs.size() ||
+      !metricWidgets->metricGraphs[i]) {
+    return {};
+  }
+  return metricWidgets->metricGraphs[i]->getData();
 }
