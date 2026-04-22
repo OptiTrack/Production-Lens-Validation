@@ -155,8 +155,18 @@ void CameraControlPanel::buildUi() {
   QVector<bool> generalFocusGraphs = {true};
   general_focus_metrics_widgets = createCompactMetricWidgets(
       QString(), QString(), generalFocusLabels, generalFocusDescriptions,
-      generalFocusGraphs, 72);
+      generalFocusGraphs, 88);
   general_focus_metrics_widgets->passingThreshold = 0.65;
+  if (!general_focus_metrics_widgets->dataLabels.isEmpty()) {
+    QLabel *focusScoreDataLabel =
+        general_focus_metrics_widgets->dataLabels.first();
+    QFont focusScoreFont = focusScoreDataLabel->font();
+    focusScoreFont.setPixelSize(86);
+    focusScoreFont.setBold(true);
+    focusScoreDataLabel->setFont(focusScoreFont);
+    focusScoreDataLabel->setMinimumWidth(220);
+    focusScoreDataLabel->setMaximumWidth(220);
+  }
   vGeneral->addWidget(general_focus_metrics_widgets->groupBox);
 
   QVector<QString> generalLensLabels = {"LensHealth"};
@@ -164,7 +174,7 @@ void CameraControlPanel::buildUi() {
   QVector<bool> generalLensGraphs = {true};
   general_lens_metrics_widgets = createCompactMetricWidgets(
       QString(), QString(), generalLensLabels, generalLensDescriptions,
-      generalLensGraphs, 72);
+      generalLensGraphs, 88);
   general_lens_metrics_widgets->passingThreshold = 0.90;
   vGeneral->addWidget(general_lens_metrics_widgets->groupBox);
   vGeneral->addStretch();
@@ -1073,7 +1083,7 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     auto *rowWidget = new QWidget(metricWidgets->groupBox);
     auto *rowLayout = new QHBoxLayout(rowWidget);
     rowLayout->setContentsMargins(0, 0, 0, 0);
-    rowLayout->setSpacing(10);
+    rowLayout->setSpacing(14);
 
     GraphWidget *metricGraph = nullptr;
     if (graphs.value(i)) {
@@ -1087,13 +1097,14 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     QLabel *dataLabel = new QLabel(rowWidget);
     dataLabel->setObjectName(labels[i] + "DataLabel");
     dataLabel->setText(QStringLiteral("-"));
-    dataLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    dataLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     dataLabel->setMinimumHeight(graphHeight);
     dataLabel->setMaximumHeight(graphHeight);
-    dataLabel->setMinimumWidth(qMax(160, graphHeight * 2 + 16));
-    dataLabel->setMaximumWidth(qMax(160, graphHeight * 2 + 16));
+    dataLabel->setMinimumWidth(qMax(170, graphHeight * 2));
+    dataLabel->setMaximumWidth(qMax(170, graphHeight * 2));
+    dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont labelFont = dataLabel->font();
-    labelFont.setPixelSize(qMax(36, graphHeight - 18));
+    labelFont.setPixelSize(qMax(54, graphHeight - 10));
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
     dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
