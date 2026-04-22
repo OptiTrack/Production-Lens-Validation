@@ -260,9 +260,10 @@ void MetricsManager::UpdateLensDisposition() {
   }
 
   if (hasHook) {
-    qDebug("[dbg] Hook in collection! Lens fails.");
-    m_metrics.lensDisp = lensDisposition::fail;
-    m_metrics.lensScore = 0;
+    qDebug("[dbg] Hook in collection! Severe penalty applied.");
+
+
+
     return;
   }
 
