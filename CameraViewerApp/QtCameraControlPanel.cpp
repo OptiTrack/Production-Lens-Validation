@@ -986,10 +986,9 @@ void CameraControlPanel::buildUi() {
   rightTabWidget->addTab(scrollAreaExpo, QString());
   rightTabWidget->setCurrentIndex(0);
 
-  // Start at 1 to skip the first tab
-  for (int i = 1; i < rightTabWidget->count() - 1; ++i) {
+  // Start at 1 to skip the first tab and end at count - 1 to skip last tab (exporter)
+  for (int i = 1; i < rightTabWidget->count() - 1; ++i)
     rightTabWidget->setTabVisible(i, false);
-  }
 
   updateMarkerZoomControlsEnabled(false);
   setLensInspectionModeIndex(0);
@@ -1083,24 +1082,28 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
       metricGraph->setMinimumHeight(graphHeight);
       metricGraph->setMaximumHeight(graphHeight);
       metricGraph->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-      rowLayout->addWidget(metricGraph, 1);
-    } else {
-      rowLayout->addStretch(1);
     }
 
     QLabel *dataLabel = new QLabel(rowWidget);
     dataLabel->setObjectName(labels[i] + "DataLabel");
     dataLabel->setText(QStringLiteral("-"));
-    dataLabel->setAlignment(Qt::AlignCenter);
+    dataLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     dataLabel->setMinimumHeight(graphHeight);
     dataLabel->setMaximumHeight(graphHeight);
-    dataLabel->setMinimumWidth(120);
+    dataLabel->setMinimumWidth(qMax(160, graphHeight * 2 + 16));
+    dataLabel->setMaximumWidth(qMax(160, graphHeight * 2 + 16));
     QFont labelFont = dataLabel->font();
-    labelFont.setPointSize(28);
+    labelFont.setPixelSize(qMax(36, graphHeight - 18));
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
     dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
     rowLayout->addWidget(dataLabel, 0, Qt::AlignVCenter);
+
+    if (metricGraph) {
+      rowLayout->addWidget(metricGraph, 1);
+    } else {
+      rowLayout->addStretch(1);
+    }
 
     layout->addWidget(rowWidget);
     metricWidgets->dataLabels.append(dataLabel);
@@ -1301,40 +1304,42 @@ void CameraControlPanel::repopulateVideoModes() {
 }
 
 void CameraControlPanel::repopulateLensInspectionModes() {
-  auto populateCombo = [this](QComboBox *combo) {
-    if (!combo) {
+  auto populateLensInspectionCombo = [this](QComboBox *lensInspectionCombo) {
+    if (!lensInspectionCombo) {
       return;
     }
 
-    const QVariant currentData = combo->currentData();
-    combo->blockSignals(true);
-    combo->clear();
+    const QVariant currentData = lensInspectionCombo->currentData();
+    lensInspectionCombo->blockSignals(true);
+    lensInspectionCombo->clear();
 
-    combo->addItem(tr("No Zoom"), QVariant(false));
-    combo->setItemData(combo->count() - 1, tr("8bpp camera preview"),
-                       Qt::ToolTipRole);
+    lensInspectionCombo->addItem(tr("No Zoom"), QVariant(false));
+    lensInspectionCombo->setItemData(lensInspectionCombo->count() - 1,
+                                     tr("8bpp camera preview"),
+                                     Qt::ToolTipRole);
 
-    combo->addItem(tr("ROI Zoom"), QVariant(true));
-    combo->setItemData(combo->count() - 1,
-                       tr("8bpp camera preview with center/edge marker focus"),
-                       Qt::ToolTipRole);
+    lensInspectionCombo->addItem(tr("ROI Zoom"), QVariant(true));
+    lensInspectionCombo->setItemData(
+        lensInspectionCombo->count() - 1,
+        tr("8bpp camera preview with center/edge marker focus"),
+        Qt::ToolTipRole);
 
     int targetIdx = -1;
-    for (int i = 0; i < combo->count(); ++i) {
-      if (videoModeDataEqual(combo->itemData(i), currentData)) {
+    for (int i = 0; i < lensInspectionCombo->count(); ++i) {
+      if (videoModeDataEqual(lensInspectionCombo->itemData(i), currentData)) {
         targetIdx = i;
         break;
       }
     }
-    if (targetIdx < 0 && combo->count() > 0) {
+    if (targetIdx < 0 && lensInspectionCombo->count() > 0) {
       targetIdx = 0;
     }
-    combo->setCurrentIndex(targetIdx);
-    combo->blockSignals(false);
+    lensInspectionCombo->setCurrentIndex(targetIdx);
+    lensInspectionCombo->blockSignals(false);
   };
 
-  populateCombo(lens_inspection_mode_combo);
-  populateCombo(general_lens_inspection_mode_combo);
+  populateLensInspectionCombo(lens_inspection_mode_combo);
+  populateLensInspectionCombo(general_lens_inspection_mode_combo);
 }
 
 void CameraControlPanel::repopulateCompressionModes() {
