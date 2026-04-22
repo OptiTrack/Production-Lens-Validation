@@ -78,6 +78,7 @@ private:
   QPushButton *tab2_visibility_button{nullptr};
   QPushButton *tab3_visibility_button{nullptr};
   QPushButton *tab4_visibility_button{nullptr};
+  QPushButton *tab5_visibility_button{nullptr};
   QWidget *center_widget{nullptr};
   QStackedLayout *stacked_layout{nullptr};
   QWidget *empty_pane{nullptr};
