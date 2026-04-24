@@ -135,7 +135,7 @@ void QtCameraViewer::buildUi() {
   toggle_tabs_bar = new QWidget(this);
   auto *toggle_tabs_box = new QHBoxLayout(toggle_tabs_bar);
   toggle_tabs_box->setContentsMargins(6, 0, 6, 0);
-  toggle_label = new QLabel("Toggle Tabs:", toggle_tabs_bar);
+  toggle_label = new QLabel("Tabs:", toggle_tabs_bar);
   const QString tabToggleStyle =
       "QPushButton:checked { color: cyan; border-color: cyan; } ";
 
