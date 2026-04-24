@@ -44,14 +44,14 @@ QtCameraViewer::QtCameraViewer(
     CameraConnectionManager *mgr, std::mutex &camMutex,
     std::shared_ptr<Camera> &currentCamera, std::atomic<uint64_t> &switchEpoch,
     std::atomic<unsigned> &activeSerial,
-    CameraHelper::FrameRateCalculator &fpsCalc, FocusResultLabel *focusResult,
-    FocusScoreLabel *focusScore, LensResultLabel *lensResult,
-    MetricsManager &MetricsManager, QWidget *parent)
+    FocusResultLabel *focusResult, FocusScoreLabel *focusScore, 
+    LensResultLabel *lensResult, MetricsManager &MetricsManager,
+    QWidget *parent)
     : QWidget(parent), camera_manager(mgr), camera_mutex(camMutex),
       current_camera(currentCamera), switch_epoch(switchEpoch),
-      active_serial(activeSerial), fps_calculator(fpsCalc),
-      focus_result(focusResult), focus_score(focusScore),
-      lens_result(lensResult), metrics_manager(MetricsManager) {
+      active_serial(activeSerial), focus_result(focusResult),
+      focus_score(focusScore), lens_result(lensResult),
+      metrics_manager(MetricsManager) {
   buildUi();
   wireSignals();
 }
@@ -70,17 +70,45 @@ void QtCameraViewer::buildUi() {
   camera_controls =
       new CameraControlPanel(camera_manager, metrics_manager, this);
 
-  // Row 2: Status bar with FPS
-  fps_bar = new QWidget(this);
-  auto *sh = new QHBoxLayout(fps_bar);
+  // Row 2: Status bar with focus eval result and lens grade
+  focus_bar = new QWidget(this);
+  auto *sh = new QHBoxLayout(focus_bar);
   sh->setContentsMargins(6, 0, 6, 0);
-  fps_label = new QLabel("FPS: —", fps_bar);
-  fps_label->setStyleSheet("color:#ddd; font-weight:600;");
-  sh->addWidget(fps_label);
+
+  focus_result_label = new QLabel("Focus Result:", focus_bar);
+  focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+  focus_result_label->setMinimumWidth(80);
+
+  focus_score_label = new QLabel("Focus Score:", focus_bar);
+  focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
+  focus_score_label->setMinimumWidth(80);
+
+  lens_result_label = new QLabel("Lens Grade:", focus_bar);
+  lens_result_label->setStyleSheet("color:#ddd; font-weight:600;");
+  lens_result_label->setMinimumWidth(70);
+
+  focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+  focus_result->setMinimumWidth(110);
+  focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+  focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
+  focus_score->setMinimumWidth(200);
+  focus_score->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+
+  lens_result->setStyleSheet("color:CadetBlue; font-weight:600;");
+  lens_result->setMinimumWidth(70);
+  lens_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+  sh->addWidget(focus_result_label);
+  sh->addWidget(focus_result);
+  sh->addWidget(focus_score_label);
+  sh->addWidget(focus_score);
+  sh->addWidget(lens_result_label);
+  sh->addWidget(lens_result);
   sh->addStretch(1);
 
-  language_label = new QLabel(fps_bar);
-  language_combo = new QComboBox(fps_bar);
+  language_label = new QLabel(focus_bar);
+  language_combo = new QComboBox(focus_bar);
   language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
   language_combo->addItem(QStringLiteral("Simplified Chinese"),
                           QStringLiteral("zh_CN"));
@@ -96,64 +124,8 @@ void QtCameraViewer::buildUi() {
   sh->addWidget(language_label);
   sh->addWidget(language_combo);
 
-  v->addWidget(fps_bar);
+  v->addWidget(focus_bar);
 
-  auto *fpsTimer = new QTimer(this);
-  fpsTimer->setInterval(500);
-  connect(fpsTimer, &QTimer::timeout, this, [this]() {
-    const QString fmt =
-        fps_format.isEmpty() ? QStringLiteral("FPS: %1") : fps_format;
-    fps_label->setText(fmt.arg(fps_calculator.current(), 0, 'f', 1));
-  });
-  fpsTimer->start();
-
-  // Row 3: Status bar with focus eval result and lens grade
-  focus_result_bar = new QWidget(this);
-  auto *second_box = new QHBoxLayout(focus_result_bar);
-  second_box->setContentsMargins(6, 0, 6, 0);
-
-  focus_result_label = new QLabel("Focus Result:", focus_result_bar);
-  focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-  focus_result_label->setMinimumWidth(80);
-
-  lens_result_label = new QLabel("Lens Grade:", focus_result_bar);
-  lens_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-  lens_result_label->setMinimumWidth(70);
-
-  focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-  focus_result->setMinimumWidth(110);
-  focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-
-  lens_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-  lens_result->setMinimumWidth(70);
-  lens_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-
-  second_box->addWidget(focus_result_label);
-  second_box->addWidget(focus_result);
-  second_box->addWidget(lens_result_label);
-  second_box->addWidget(lens_result);
-  second_box->addStretch(1);
-
-  v->addWidget(focus_result_bar);
-
-  // Row 4: Status bar with focus eval score (actual number)
-  focus_score_bar = new QWidget(this);
-  auto *third_box = new QHBoxLayout(focus_score_bar);
-  third_box->setContentsMargins(6, 0, 6, 0);
-  focus_score_label = new QLabel("Focus Score:", focus_score_bar);
-  focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
-  // focus_score_display = new QLabel(focus_score_bar);
-  // focus_score_display->setText(QString::number(focus_score));
-  // focus_score_display->setStyleSheet("color:CadetBlue; font-weight:600;");
-  focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
-  focus_score->setMinimumWidth(200);
-  focus_score->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
-  third_box->addWidget(focus_score_label);
-  // third_box->addWidget(focus_score_display);
-  third_box->addWidget(focus_score);
-  third_box->addStretch(1);
-
-  v->addWidget(focus_score_bar);
 
   // change visibility of focus tool HUD
   connect(camera_controls, &CameraControlPanel::focusHUDToggled, this,
@@ -312,7 +284,6 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt) {
     current_camera.reset();
     camera_controls->setSelectedSerial(0);
     setEmptyState(false);
-    fps_calculator.reset();
     return;
   }
 
@@ -359,15 +330,10 @@ void QtCameraViewer::setViewerZoomValue(float val) {
 }
 
 void QtCameraViewer::onSetFocusHUDVisibility(bool toggle) {
-  this->focus_result_bar->setVisible(toggle);
-  this->focus_score_bar->setVisible(toggle);
+  this->focus_bar->setVisible(toggle);
 }
 
 void QtCameraViewer::retranslateUi() {
-  fps_format = QCoreApplication::translate("QtCameraViewer", "FPS: %1");
-  if (fps_label) {
-    fps_label->setText(QCoreApplication::translate("QtCameraViewer", "FPS: —"));
-  }
   if (focus_result_label) {
     focus_result_label->setText(
         QCoreApplication::translate("QtCameraViewer", "Focus Result:"));

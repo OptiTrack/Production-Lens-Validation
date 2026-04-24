@@ -105,8 +105,6 @@ int main(int argc, char *argv[]) {
   std::atomic<uint64_t> switch_epoch{0};
   std::atomic<unsigned> active_serial{0};
 
-  CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/};
-
   FocusResultLabel *focus_result = new FocusResultLabel("Disabled");
   FocusScoreLabel *focus_score = new FocusScoreLabel("0");
   LensResultLabel *lens_result = new LensResultLabel("Unknown");
@@ -132,7 +130,7 @@ int main(int argc, char *argv[]) {
   // The core UI/window for the program
   auto *viewer = new QtCameraViewer(
       mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-      fps_calculator, focus_result, focus_score, lens_result, mMgr, nullptr);
+      focus_result, focus_score, lens_result, mMgr, nullptr);
 
   // Remove any current installed translators to ensure a clean slate, then
   // install the appropriate ones based on the current locale use [&] to capture
@@ -404,8 +402,6 @@ int main(int argc, char *argv[]) {
             cam_serial != current_serial) {
           break;
         }
-
-        fps_calculator.update(*frame);
 
         int w = frame->Width();
         int h = frame->Height();
