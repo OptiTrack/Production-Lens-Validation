@@ -15,6 +15,7 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
@@ -49,10 +50,34 @@ bool CameraControlPanel::isMarkerZoomPossible() const {
 }
 
 void CameraControlPanel::buildUi() {
-  // auto* root = new QVBoxLayout(this);
   auto *root = new QHBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(6);
+
+  auto *vb = new QVBoxLayout(this);
+
+  // Row 1: Status bar with language selector
+  language_bar = new QWidget(this);
+  auto *hb = new QHBoxLayout(language_bar);
+  hb->setContentsMargins(6, 0, 6, 0);
+
+  language_label = new QLabel(language_bar);
+  language_combo = new QComboBox(language_bar);
+  language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
+  language_combo->addItem(QStringLiteral("Simplified Chinese"),
+                          QStringLiteral("zh_CN"));
+  connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+
+          this, [this](int idx) {
+            if (!language_combo || idx < 0)
+              return;
+
+            emit languageChanged(language_combo->itemData(idx).toString());
+          });
+
+  hb->addWidget(language_label);
+  hb->addWidget(language_combo);
+  vb->addWidget(language_bar);
 
   rightTabWidget = new QTabWidget(this);
   // use the 'underline' tab style (sleek blue underline for active tab)
@@ -953,7 +978,8 @@ void CameraControlPanel::buildUi() {
   updateMarkerZoomControlsEnabled(false);
   setLensInspectionModeIndex(0);
 
-  root->addWidget(rightTabWidget);
+  vb->addWidget(rightTabWidget);
+  root->addLayout(vb);
 
   retranslateUi();
 }
@@ -1486,6 +1512,14 @@ void CameraControlPanel::retranslateUi() {
   if (general_zoom_slider) {
     updateGeneralZoomLabel(general_zoom_slider->value());
   }
+
+  // if (camera_viewer) {
+  //   const QString locale = currentLanguage();
+  //   camera_viewer->setExportLanguage(locale == QLatin1String("zh_CN")
+  //                                          ? MetricsManager::Chinese
+  //                                          : MetricsManager::English);
+  //   camera_viewer->retranslateUi();
+  // }
 }
 
 void CameraControlPanel::onSetExposure() {
@@ -1664,4 +1698,12 @@ void CameraControlPanel::takeScreenshot() {
         tr("Screenshot Saved: %1").arg(QFileInfo(fileLocation).fileName()));
     screenshot_status_label->setVisible(true);
   }
+}
+
+
+QString CameraControlPanel::currentLanguage() const {
+  if (!language_combo || language_combo->currentIndex() < 0) {
+    return QStringLiteral("en");
+  }
+  return language_combo->itemData(language_combo->currentIndex()).toString();
 }

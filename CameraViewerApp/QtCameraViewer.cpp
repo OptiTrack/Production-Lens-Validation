@@ -107,23 +107,6 @@ void QtCameraViewer::buildUi() {
   sh->addWidget(lens_result);
   sh->addStretch(1);
 
-  language_label = new QLabel(focus_bar);
-  language_combo = new QComboBox(focus_bar);
-  language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
-  language_combo->addItem(QStringLiteral("Simplified Chinese"),
-                          QStringLiteral("zh_CN"));
-  connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-
-          this, [this](int idx) {
-            if (!language_combo || idx < 0)
-              return;
-
-            emit languageChanged(language_combo->itemData(idx).toString());
-          });
-
-  sh->addWidget(language_label);
-  sh->addWidget(language_combo);
-
   v->addWidget(focus_bar);
 
 
@@ -228,10 +211,10 @@ void QtCameraViewer::buildUi() {
   setEmptyState(camera_picker->combo() && camera_picker->combo()->count() > 0);
 
   // video pane on left, camera controls and stats on right
-  h2->addWidget(center_widget, 1);
+  v->addWidget(center_widget);
+  h2->addLayout(v, 20);
   h2->addWidget(camera_controls);
 
-  mainLayout->addLayout(v);
   mainLayout->addLayout(h2);
 
   retranslateUi();
@@ -378,29 +361,22 @@ void QtCameraViewer::retranslateUi() {
     empty_label->setText(
         QCoreApplication::translate("QtCameraViewer", "No Cameras Connected"));
   }
-  if (language_label) {
-    language_label->setText(
-        QCoreApplication::translate("QtCameraViewer", "Language:"));
-  }
-  if (language_combo && language_combo->count() >= 2) {
-    language_combo->setItemText(0, QStringLiteral("English"));
-    language_combo->setItemText(1, QStringLiteral("Simplified Chinese"));
-  }
+  // if (language_label) {
+  //   language_label->setText(
+  //       QCoreApplication::translate("QtCameraViewer", "Language:"));
+  // }
+  // if (language_combo && language_combo->count() >= 2) {
+  //   language_combo->setItemText(0, QStringLiteral("English"));
+  //   language_combo->setItemText(1, QStringLiteral("Simplified Chinese"));
+  // }
   if (camera_picker) {
     camera_picker->retranslateUi();
   }
-  if (camera_controls) {
-    const QString locale = currentLanguage();
-    camera_controls->setExportLanguage(locale == QLatin1String("zh_CN")
-                                           ? MetricsManager::Chinese
-                                           : MetricsManager::English);
-    camera_controls->retranslateUi();
-  }
 }
 
-QString QtCameraViewer::currentLanguage() const {
-  if (!language_combo || language_combo->currentIndex() < 0) {
-    return QStringLiteral("en");
-  }
-  return language_combo->itemData(language_combo->currentIndex()).toString();
-}
+// QString QtCameraViewer::currentLanguage() const {
+//   if (!language_combo || language_combo->currentIndex() < 0) {
+//     return QStringLiteral("en");
+//   }
+//   return language_combo->itemData(language_combo->currentIndex()).toString();
+// }

@@ -68,6 +68,7 @@ public:
   VideoWidget *videoWidget() const { return gl_viewer_window; }
   void retranslateUi();
   void setExportLanguage(MetricsManager::OutputLanguage lang);
+  QString currentLanguage() const;
 signals:
   void showWarning(const QString &title, const QString &message);
   // Toggle circle detection
@@ -82,6 +83,7 @@ signals:
   void zoomValueChanged(float val);
   void focusHUDToggled(bool enabled);
   void exportMetricsRequested();
+  void languageChanged(const QString &locale);
 
 private:
   void buildUi();
@@ -130,6 +132,10 @@ private:
   // Metrics controllers for Statistics tab
   MetricController *focusMetricsController{nullptr};
   MetricController *lensMetricsController{nullptr};
+
+  QWidget *language_bar{nullptr};
+  QLabel *language_label{nullptr};
+  QComboBox *language_combo{nullptr};
 
   QSlider *general_exposure_slider{nullptr};
   QLabel *general_exposure_label{nullptr};

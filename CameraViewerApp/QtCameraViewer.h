@@ -67,8 +67,6 @@ private:
   QWidget *toggle_tabs_bar{nullptr};
   QLabel *toggle_label{nullptr};
   QLabel *empty_label{nullptr};
-  QLabel *language_label{nullptr};
-  QComboBox *language_combo{nullptr};
   QPushButton *tab0_visibility_button{nullptr};
   QPushButton *tab1_visibility_button{nullptr};
   QPushButton *tab2_visibility_button{nullptr};
