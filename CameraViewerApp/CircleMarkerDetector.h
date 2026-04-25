@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CameraHelpers.h"
+#include <mutex>
 #include <opencv2/opencv.hpp>
 #include <vector>
 
@@ -79,6 +80,7 @@ private:
   /// @return The categorized shape type
   ShapeType CategorizeShape(float circularity);
 
+  mutable std::mutex m_paramsMutex;
   DetectionParams m_params;
   int m_lastDetectionCount = 0;
 };

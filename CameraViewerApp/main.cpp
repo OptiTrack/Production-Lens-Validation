@@ -114,20 +114,27 @@ int main(int argc, char *argv[]) {
   MetricsManager mMgr;
   mMgr.testMM();
 
-  QTimer focusTimer, gradeTimer;
+  QTimer focusTimer, gradeTimer, circleDetectTimer;
 
   // set when QtConcurrent focus/grade is running
   std::atomic<bool> focusBusy{false};
   std::atomic<bool> gradeBusy{false};
+  std::atomic<bool> circleDetectionBusy{false};
 
   // bitmap frame shared between timed events
   std::shared_ptr<CameraLibrary::Bitmap> framePtr;
+  std::shared_ptr<std::vector<CircleMarkerDetector::CircleMarker>> markerCollection;
 
   FocusEvaluator fe;        // Focus evaluator instance
   CircleMarkerDetector cmd; // Circle marker detector instance
 
-  focusTimer.start(125);
-  gradeTimer.start(250);
+  const int focusIntervalMs = 125;       // Interval for focus evaluation (ms)
+  const int gradeIntervalMs = 250;       // Interval for grading (ms)   
+  const int circleDetectIntervalMs = 125; // Interval for circle detection (ms)
+
+  circleDetectTimer.start(circleDetectIntervalMs);
+  focusTimer.start(focusIntervalMs);
+  gradeTimer.start(gradeIntervalMs);
 
   // The core UI/window for the program
   auto *viewer = new QtCameraViewer(
@@ -242,23 +249,50 @@ int main(int argc, char *argv[]) {
                      &VideoWidget::setCircleDetectionEnabled);
   }
 
+  // Update shared marker collection on a timer
+  // The timer value used here should be less than or equal to the min(focustimer, gradetimer). 
+  QObject::connect(&circleDetectTimer, &QTimer::timeout, [&]() {
+      // if we're not grading or focusing, don't gather markers.
+      if (!fe.focusToolEnabled.load(std::memory_order_acquire) &&
+          !circleDetectionEnabled.load(std::memory_order_acquire)) {
+          return;
+      }
+
+      if (!circleDetectionBusy.exchange(true)) {
+      QtConcurrent::run([&cmd, framePtr, &circleDetectionBusy, &markerCollection]() {
+          struct Guard {
+              std::atomic<bool>& flag;
+              ~Guard() { flag.store(false); }
+          } guard{ circleDetectionBusy };
+
+          auto localFrame = framePtr;
+          if (!localFrame) return;
+
+          auto newMarkers = std::make_shared<std::vector<CircleMarkerDetector::CircleMarker>>(
+              cmd.DetectCircleMarkers(localFrame.get())
+          );
+          std::atomic_store_explicit(&markerCollection, newMarkers, std::memory_order_release);
+      });
+      }
+  });
+
   QObject::connect(&focusTimer, &QTimer::timeout, [&]() {
     if (!fe.focusToolEnabled.load(std::memory_order_acquire)) {
       return;
     }
 
-    auto localFrame = framePtr; // create copy of shared pointer
-    if (!localFrame) {
+    auto localFrame = framePtr;           // create copy of shared pointer
+    auto localMarkers = std::atomic_load_explicit(&markerCollection, std::memory_order_acquire);
+
+    if (!localFrame || !localMarkers) {
       return;
     }
-
     if (!focusBusy.exchange(true)) {
 
-      auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
-      circles = cmd.DetectCircleMarkers(localFrame.get());
-
+      const auto& circles = *localMarkers;
       QtConcurrent::run([&fe, focus_result, focus_score, localFrame, panel,
-                         viewer, &startTime, &mMgr, &focusBusy, &circles]() {
+                         viewer, &startTime, &mMgr, &focusBusy, circles]() {
+
         double score = fe.EvaluateBitmapFocus(localFrame.get(), circles);
         // qDebug("[dbg] Focus score: %.2f", score);
 
@@ -314,18 +348,21 @@ int main(int argc, char *argv[]) {
     }
 
     auto localFrame = framePtr; // create copy of shared pointer
-    if (!localFrame) {
+    auto localMarkers = std::atomic_load_explicit(&markerCollection, std::memory_order_acquire);
+
+    if (!localFrame || !localMarkers) {
       return;
     }
 
+    const auto& circles = *localMarkers;
+
     if (circleDetectionEnabled.load(std::memory_order_acquire) && localFrame) {
       if (!gradeBusy.exchange(true)) {
-        QtConcurrent::run([focus_result, localFrame, panel, viewer, &startTime,
+        QtConcurrent::run([focus_result, localFrame, circles, panel, viewer, &startTime,
                            &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
           int circleCount = 0;
           bool hasHook = false;
-          auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
-          circles = cmd.DetectCircleMarkers(localFrame.get());
+
           circleCount = static_cast<int>(circles.size());
 
           if (circleCount > 0) {
