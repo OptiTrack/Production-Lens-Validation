@@ -173,10 +173,10 @@ int main(int argc, char *argv[]) {
   auto *panel = viewer->getControlPanel();
 
   QObject::connect(
-    panel, &CameraControlPanel::languageChanged, &app,
+    viewer, &QtCameraViewer::languageChanged, &app,
     [applyLanguage](const QString &locale) { applyLanguage(locale); });
 
-  applyLanguage(panel->currentLanguage());
+  applyLanguage(viewer->currentLanguage());
 
   // set up shared metrics object and make Qt signal connection
   QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,

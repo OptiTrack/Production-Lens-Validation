@@ -62,9 +62,33 @@ void QtCameraViewer::buildUi() {
   auto *v = new QVBoxLayout();  // no parent
   auto *h2 = new QHBoxLayout(); // no parent
 
-  // Row 1: Camera picker
-  camera_picker = new CameraPicker(camera_manager, this);
-  v->addWidget(camera_picker);
+  // Row 1: Camera and language pickers (go above everything else)
+  status_bar = new QWidget(this);
+  auto box = new QHBoxLayout(status_bar);
+  box->setContentsMargins(6, 0, 6, 0);
+
+  camera_picker = new CameraPicker(camera_manager, status_bar);
+  box->addWidget(camera_picker);
+
+  language_label = new QLabel(status_bar);
+  language_combo = new QComboBox(status_bar);
+  language_combo->addItem(QStringLiteral("English"), QStringLiteral("en"));
+  language_combo->addItem(QStringLiteral("Simplified Chinese"),
+                          QStringLiteral("zh_CN"));
+  connect(language_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+
+          this, [this](int idx) {
+            if (!language_combo || idx < 0)
+              return;
+
+            emit languageChanged(language_combo->itemData(idx).toString());
+          });
+
+  box->addWidget(language_label);
+  box->addWidget(language_combo);
+
+  mainLayout->addWidget(status_bar);
+
 
   // Controls panel that later comes in Row 5
   camera_controls =
@@ -106,9 +130,8 @@ void QtCameraViewer::buildUi() {
   sh->addWidget(lens_result_label);
   sh->addWidget(lens_result);
   sh->addStretch(1);
-
+  
   v->addWidget(focus_bar);
-
 
   // change visibility of focus tool HUD
   connect(camera_controls, &CameraControlPanel::focusHUDToggled, this,
@@ -361,22 +384,29 @@ void QtCameraViewer::retranslateUi() {
     empty_label->setText(
         QCoreApplication::translate("QtCameraViewer", "No Cameras Connected"));
   }
-  // if (language_label) {
-  //   language_label->setText(
-  //       QCoreApplication::translate("QtCameraViewer", "Language:"));
-  // }
-  // if (language_combo && language_combo->count() >= 2) {
-  //   language_combo->setItemText(0, QStringLiteral("English"));
-  //   language_combo->setItemText(1, QStringLiteral("Simplified Chinese"));
-  // }
+  if (language_label) {
+    language_label->setText(
+        QCoreApplication::translate("QtCameraViewer", "Language:"));
+  }
+  if (language_combo && language_combo->count() >= 2) {
+    language_combo->setItemText(0, QStringLiteral("English"));
+    language_combo->setItemText(1, QStringLiteral("Simplified Chinese"));
+  }
   if (camera_picker) {
     camera_picker->retranslateUi();
   }
+  if (camera_controls) {
+    const QString locale = currentLanguage();
+    camera_controls->setExportLanguage(locale == QLatin1String("zh_CN")
+                                           ? MetricsManager::Chinese
+                                           : MetricsManager::English);
+    camera_controls->retranslateUi();
+  }
 }
 
-// QString QtCameraViewer::currentLanguage() const {
-//   if (!language_combo || language_combo->currentIndex() < 0) {
-//     return QStringLiteral("en");
-//   }
-//   return language_combo->itemData(language_combo->currentIndex()).toString();
-// }
+QString QtCameraViewer::currentLanguage() const {
+  if (!language_combo || language_combo->currentIndex() < 0) {
+    return QStringLiteral("en");
+  }
+  return language_combo->itemData(language_combo->currentIndex()).toString();
+}

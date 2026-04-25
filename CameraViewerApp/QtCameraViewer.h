@@ -63,10 +63,13 @@ signals:
 private:
   CameraPicker *camera_picker{nullptr};
   CameraControlPanel *camera_controls{nullptr};
+  QWidget *status_bar{nullptr};
   QWidget *focus_bar{nullptr};
   QWidget *toggle_tabs_bar{nullptr};
   QLabel *toggle_label{nullptr};
   QLabel *empty_label{nullptr};
+  QComboBox *language_combo{nullptr};
+  QLabel *language_label{nullptr};
   QPushButton *tab0_visibility_button{nullptr};
   QPushButton *tab1_visibility_button{nullptr};
   QPushButton *tab2_visibility_button{nullptr};
