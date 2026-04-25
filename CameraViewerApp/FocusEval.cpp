@@ -14,7 +14,7 @@
 #include <opencv2/imgproc.hpp>
 #include <qlogging.h>
 #include <stdexcept>
-
+#include "CircleMarkerDetector.h"
 #include "FocusEval.h"
 
 using Bitmap = CameraLibrary::Bitmap;
@@ -26,9 +26,9 @@ size_t sampleCount = 65535;
 double maxInstanceScore = 0.0;
 double smoothedRatio = 0.0;
 
+const int minContourCount = 3;
 const double loFocusThreshold = 0.3;
-const double decayRate =
-    0.93; // per evaluation, forget old max val a little bit
+const double decayRate = 0.93; // per evaluation, forget old max val a little bit
 
 /// <summary>
 /// Converts a bitmap to an openCV mat
@@ -56,7 +56,7 @@ cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap *bmp) {
 /// </summary>
 /// <param name="bmp">Incoming frame bitmap data</param>
 /// <returns>frameScore struct with quantative focus data</returns>
-frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp) {
+frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
 
   cv::Mat img = ConvertBitmapToMat(bmp);
 
@@ -75,6 +75,7 @@ frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp) {
   const int ratio = 3;
   const int kernel_size = 3;
 
+    
   cv::Mat smoothed;
   cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
   cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
@@ -83,14 +84,16 @@ frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp) {
   std::vector<cv::Vec4i> hierarchy;
   cv::findContours(edges, contours, hierarchy, cv::RETR_EXTERNAL,
                    cv::CHAIN_APPROX_SIMPLE);
+  
 
+  // todo: use vector<circles>
   double weightedCircularity = 0.0;
   double totalArea = 0.0;
   int validContours = 0;
 
   for (const auto &contour : contours) {
-    double area = cv::contourArea(contour);
-    double perimeter = cv::arcLength(contour, true);
+    double area = cv::contourArea(contours);
+    double perimeter = cv::arcLength(contours, true);
 
     // Filter out noise / tiny fragments
     if (perimeter > 0 && area > 10.0) {
@@ -141,7 +144,6 @@ double FocusEvaluator::getBestLocalFocus() {
 double FocusEvaluator::compareScoreToMax(const frameScore &fs) {
 
   // Reject frames with too few contours - score would be unreliable
-  const int minContourCount = 3;
   if (fs.contourCount < minContourCount) {
     return smoothedRatio;
   }
@@ -214,8 +216,8 @@ void FocusEvaluator::onResetFocusStats() {
 /// <param name="bmp">Incoming frame data from camera</param>
 /// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal
 /// focus</returns>
-double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap *bmp) {
-  frameScore fs = gradeFrame(bmp);
+double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
+  frameScore fs = gradeFrame(bmp, circles);
   double score = compareScoreToMax(fs);
   addFrameScore(fs);
   return score;

@@ -200,8 +200,8 @@ float CircleMarkerDetector::CalculateCircularity(
 CircleMarkerDetector::ShapeType
 CircleMarkerDetector::CategorizeShape(float circularity) {
   // Thresholds for shape categorization
-  const float OVAL_UPPER_THRESHOLD = 0.84f;
-  const float OVAL_LOWER_THRESHOLD = 0.48f;
+  const float OVAL_UPPER_THRESHOLD = 0.92f;
+  const float OVAL_LOWER_THRESHOLD = 0.70f;
 
   if (circularity > OVAL_UPPER_THRESHOLD) {
     return ShapeType::Circle;

@@ -253,9 +253,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (!focusBusy.exchange(true)) {
+
+      auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+      circles = cmd.DetectCircleMarkers(localFrame.get());
+
       QtConcurrent::run([&fe, focus_result, focus_score, localFrame, panel,
-                         viewer, &startTime, &mMgr, &focusBusy]() {
-        double score = fe.EvaluateBitmapFocus(localFrame.get());
+                         viewer, &startTime, &mMgr, &focusBusy, &circles]() {
+        double score = fe.EvaluateBitmapFocus(localFrame.get(), circles);
         // qDebug("[dbg] Focus score: %.2f", score);
 
         auto now = std::chrono::steady_clock::now();
@@ -321,7 +325,6 @@ int main(int argc, char *argv[]) {
           int circleCount = 0;
           bool hasHook = false;
           auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
-
           circles = cmd.DetectCircleMarkers(localFrame.get());
           circleCount = static_cast<int>(circles.size());
 
@@ -337,8 +340,8 @@ int main(int argc, char *argv[]) {
           qreal relativeTime = elapsed.count() / 1000.0;
 
           double lensScore = mMgr.getLensScore();
-          qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f",
-                 relativeTime, lensScore);
+          //qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f",
+          //       relativeTime, lensScore);
 
           QMetaObject::invokeMethod(
               qApp,

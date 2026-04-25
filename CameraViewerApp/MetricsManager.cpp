@@ -258,14 +258,16 @@ void MetricsManager::UpdateLensDisposition() {
     }
 
     else if (m.mClass == markerClass::hook) {
-      qDebug("[dbg] Hook in collection! Severe penalty applied.");
       double scaledMultiplier = 8.8 * 1 - (markerHypotToCenter / hypotToCenter);
       penalty = 8 * (1 - m.circularityScore);
+      qDebug("[dbg] Calculated hook marker penalty: %.2f", penalty);
     }
 
     score -= penalty;
   }
 
+  // no negative scores, no scores in excess of max
+  std::clamp(score, 0.0, maxScore);
 
   // assign disposition to metrics object
   double scorePct = score / maxScore;
