@@ -1054,7 +1054,7 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     dataLabel->setFixedWidth(qMax(170, graphHeight * 2));
     dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont labelFont = dataLabel->font();
-    const int labelFontPx = qMax(54, graphHeight - 10);
+    const int labelFontPx = qMax(50, graphHeight - 10);
     labelFont.setPixelSize(labelFontPx);
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
