@@ -85,7 +85,7 @@ private:
   std::atomic<bool> edge_detect_enabled{false};
   std::atomic<bool> roiZoomEnabled{false};
 
-  float ROIZoomScale = 1.f; // degree of zoom for ROI quadrants
+  float ROIZoomScale = 2.f; // degree of zoom for ROI quadrants
 
   // Per-slot tracking: each of the 5 display slots (TL, TR, BL, BR, center)
   // independently tracks its chosen marker across frames, selecting the closest

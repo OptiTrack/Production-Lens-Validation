@@ -241,7 +241,7 @@ void QtCameraViewer::buildUi() {
 
   // Video pane
   gl_viewer_window = new VideoWidget();
-  gl_viewer_window->setNewZoomValue(1.f);
+  gl_viewer_window->setNewZoomValue(2.f);
 
   viewer_container =
       QWidget::createWindowContainer(gl_viewer_window, center_widget);

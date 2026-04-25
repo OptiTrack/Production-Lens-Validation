@@ -92,8 +92,8 @@ frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp, const std::vec
   int validContours = 0;
 
   for (const auto &contour : contours) {
-    double area = cv::contourArea(contours);
-    double perimeter = cv::arcLength(contours, true);
+    double area = cv::contourArea(contour);
+    double perimeter = cv::arcLength(contour, true);
 
     // Filter out noise / tiny fragments
     if (perimeter > 0 && area > 10.0) {

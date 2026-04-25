@@ -128,7 +128,7 @@ void CameraControlPanel::buildUi() {
 
   general_zoom_slider = new QSlider(Qt::Horizontal, generalZoomWidget);
   general_zoom_slider->setRange(10, 200);
-  general_zoom_slider->setValue(10);
+  general_zoom_slider->setValue(20);
   general_zoom_slider->setSingleStep(1);
   general_zoom_slider->setPageStep(5);
   general_zoom_slider->setSizePolicy(QSizePolicy::Expanding,
@@ -136,7 +136,7 @@ void CameraControlPanel::buildUi() {
   general_zoom_slider->setToolTip(
       "Drag slider to adjust zoom (1.0x - 20.0x in 0.1x steps)");
 
-  general_zoom_label = new QLabel("1.0x", generalZoomWidget);
+  general_zoom_label = new QLabel("2.0x", generalZoomWidget);
   general_zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   general_zoom_label->setMinimumWidth(70);
   general_zoom_label->setMaximumWidth(70);
@@ -559,20 +559,19 @@ void CameraControlPanel::buildUi() {
   // the true value.
   zoom_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
   zoom_slider->setRange(10, 200);
-  zoom_slider->setValue(10);
+  zoom_slider->setValue(20);
   zoom_slider->setSingleStep(1); // 0.1x per arrow-key tick
   zoom_slider->setPageStep(5);   // 0.5x per page-up/down
   zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   zoom_slider->setToolTip(
       "Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)");
-  zoom_label = new QLabel("1.0x", lens_inspection_group);
+  zoom_label = new QLabel("2.0x", lens_inspection_group);
   zoom_label->setMaximumWidth(60);
   zoom_label->setMinimumWidth(60);
 
   connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this,
           [this](int val) {
-            // Convert tenths back to the real zoom value for display and
-            // emission.
+            // Convert tenths back to the real zoom value for display and emission.
             float zoom = val / 10.0f;
             zoom_label->setText(QString::number(zoom, 'f', 1) + "x");
             onSetZoom(false);
@@ -582,7 +581,7 @@ void CameraControlPanel::buildUi() {
   zoom_button->setProperty("secondary", true);
   zoom_button->setToolTip("Click to reset zoom to default");
   connect(zoom_button, &QPushButton::clicked, this, [this]() {
-    zoom_slider->setValue(10); // 10*0.1 = 1.0x initial zoom
+    zoom_slider->setValue(20); // 20*0.1 = 2.0x initial zoom for quartered image
   });
   zoom_button->setEnabled(false);
   zoom_slider->setEnabled(false);
