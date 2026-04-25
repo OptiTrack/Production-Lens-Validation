@@ -31,7 +31,7 @@ void MetricController::addData(qreal id, QHash<QString, qreal> metrics) {
             metricWidgets->units.isEmpty() ? QString()
                                            : QStringLiteral(" ") +
                                                  metricWidgets->units;
-        dataLabel->setText(QString::number(value * 100, 'g', 2) + unitsSuffix);
+        dataLabel->setText(QString::number(value * 100, 'f', 2) + unitsSuffix);
 
         const bool passing = value >= metricWidgets->passingThreshold;
         const int metricFontSizePx =
