@@ -41,7 +41,6 @@ public:
                  std::shared_ptr<CameraLibrary::Camera> &currentCamera,
                  std::atomic<uint64_t> &switchEpoch,
                  std::atomic<unsigned> &activeSerial,
-                 CameraHelper::FrameRateCalculator &fpsCalc,
                  FocusResultLabel *focus_result, FocusScoreLabel *focus_score,
                  LensResultLabel *lens_result, MetricsManager &mMgr,
                  QWidget *parent = nullptr);
@@ -64,15 +63,13 @@ signals:
 private:
   CameraPicker *camera_picker{nullptr};
   CameraControlPanel *camera_controls{nullptr};
-  QWidget *fps_bar{nullptr};
-  QWidget *focus_result_bar{nullptr};
-  QWidget *focus_score_bar{nullptr};
+  QWidget *status_bar{nullptr};
+  QWidget *focus_bar{nullptr};
   QWidget *toggle_tabs_bar{nullptr};
-  QLabel *fps_label{nullptr};
   QLabel *toggle_label{nullptr};
   QLabel *empty_label{nullptr};
-  QLabel *language_label{nullptr};
   QComboBox *language_combo{nullptr};
+  QLabel *language_label{nullptr};
   QPushButton *tab0_visibility_button{nullptr};
   QPushButton *tab1_visibility_button{nullptr};
   QPushButton *tab2_visibility_button{nullptr};
@@ -88,14 +85,12 @@ private:
   QLabel *lens_result_label{nullptr};
   QLabel *focus_score_label{nullptr};
   QLabel *focus_score_display{nullptr};
-  QString fps_format;
 
   CameraConnectionManager *camera_manager{nullptr};
   std::mutex &camera_mutex;
   std::shared_ptr<CameraLibrary::Camera> &current_camera;
   std::atomic<uint64_t> &switch_epoch;
   std::atomic<unsigned> &active_serial;
-  CameraHelper::FrameRateCalculator &fps_calculator;
   FocusResultLabel *focus_result;
   FocusScoreLabel *focus_score;
   LensResultLabel *lens_result;

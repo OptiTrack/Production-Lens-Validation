@@ -15,6 +15,7 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
@@ -49,10 +50,10 @@ bool CameraControlPanel::isMarkerZoomPossible() const {
 }
 
 void CameraControlPanel::buildUi() {
-  // auto* root = new QVBoxLayout(this);
   auto *root = new QHBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(6);
+
 
   rightTabWidget = new QTabWidget(this);
   // use the 'underline' tab style (sleek blue underline for active tab)
@@ -193,7 +194,7 @@ void CameraControlPanel::buildUi() {
   scrollArea0->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   auto *v0 = new QVBoxLayout(tab0);
 
-  // Group: Camera Controls (exposure, fps, gain)
+  // Group: Camera Controls (exposure, gain)
 
   cam_group = new QGroupBox(tab0);
   auto *camLayout = new QVBoxLayout();
@@ -241,39 +242,7 @@ void CameraControlPanel::buildUi() {
     connect(general_exposure_slider, &QAbstractSlider::sliderReleased, this,
             [this]() { onSetExposure(); });
   }
-  // Frame Rate: slider from 1 to 1000
-  fps_slider = new QSlider(Qt::Horizontal, cam_group);
-  fps_slider->setRange(1, 1000);
-  fps_slider->setValue(30);
-  fps_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  fps_slider->setToolTip("Drag slider to adjust maximum framerate");
-  fps_edit = new QLineEdit(cam_group);
-  fps_edit->setValidator(new QIntValidator(1, 1000, fps_edit));
-  fps_edit->setMaximumWidth(64);
-  fps_edit->setToolTip("Enter a new framerate here");
-  fps_label = new QLabel(cam_group);
-  fps_label->setMaximumWidth(80);
-  fps_label->setMinimumWidth(80);
-  connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this,
-          [this](int val) {
-            Q_UNUSED(val);
-            updateSliderLabels();
-          });
-  connect(fps_slider, &QAbstractSlider::sliderReleased, this,
-          [this]() { onSetFps(); });
-  connect(fps_edit, &QLineEdit::textEdited, this, [this](const QString &text) {
-    bool ok = false;
-    const int v = text.toInt(&ok);
-    if (!ok)
-      return;
-    fps_slider->setValue(qBound(1, v, 1000));
-    onSetFps();
-  });
-  connect(fps_edit, &QLineEdit::editingFinished, this, [this]() {
-    bool ok = false;
-    if (!fps_edit->text().toInt(&ok) || !ok)
-      fps_edit->setText(QString::number(fps_slider->value()));
-  });
+
   // Gain: slider from 0 to 7
   gain_slider = new QSlider(Qt::Horizontal, cam_group);
   gain_slider->setRange(0, 7);
@@ -325,23 +294,6 @@ void CameraControlPanel::buildUi() {
   expLayout->addWidget(exposureRow);
   expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
 
-  auto *fpsWidget = new QWidget(cam_group);
-  auto *fpsLayoutW = new QVBoxLayout(fpsWidget);
-  fpsLayoutW->setContentsMargins(0, 0, 0, 0);
-  fpsLayoutW->setSpacing(8);
-  fps_title_label = new QLabel(fpsWidget);
-  fps_title_label->setMinimumWidth(80);
-  fps_title_label->setMaximumWidth(80);
-  fpsLayoutW->addWidget(fps_title_label, 0, Qt::AlignLeft);
-  auto *fpsRow = new QWidget(fpsWidget);
-  auto *fpsRowLayout = new QHBoxLayout(fpsRow);
-  fpsRowLayout->setContentsMargins(0, 0, 0, 0);
-  fpsRowLayout->setSpacing(6);
-  fpsRowLayout->addWidget(fps_slider);
-  fpsRowLayout->addWidget(fps_edit);
-  fpsLayoutW->addWidget(fpsRow);
-  fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
-
   auto *gainWidget = new QWidget(cam_group);
   auto *gainLayoutW = new QVBoxLayout(gainWidget);
   gainLayoutW->setContentsMargins(0, 0, 0, 0);
@@ -360,7 +312,6 @@ void CameraControlPanel::buildUi() {
   gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
 
   camLayout->addWidget(exposureWidget);
-  camLayout->addWidget(fpsWidget);
   camLayout->addWidget(gainWidget);
 
   // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the
@@ -1103,11 +1054,11 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     dataLabel->setFixedWidth(qMax(170, graphHeight * 2));
     dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont labelFont = dataLabel->font();
-    const int labelFontPx = qMax(54, graphHeight - 10);
-    labelFont.setPixelSize(labelFontPx);
+    const int labelFontPx = qMax(50, graphHeight - 10);
+    labelFont.setPixelSize(58);
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
-    dataLabel->setProperty("metricFontSizePx", labelFontPx);
+    dataLabel->setProperty("metricFontSizePx", 58);
     dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
     rowLayout->addWidget(dataLabel);
 
@@ -1168,11 +1119,6 @@ void CameraControlPanel::updateSliderLabels() {
     if (exposure_edit)
       exposure_edit->setText(QString::number(exposure_slider->value()));
     updateGeneralExposureLabel(exposure_slider->value());
-  }
-  if (fps_slider && fps_label) {
-    fps_label->setText(QString::number(fps_slider->value()) + " " + fps_unit);
-    if (fps_edit)
-      fps_edit->setText(QString::number(fps_slider->value()));
   }
   if (gain_slider && gain_label) {
     gain_label->setText(QString::number(gain_slider->value()) + " " +
@@ -1398,8 +1344,6 @@ void CameraControlPanel::retranslateUi() {
     exposure_title_label->setText(tr("Exposure:"));
   if (general_exposure_title_label)
     general_exposure_title_label->setText(tr("Exposure:"));
-  if (fps_title_label)
-    fps_title_label->setText(tr("FPS:"));
   if (gain_title_label)
     gain_title_label->setText(tr("Gain:"));
   if (quality_title_label)
@@ -1410,7 +1354,6 @@ void CameraControlPanel::retranslateUi() {
     gamma_title_label->setText(tr("Gamma:"));
 
   exposure_unit_ms = tr("ms");
-  fps_unit = tr("fps");
   gain_unit_db = tr("dB");
   updateSliderLabels();
   if (quality_slider && quality_label) {
@@ -1555,18 +1498,6 @@ void CameraControlPanel::onSetExposure() {
   if (!camera_manager->SetExposure(selected_serial, v)) {
     emit showWarning(tr("Failed"),
                      tr("Could not set exposure on the selected camera."));
-  }
-}
-
-void CameraControlPanel::onSetFps() {
-  if (!currentSerialValid()) {
-    emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
-    return;
-  }
-  const int v = fps_slider->value();
-  if (!camera_manager->SetFrameRate(selected_serial, v)) {
-    emit showWarning(tr("Failed"),
-                     tr("Could not set frame rate on the selected camera."));
   }
 }
 

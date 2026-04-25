@@ -14,6 +14,7 @@
 
 class GraphWidget;
 class MetricController;
+class QtCameraViewer;
 
 #pragma once
 #include <QGroupBox>
@@ -140,11 +141,6 @@ private:
   QLabel *exposure_label{nullptr};
   QLabel *exposure_title_label{nullptr};
 
-  QLineEdit *fps_edit{nullptr};
-  QSlider *fps_slider{nullptr};
-  QLabel *fps_label{nullptr};
-  QLabel *fps_title_label{nullptr};
-
   QLineEdit *gain_edit{nullptr};
   QSlider *gain_slider{nullptr};
   QLabel *gain_label{nullptr};
@@ -213,7 +209,6 @@ private:
   QCheckBox *overlay_button{nullptr};
 
   QString exposure_unit_ms;
-  QString fps_unit;
   QString gain_unit_db;
 
 public slots:
@@ -226,7 +221,6 @@ public slots:
 
 private slots:
   void onSetExposure();
-  void onSetFps();
   void onSetGain();
   void onSetZoom(bool reset);
   void onSetGamma();
