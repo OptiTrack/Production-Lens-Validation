@@ -1058,7 +1058,7 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     labelFont.setPixelSize(58);
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
-    dataLabel->setProperty("metricFontSizePx", labelFontPx);
+    dataLabel->setProperty("metricFontSizePx", 58);
     dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
     rowLayout->addWidget(dataLabel);
 
