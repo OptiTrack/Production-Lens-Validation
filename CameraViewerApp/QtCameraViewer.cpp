@@ -354,7 +354,7 @@ void QtCameraViewer::retranslateUi() {
   }
   if (toggle_label) {
     toggle_label->setText(
-        QCoreApplication::translate("QtCameraViewer", "Toggle Tabs:"));
+        QCoreApplication::translate("QtCameraViewer", "Tabs:"));
   }
   if (tab0_visibility_button) {
     tab0_visibility_button->setText(

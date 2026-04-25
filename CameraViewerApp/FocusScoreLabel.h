@@ -16,7 +16,7 @@ public:
   }
 
   void updateNumber(double score, MetricsManager mMgr) {
-    this->setText(QString::number(score * 100, 'd'));
+    this->setText(QString::number(score * 100, 'g', 2));
     this->setStyleSheet("color:#ddd; font-weight:600;");
 
     this->update();
