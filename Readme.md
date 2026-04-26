@@ -18,18 +18,27 @@
 
 <!-- PROJECT -->
 # Production Lens Validation Tool
-An application that can take an image and identify and grade the relevant lens features by examining how circular a markers is or particular image features. Additionally it would be useful to automate the lens focusing process.
-
+An application created for the lens testing team at OptiTrack that takes an image and identifies and grades the relevant lens' quality by examining how circular the markers are.
 
 <img width="1920" height="1080" alt="Lens Tool - Full App - Zoom View" src="https://github.com/user-attachments/assets/28e3603f-9dba-4553-82b2-434cbec8813a" />
 
+The program the lens testing team currently uses is intended for direct motion capture usage and is therefore much more technically complex than what's required for basic lens testing. Our program is intended to be a lightweight and easy to use solution for the team, who'll experience the same functionality, but in a much more streamlined way.
+
+<!-- KEY FEATURES -->
+# Key Features
+* Viewing focus and circularity metrics via graphs and plain numbers
+* Clear, color-coded pass/inconclusive/fail lens grading metrics
+* Ability to export lens metrics
+* Dual-language options (English and Simplified Chinese)
+* Mode to zoom in on outer quadrants or specific markers
+
 <!-- OUR TEAM -->
 # Our Team
-Daniel Green (Scrum Master) --> greend5@oregonstate.edu
-<br>Nathan Puckett --> puckette@oregonstate.edu
-<br>Bernardo Mendes --> mendesb@oregonstate.edu
-<br>Jack Ollenbrook --> ollenbrj@oregonstate.edu
-<br>Raed Kabir --> kabirr@oregonstate.edu
+**Daniel Green** (fuzzylogic88) --> Team Captain, Scrum Master
+<br>**Nathan Puckett** (natpuck) --> GUI
+<br>**Bernardo Mendes** (BernardoM03) --> Implementation
+<br>**Jack Ollenbrook** (OllenJ) --> Implementation
+<br>**Raed Kabir** (Reptop) --> GUI, Implementation
 
 <!-- GETTING STARTED -->
 # Getting Started
