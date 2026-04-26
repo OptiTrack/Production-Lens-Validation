@@ -14,7 +14,7 @@
 #include <opencv2/imgproc.hpp>
 #include <qlogging.h>
 #include <stdexcept>
-
+#include "CircleMarkerDetector.h"
 #include "FocusEval.h"
 
 using Bitmap = CameraLibrary::Bitmap;
@@ -26,9 +26,10 @@ size_t sampleCount = 65535;
 double maxInstanceScore = 0.0;
 double smoothedRatio = 0.0;
 
+const int minContourCount = 3;
 const double loFocusThreshold = 0.3;
-const double decayRate =
-    0.93; // per evaluation, forget old max val a little bit
+const double decayRate = 0.93; // per evaluation, forget old max val a little bit
+const double ewm_alpha = 0.2;
 
 /// <summary>
 /// Converts a bitmap to an openCV mat
@@ -56,7 +57,7 @@ cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap *bmp) {
 /// </summary>
 /// <param name="bmp">Incoming frame bitmap data</param>
 /// <returns>frameScore struct with quantative focus data</returns>
-frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp) {
+frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
 
   cv::Mat img = ConvertBitmapToMat(bmp);
 
@@ -69,36 +70,24 @@ frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp) {
     gray = img;
   }
 
-  cv::Mat edges;
-
-  const int lowThreshold = 100;
-  const int ratio = 3;
-  const int kernel_size = 3;
-
-  cv::Mat smoothed;
-  cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
-  cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
-
-  std::vector<std::vector<cv::Point>> contours;
-  std::vector<cv::Vec4i> hierarchy;
-  cv::findContours(edges, contours, hierarchy, cv::RETR_EXTERNAL,
-                   cv::CHAIN_APPROX_SIMPLE);
-
   double weightedCircularity = 0.0;
   double totalArea = 0.0;
   int validContours = 0;
 
-  for (const auto &contour : contours) {
-    double area = cv::contourArea(contour);
-    double perimeter = cv::arcLength(contour, true);
+  for (const auto &circle : circles) {
+     std::vector<cv::Point> contour = circle.contour;// findContours returns a vector of contours, so we wrap our single contour in another vector
+     if (circle.isValid) {
+         double area = cv::contourArea(contour);
+         double perimeter = cv::arcLength(contour, true);
 
-    // Filter out noise / tiny fragments
-    if (perimeter > 0 && area > 10.0) {
-      double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
-      weightedCircularity += circularity * area; // use area as weight
-      validContours++;
-      totalArea += area;
-    }
+         // Filter out noise / tiny fragments
+         if (perimeter > 0 && area > 10.0) {
+             double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
+             weightedCircularity += circularity * area; // use area as weight
+             validContours++;
+             totalArea += area;
+         }
+     }
   }
 
   FocusEvaluator::frameScore fs{};
@@ -141,7 +130,6 @@ double FocusEvaluator::getBestLocalFocus() {
 double FocusEvaluator::compareScoreToMax(const frameScore &fs) {
 
   // Reject frames with too few contours - score would be unreliable
-  const int minContourCount = 3;
   if (fs.contourCount < minContourCount) {
     return smoothedRatio;
   }
@@ -180,8 +168,7 @@ double FocusEvaluator::compareScoreToMax(const frameScore &fs) {
   // qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
 
   // apply EMA smoothing to ratio
-  const double alpha = 0.2;
-  smoothedRatio = alpha * ratio + (1.0 - alpha) * smoothedRatio;
+  smoothedRatio = ewm_alpha * ratio + (1.0 - ewm_alpha) * smoothedRatio;
 
   return smoothedRatio;
 }
@@ -214,8 +201,8 @@ void FocusEvaluator::onResetFocusStats() {
 /// <param name="bmp">Incoming frame data from camera</param>
 /// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal
 /// focus</returns>
-double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap *bmp) {
-  frameScore fs = gradeFrame(bmp);
+double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
+  frameScore fs = gradeFrame(bmp, circles);
   double score = compareScoreToMax(fs);
   addFrameScore(fs);
   return score;

@@ -219,6 +219,10 @@ void MetricsManager::UpdateLensDisposition() {
 
     double penalty = 0;
 
+    double markerHypotToCenter =
+        std::hypot(std::abs(imageCenter.x - m.centroid.x),
+            std::abs(imageCenter.y - m.centroid.y));
+
     // if oval, determine distance from center the centroid is, and apply scaled
     // penalty based on distance. The further from center, the greater penalty,
     // as we expect more deformation/pincushion there. Scale penalty with
@@ -233,13 +237,9 @@ void MetricsManager::UpdateLensDisposition() {
         continue;
       }
 
-      double markerHypotToCenter =
-          std::hypot(std::abs(imageCenter.x - m.centroid.x),
-                     std::abs(imageCenter.y - m.centroid.y));
-
       // marker centroid deviation from true image center as weight
       // added scaling value to increase severity
-      double scaledMultiplier = 2.2 * 1 - (markerHypotToCenter / hypotToCenter);
+      double scaledMultiplier = 2 * 1 - (markerHypotToCenter / hypotToCenter);
 
       qDebug("[dbg] Max hypot: %.2f, marker hypot to center: %.2f, Distance "
              "weight: %.2f",
@@ -256,15 +256,18 @@ void MetricsManager::UpdateLensDisposition() {
       penalty = (1 - m.circularityScore); // apply unweighted circularity score
       qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
     }
+
+    else if (m.mClass == markerClass::hook) {
+      double scaledMultiplier = 8.8 * 1 - (markerHypotToCenter / hypotToCenter);
+      penalty = 8 * (1 - m.circularityScore);
+      qDebug("[dbg] Calculated hook marker penalty: %.2f", penalty);
+    }
+
     score -= penalty;
   }
 
-  if (hasHook) {
-    qDebug("[dbg] Hook in collection! Lens fails.");
-    m_metrics.lensDisp = lensDisposition::fail;
-    m_metrics.lensScore = 0;
-    return;
-  }
+  // no negative scores, no scores in excess of max
+  std::clamp(score, 0.0, maxScore);
 
   // assign disposition to metrics object
   double scorePct = score / maxScore;

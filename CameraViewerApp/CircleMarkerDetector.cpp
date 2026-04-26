@@ -74,6 +74,12 @@ CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap *bmp) {
 
 std::vector<CircleMarkerDetector::CircleMarker>
 CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
+  DetectionParams params;
+  {
+    std::lock_guard<std::mutex> lock(m_paramsMutex);
+    params = m_params;
+  }
+
   // Convert to grayscale
   cv::Mat gray;
   if (mat.channels() == 3) {
@@ -88,10 +94,10 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
   cv::Mat blurred;
   cv::GaussianBlur(gray, blurred, cv::Size(3, 3), 1.0);
   std::vector<cv::Vec3f> circles;
-  cv::HoughCircles(blurred, circles, cv::HOUGH_GRADIENT, m_params.dp,
-                   m_params.minDist, m_params.param1, m_params.param2,
-                   static_cast<int>(m_params.minRadius),
-                   static_cast<int>(m_params.maxRadius));
+  cv::HoughCircles(blurred, circles, cv::HOUGH_GRADIENT, params.dp,
+                   params.minDist, params.param1, params.param2,
+                   static_cast<int>(params.minRadius),
+                   static_cast<int>(params.maxRadius));
 
   m_lastDetectionCount = static_cast<int>(circles.size());
 
@@ -200,8 +206,8 @@ float CircleMarkerDetector::CalculateCircularity(
 CircleMarkerDetector::ShapeType
 CircleMarkerDetector::CategorizeShape(float circularity) {
   // Thresholds for shape categorization
-  const float OVAL_UPPER_THRESHOLD = 0.84f;
-  const float OVAL_LOWER_THRESHOLD = 0.48f;
+  const float OVAL_UPPER_THRESHOLD = 0.92f;
+  const float OVAL_LOWER_THRESHOLD = 0.70f;
 
   if (circularity > OVAL_UPPER_THRESHOLD) {
     return ShapeType::Circle;
@@ -213,5 +219,6 @@ CircleMarkerDetector::CategorizeShape(float circularity) {
 }
 
 void CircleMarkerDetector::SetDetectionParams(const DetectionParams &params) {
+  std::lock_guard<std::mutex> lock(m_paramsMutex);
   m_params = params;
 }

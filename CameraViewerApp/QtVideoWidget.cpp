@@ -1171,23 +1171,23 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char *src, cv::Mat &gray,
         // Circularity: when the user has manually pinned this slot, find the
         // ROI whose centroid is closest to the clicked point so we report the
         // score for the selected marker.
-        {
-          int circularityIdx = centerIdx;
-          const cv::Point2f &clickPos4 = quadrantClickPositions[4];
-          if (clickPos4.x != -1 && clickPos4.y != -1) {
-            float minDistSq = std::numeric_limits<float>::max();
-            for (size_t i = 0; i < rois.size(); ++i) {
-              float dx = rois[i].centroid.x - clickPos4.x;
-              float dy = rois[i].centroid.y - clickPos4.y;
-              float d = dx * dx + dy * dy;
-              if (d < minDistSq) {
-                minDistSq = d;
-                circularityIdx = static_cast<int>(i);
-              }
+        int circularityIdx = centerIdx;
+        const cv::Point2f &clickPos4 = quadrantClickPositions[4];
+
+        if (clickPos4.x != -1 && clickPos4.y != -1) {
+          float minDistSq = std::numeric_limits<float>::max();
+          for (size_t i = 0; i < rois.size(); ++i) {
+            float dx = rois[i].centroid.x - clickPos4.x;
+            float dy = rois[i].centroid.y - clickPos4.y;
+            float d = dx * dx + dy * dy;
+            if (d < minDistSq) {
+              minDistSq = d;
+              circularityIdx = static_cast<int>(i);
             }
           }
-          s.circularity = rois[circularityIdx].circularity;
         }
+        s.circularity = rois[circularityIdx].circularity;
+        
 
         // Optional circle-detector refinement (same as corner slots).
         if (quadrantClickPositions[4].x == -1 &&
@@ -1351,8 +1351,7 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW,
   const float H = float(height());
 
   // Coordinate mapping: Combined space → Frame space → Screen space → NDC
-  // 1. Combined image (combinedW x combinedH) was resized to (frame_width x
-  // frame_height)
+  // 1. Combined image (combinedW x combinedH) was resized to (frame_width x frame_height)
   // 2. Frame is fitted into screen rect (dstX, dstY, dstW, dstH)
 
   const float resizeScaleX = float(frame_width) / float(shapeParams.combinedW);

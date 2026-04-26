@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CameraHelpers.h"
+#include <mutex>
 #include <opencv2/opencv.hpp>
 #include <vector>
 
@@ -15,9 +16,9 @@
 class CircleMarkerDetector {
 public:
   enum class ShapeType {
-    Circle = 0, ///< Circularity > 0.75
-    Oval = 1,   ///< Circularity 0.65-0.75
-    Hook = 2    ///< Circularity < 0.65 (detection FAIL)
+    Circle = 0,
+    Oval = 1,
+    Hook = 2
   };
 
   struct CircleMarker {
@@ -38,9 +39,9 @@ public:
 
   struct DetectionParams {
     double dp = 1.0;         ///< Inverse ratio of accumulator resolution
-    double minDist = 5.0;    ///< Minimum distance between circles
-    double param1 = 100.0;   ///< Upper threshold for Canny edge detection
-    double param2 = 1.0;     ///< Accumulator threshold for circle detection
+    double minDist = 10.0;    ///< Minimum distance between circles
+    double param1 = 300.0;   ///< Upper threshold for Canny edge detection
+    double param2 = 5.0;     ///< Accumulator threshold for circle detection
     double minRadius = 1.0;  ///< Minimum circle radius
     double maxRadius = 30.0; ///< Maximum circle radius
   };
@@ -79,6 +80,7 @@ private:
   /// @return The categorized shape type
   ShapeType CategorizeShape(float circularity);
 
+  mutable std::mutex m_paramsMutex;
   DetectionParams m_params;
   int m_lastDetectionCount = 0;
 };
