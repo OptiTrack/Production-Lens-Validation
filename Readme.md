@@ -71,9 +71,10 @@ The program the lens testing team currently uses is intended for direct motion c
 ## Build Instructions (Ubuntu)
 
 1. Install Dependencies
-<br>`sudo apt update && sudo apt install -y cmake git build-essential`
-<br>`qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev`
-<br>`libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv`
+`sudo apt update && sudo apt install -y cmake git build-essential`
+`qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev`
+`libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv`
+
 
 2. Clone Repository
 <br>Navigate to the directory where you want the project, then run:
@@ -81,9 +82,11 @@ The program the lens testing team currently uses is intended for direct motion c
 <br>`git clone https://github.com/fuzzylogic88/Production-Lens-Validation.git`
 <br>`cd Production-Lens-Validation`
 
+
 3. Build Project
 <br>`chmod +x build.sh`
 <br>`./build.sh ../OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu`
+
 
 4. (Optional) Enable color camera support (FFmpeg)
 <br>Install FFmpeg:
@@ -91,6 +94,7 @@ The program the lens testing team currently uses is intended for direct motion c
 
 <br>Build with FFmpeg support:
 <br>`./linuxBuild.sh ../CameraSDK --ffmpeg`
+
 
 5. Configure network (required)
 <br>Set the camera network interface to Link-Local Only:
