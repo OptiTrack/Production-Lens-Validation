@@ -57,11 +57,13 @@ void CameraControlPanel::buildUi() {
   QIcon clearLockIcon(clearLockIconPath);
 
   // DEBUG: highlights widgets in red to view parenting
+  /*
   this->setStyleSheet(R"(
     QWidget {
         border: 1px solid rgba(255, 0, 0, 120);
     }
     )");
+  */
 
   // UI build start
   auto *root = new QHBoxLayout(this);
@@ -408,21 +410,20 @@ void CameraControlPanel::buildUi() {
             // handle ROI-Zoom UI behavior
             bool possible = isMarkerZoomPossible();
             updateMarkerZoomControlsEnabled(possible);
-            if (!possible) {
-              qDebug("marker zoom not possible");
-              zoom_slider->setValue(20);
-              setLensInspectionModeIndex(0);
-            } else {
-              qDebug("marker zoom is possible");
-            }
+            // Always reset to index 0 on mode change — ROI zoom must be
+            // explicitly re-enabled by the user regardless of whether the
+            // new mode supports it.
+            zoom_slider->setValue(20);
+            setLensInspectionModeIndex(0);
 
             if (!isCompatible && edge_button->isChecked()) {
               edge_button->setChecked(false);
               emit edgeDetectToggled(false);
             }
 
-            // Handle ROI marker zoom case with grayscale mode
-            emit onMarkerZoomToggled(possible);
+            // ROI zoom is always off after a mode change; the combo reset
+            // above ensures the UI matches.
+            emit onMarkerZoomToggled(false);
           });
 
   // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -525,12 +526,14 @@ void CameraControlPanel::buildUi() {
   auto* lensInspectionLayout = new QVBoxLayout(lens_inspection_group);
   lensInspectionLayout->setContentsMargins(6, 6, 6, 6);
 
-  // row layout (mirror of generalZoomModeRowLayout)
-  auto* lensInspectionRowLayout = new QHBoxLayout();
+  // row widget + layout (mirrors generalZoomModeWidget / generalZoomModeRowLayout)
+  auto* lensInspectionRowWidget = new QWidget(lens_inspection_group);
+  auto* lensInspectionRowLayout = new QHBoxLayout(lensInspectionRowWidget);
+  lensInspectionRowLayout->setContentsMargins(0, 0, 0, 0);
   lensInspectionRowLayout->setSpacing(6);
 
   // combo (Lens Inspection version)
-  lens_inspection_mode_combo = new QComboBox(lens_inspection_group);
+  lens_inspection_mode_combo = new QComboBox(lensInspectionRowWidget);
   repopulateLensInspectionModes();
 
   lens_inspection_mode_combo->setSizePolicy(
@@ -539,7 +542,7 @@ void CameraControlPanel::buildUi() {
   );
 
   // button (Lens Inspection version)
-  lens_inspection_clear_lock_button = new QPushButton(lens_inspection_group);
+  lens_inspection_clear_lock_button = new QPushButton(lensInspectionRowWidget);
   lens_inspection_clear_lock_button->setFixedSize(32, 32);
   lens_inspection_clear_lock_button->setIcon(clearLockIcon);
   lens_inspection_clear_lock_button->setIconSize(QSize(56, 56));
@@ -571,12 +574,11 @@ void CameraControlPanel::buildUi() {
       QSizePolicy::Fixed
   );
 
-  //lens_inspection_mode_combo->setParent(lens_inspection_group);
   lensInspectionRowLayout->addWidget(lens_inspection_mode_combo, 1);
   lensInspectionRowLayout->addWidget(lens_inspection_clear_lock_button, 0);
   lensInspectionRowLayout->addStretch();
 
-  lensInspectionLayout->addLayout(lensInspectionRowLayout);
+  lensInspectionLayout->addWidget(lensInspectionRowWidget);
   v1->addWidget(lens_inspection_group);
 
   connect(lens_inspection_mode_combo,
@@ -642,8 +644,6 @@ void CameraControlPanel::buildUi() {
   zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
   zoomLayoutW->addWidget(zoom_button);
 
-  lensInspectionLayout->addWidget(lens_inspection_mode_label);
-  lensInspectionLayout->addWidget(lens_inspection_mode_combo);
   lensInspectionLayout->addWidget(zoomWidget);
 
   // Hough Circle Detection

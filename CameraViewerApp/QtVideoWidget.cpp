@@ -674,6 +674,11 @@ void VideoWidget::mousePressEvent(QMouseEvent *event) {
   if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton)
     return;
 
+  // Lock placement requires ROI zoom to be active
+  if (!clearSelection && !roiZoomEnabled.load(std::memory_order_relaxed)) {
+      return;
+  }
+
   // click position in widget pixels
   QPoint c = event->pos();
 

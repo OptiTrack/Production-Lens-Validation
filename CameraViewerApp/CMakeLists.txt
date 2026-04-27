@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options
 option(ENABLE_FFMPEG "Build with FFmpeg video decoding" OFF)
+option(ENABLE_ASAN "Build with AddressSanitizer (MSVC only)" OFF)
 
 # Default to a local 'ffmpeg' folder (Windows); can be overridden with -DFFMPEG_ROOT=...
 set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/ffmpeg" CACHE PATH "Path to FFmpeg install prefix (bin/include/lib layout)")
@@ -76,6 +77,14 @@ if(MSVC)
     target_compile_definitions(CameraViewerApp PRIVATE
         $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>
     )
+endif()
+
+if(ENABLE_ASAN AND MSVC)
+    # /RTC1 (injected by CMake in Debug) is incompatible with ASAN — strip it first
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(CameraViewerApp PRIVATE /fsanitize=address /Zi)
+    target_link_options(CameraViewerApp PRIVATE /INCREMENTAL:NO)
+    message(STATUS "AddressSanitizer enabled")
 endif()
 
 # Translations
