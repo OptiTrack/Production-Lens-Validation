@@ -87,7 +87,6 @@ The program the lens testing team currently uses is intended for direct motion c
 4. (Optional) Enable color camera support (FFmpeg)
 <br>Install FFmpeg:
 <br>`sudo apt install -y ffmpeg`
-
 <br>Build with FFmpeg support:
 <br>`./linuxBuild.sh ../CameraSDK --ffmpeg`
 
