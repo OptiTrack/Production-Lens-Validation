@@ -8,12 +8,12 @@
    <li>
      <a href="#getting-started">Getting Started</a>
      <ul>
-      <li><a href="#windows">Build Instructions (Windows)<li>
-          <ul>
-            <li><a href="#dependencies">Dependencies</a></li>
-            <li><a href="#installation">Installation</a></li>
-          <ul>
-        <li><a href="#ubuntu">Build Instructions (Ubuntu)<li>
+        <li><a href="#windows-build-instructions">Windows Build Instructions<li>
+            <ul>
+              <li><a href="#dependencies">Dependencies</a></li>
+              <li><a href="#installation">Installation</a></li>
+            <ul>
+        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions<li>
      </ul>
    </li>
    <li><a href="#license">License</a></li>
@@ -48,7 +48,7 @@ The program the lens testing team currently uses is intended for direct motion c
 <!-- GETTING STARTED -->
 # Getting Started
 
-## Build Instructions (Windows)
+## Windows Build Instructions
 
 <!-- DEPENDECIES -->
 ### Dependecies
@@ -73,7 +73,7 @@ The program the lens testing team currently uses is intended for direct motion c
 4. Your executable will be located at `..\Production-Lens-Validation\CameraViewerApp\build\Release\CameraViewerApp.exe`.
 
 
-## Build Instructions (Ubuntu)
+## Ubuntu Build Instructions
 
 1. Install Dependencies
 <br>`sudo apt update && sudo apt install -y cmake git build-essential`
