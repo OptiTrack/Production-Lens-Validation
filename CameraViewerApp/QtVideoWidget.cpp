@@ -1099,30 +1099,32 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char *src, cv::Mat &gray,
 
         // Update this slot's state with the chosen candidate.
         auto &s = quadrantSlots[slot];
-        if (quadrantClickPositions[slot].x != -1 &&
-            quadrantClickPositions[slot].y != -1) {
-          // Manual pin: lock centroid directly to the clicked image coordinate.
-          s.centroid.x = quadrantClickPositions[slot].x;
-          s.centroid.y = quadrantClickPositions[slot].y;
-        } else {
-          if (s.hasTrack) {
-            // EMA smoothing: blend the new detection toward the previous
-            // centroid. alpha (centroid_smoothing_alpha) controls how quickly
-            // the centroid follows movement — lower = smoother but slower to
-            // react.
-            s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x +
-                           (1.0f - centroid_smoothing_alpha) * s.centroid.x;
-            s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y +
-                           (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+        if (chosen != -1){
+          if (quadrantClickPositions[slot].x != -1 &&
+              quadrantClickPositions[slot].y != -1) {
+            // Manual pin: lock centroid directly to the clicked image coordinate.
+            s.centroid.x = quadrantClickPositions[slot].x;
+            s.centroid.y = quadrantClickPositions[slot].y;
           } else {
-            // First acquisition: snap directly with no blending.
-            s.centroid = rois[chosen].centroid;
+            if (s.hasTrack) {
+              // EMA smoothing: blend the new detection toward the previous
+              // centroid. alpha (centroid_smoothing_alpha) controls how quickly
+              // the centroid follows movement — lower = smoother but slower to
+              // react.
+              s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x +
+                            (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+              s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y +
+                            (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+            } else {
+              // First acquisition: snap directly with no blending.
+              s.centroid = rois[chosen].centroid;
+            }
           }
+          s.hasTrack = true;
+          // Record circularity from the chosen candidate so the displayed score
+          // always corresponds to the marker this slot is actually zoomed into.
+          s.circularity = rois[chosen].circularity;
         }
-        s.hasTrack = true;
-        // Record circularity from the chosen candidate so the displayed score
-        // always corresponds to the marker this slot is actually zoomed into.
-        s.circularity = rois[chosen].circularity;
 
         // Optional refinement: if the CircleMarkerDetector is running, replace
         // the contour centroid with its more precise circle center for a
