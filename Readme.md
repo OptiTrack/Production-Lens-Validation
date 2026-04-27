@@ -2,18 +2,20 @@
 <details>
  <summary>Table of Contents</summary>
  <ol>
-   <li><a href="#project">Project</a></li>
+   <li><a href="#production-lens-validation-tool">Production Lens Validation Tool</a></li>
    <li><a href="#key-features">Key Features</a></li>
    <li><a href="#our-team">Our Team</a></li>
    <li>
      <a href="#getting-started">Getting Started</a>
      <ul>
-        <li><a href="#windows-build-instructions">Windows Build Instructions<li>
-            <ul>
-              <li><a href="#dependencies">Dependencies</a></li>
-              <li><a href="#installation">Installation</a></li>
-            <ul>
-        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions<li>
+        <li>
+          <a href="#windows-build-instructions">Windows Build Instructions</a>
+              <ul>
+                <li><a href="#dependencies">Dependencies</a></li>
+                <li><a href="#installation">Installation</a></li>
+              <ul>
+          <li>
+        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions</a><li>
      </ul>
    </li>
    <li><a href="#license">License</a></li>
