@@ -79,12 +79,35 @@ if(MSVC)
     )
 endif()
 
-if(ENABLE_ASAN AND MSVC)
-    # /RTC1 (injected by CMake in Debug) is incompatible with ASAN — strip it first
-    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-    target_compile_options(CameraViewerApp PRIVATE /fsanitize=address /Zi)
-    target_link_options(CameraViewerApp PRIVATE /INCREMENTAL:NO)
+# -------------------------------
+# AddressSanitizer (cross-platform)
+# -------------------------------
+option(ENABLE_ASAN "Build with AddressSanitizer" OFF)
+
+if(ENABLE_ASAN)
     message(STATUS "AddressSanitizer enabled")
+
+    if(MSVC)
+        # Remove incompatible flags
+        string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+
+        # Enable ASan
+        target_compile_options(CameraViewerApp PRIVATE /fsanitize=address /Zi)
+        target_link_options(CameraViewerApp PRIVATE /INCREMENTAL:NO)
+
+        # Ensure correct runtime
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    else()
+        # GCC / Clang
+        target_compile_options(CameraViewerApp PRIVATE
+            -fsanitize=address
+            -fno-omit-frame-pointer
+            -g
+        )
+        target_link_options(CameraViewerApp PRIVATE
+            -fsanitize=address
+        )
+    endif()
 endif()
 
 # Translations
@@ -138,7 +161,7 @@ function(copy_assets TARGET SRC_DIR DEST_SUBDIR)
 endfunction()
 
 copy_assets(CameraViewerApp
-    "${CMAKE_SOURCE_DIR}/Assets"
+    "${CMAKE_SOURCE_DIR}/assets"
     "Assets"
 )
 
