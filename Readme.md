@@ -3,12 +3,17 @@
  <summary>Table of Contents</summary>
  <ol>
    <li><a href="#project">Project</a></li>
+   <li><a href="#key-features">Key Features</a></li>
    <li><a href="#our-team">Our Team</a></li>
    <li>
      <a href="#getting-started">Getting Started</a>
      <ul>
-       <li><a href="#dependecies">Dependecies</a></li>
-       <li><a href="#installation">Installation</a></li>
+      <li><a href="#windows">Build Instructions (Windows)<li>
+          <ul>
+            <li><a href="#dependencies">Dependencies</a></li>
+            <li><a href="#installation">Installation</a></li>
+          <ul>
+        <li><a href="#ubuntu">Build Instructions (Ubuntu)<li>
      </ul>
    </li>
    <li><a href="#license">License</a></li>
