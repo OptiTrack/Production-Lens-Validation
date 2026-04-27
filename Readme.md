@@ -77,16 +77,13 @@ The program the lens testing team currently uses is intended for direct motion c
 
 2. Clone Repository
 <br>Navigate to the directory where you want the project, then run:
-<br>
 <br>git clone https://github.com/fuzzylogic88/Production-Lens-Validation.git
 <br>cd Production-Lens-Validation
 
 3. Download CameraSDK
 <br>Download from:
 <br>https://optitrack.com/support/downloads
-<br>
 <br>Extract CameraSDK so it is one directory above the project folder:
-<br>
 <br>Production-Lens-Validation/
 <br>├── CameraSDK/
 <br>└── CamerViewerApp/
@@ -98,15 +95,13 @@ The program the lens testing team currently uses is intended for direct motion c
 5. (Optional) Enable color camera support (FFmpeg)
 <br>Install FFmpeg:
 <br>sudo apt install -y ffmpeg
-<br>
 <br>Build with FFmpeg support:
 <br>./linuxBuild.sh ../CameraSDK --ffmpeg
 
 6. Configure network (required)
 <br>Set the camera network interface to Link-Local Only:
-<br>
 <br>Settings → Network → Wired (camera port) → IPv4 → IPv4 Method → Link-Local Only
-<br>
+
 7. Run application
 <br>./build/CameraViewerApp
 
