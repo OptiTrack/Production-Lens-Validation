@@ -13,9 +13,9 @@
               <ul>
                 <li><a href="#dependencies">Dependencies</a></li>
                 <li><a href="#installation">Installation</a></li>
-              <ul>
-          <li>
-        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions</a><li>
+              </ul>
+        </li>
+        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions</a></li>
      </ul>
    </li>
    <li><a href="#license">License</a></li>
