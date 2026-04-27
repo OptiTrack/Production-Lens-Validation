@@ -43,7 +43,7 @@ The program the lens testing team currently uses is intended for direct motion c
 <!-- GETTING STARTED -->
 # Getting Started
 
-
+## Build Instructions (Windows)
 
 <!-- DEPENDECIES -->
 ### Dependecies
@@ -67,6 +67,47 @@ The program the lens testing team currently uses is intended for direct motion c
   `..\Production-Lens-Validation\CameraViewerApp\winBuild.bat` Example:*`./WinBuild.bat <CameraSDK_PATH>`*
 4. Your executable will be located at `..\Production-Lens-Validation\CameraViewerApp\build\Release\CameraViewerApp.exe`.
 
+
+## Build Instructions (Ubuntu)
+
+1. Install Dependencies
+<br>sudo apt update && sudo apt install -y cmake git build-essential 
+<br>qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev 
+<br>libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv
+<br>
+2. Clone Repository
+<br>Navigate to the directory where you want the project, then run:
+<br>
+<br>git clone https://github.com/fuzzylogic88/Production-Lens-Validation.git
+<br>cd Production-Lens-Validation
+<br>
+3. Download CameraSDK
+<br>Download from:
+<br>https://optitrack.com/support/downloads
+<br>
+<br>Extract CameraSDK so it is one directory above the project folder:
+<br>
+<br>Production-Lens-Validation/
+<br>├── CameraSDK/
+<br>└── CamerViewerApp/
+4. Build Project
+<br>chmod +x build.sh
+<br>./build.sh ../CameraSDK
+<br>
+5. (Optional) Enable color camera support (FFmpeg)
+<br>Install FFmpeg:
+<br>sudo apt install -y ffmpeg
+<br>
+<br>Build with FFmpeg support:
+<br>./linuxBuild.sh ../CameraSDK --ffmpeg
+<br>
+6. Configure network (required)
+<br>Set the camera network interface to Link-Local Only:
+<br>
+<br>Settings → Network → Wired (camera port) → IPv4 → IPv4 Method → Link-Local Only
+<br>
+7. Run application
+<br>./build/CameraViewerApp
 
 <!-- LICENSE -->
 # License
