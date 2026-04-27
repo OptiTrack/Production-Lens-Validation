@@ -20,7 +20,7 @@
 # Production Lens Validation Tool
 An application created for the lens testing team at OptiTrack that takes an image and identifies and grades the relevant lens' quality by examining how circular the markers are.
 
-<img width="1920" height="1080" alt="Lens Tool - Full App - Zoom View" src="https://github.com/user-attachments/assets/28e3603f-9dba-4553-82b2-434cbec8813a" />
+<img width="1920" height="1080" alt="Lens Tool - Full App - Zoom View" src="https://github.com/natpuck/natpuck.github.io/blob/main/lens_app_screenshot.png" />
 
 The program the lens testing team currently uses is intended for direct motion capture usage and is therefore much more technically complex than what's required for basic lens testing. Our program is intended to be a lightweight and easy to use solution for the team, who'll experience the same functionality, but in a much more streamlined way.
 
