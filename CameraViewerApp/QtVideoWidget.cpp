@@ -649,6 +649,14 @@ void VideoWidget::setNewZoomValue(float value) {
   }
 }
 
+// removes applied ROI locks
+void VideoWidget::ClearROILocks() {
+    cv::Point newPoint = cv::Point(-1, -1);
+    for (int i = 0; i < 5; i++) {
+        quadrantClickPositions[i] = newPoint;
+    }
+}
+
 /*
  Mouse button down event handler for QtVideoWidget
 
@@ -665,6 +673,11 @@ void VideoWidget::mousePressEvent(QMouseEvent *event) {
 
   if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton)
     return;
+
+  // Lock placement requires ROI zoom to be active
+  if (!clearSelection && !roiZoomEnabled.load(std::memory_order_relaxed)) {
+      return;
+  }
 
   // click position in widget pixels
   QPoint c = event->pos();

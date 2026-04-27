@@ -20,74 +20,47 @@
 using Bitmap = CameraLibrary::Bitmap;
 using frameScore = FocusEvaluator::frameScore;
 
-std::deque<FocusEvaluator::frameScore> frameScoreSet;
-size_t sampleCount = 65535;
-
-double maxInstanceScore = 0.0;
-double smoothedRatio = 0.0;
-
 const int minContourCount = 3;
 const double loFocusThreshold = 0.3;
 const double decayRate = 0.93; // per evaluation, forget old max val a little bit
 const double ewm_alpha = 0.2;
 
 /// <summary>
-/// Converts a bitmap to an openCV mat
-/// </summary>
-/// <param name="bmp"></param>
-/// <returns></returns>
-cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap *bmp) {
-  int width = bmp->PixelWidth();
-  int height = bmp->PixelHeight();
-  int bpp = bmp->GetBitsPerPixel();
-  unsigned char *bits = bmp->GetBits();
-  int cvType = (bpp == 8)    ? CV_8UC1
-               : (bpp == 24) ? CV_8UC3
-               : (bpp == 32) ? CV_8UC4
-                             : -1;
-  if (cvType == -1) {
-    throw std::runtime_error("Unsupported bitmap color depth");
-  }
-  cv::Mat mat(height, width, cvType, const_cast<unsigned char *>(bits));
-  return mat.clone(); // clone to ensure ownership
-}
-
-/// <summary>
 /// Given a grayscale Mat, determine avg circularity and area of contours found
 /// </summary>
 /// <param name="bmp">Incoming frame bitmap data</param>
 /// <returns>frameScore struct with quantative focus data</returns>
-frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
-
-  cv::Mat img = ConvertBitmapToMat(bmp);
-
-  cv::Mat gray;
-  if (img.channels() == 3) {
-    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-  } else if (img.channels() == 4) {
-    cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
-  } else {
-    gray = img;
-  }
+frameScore FocusEvaluator::gradeFrame(const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
 
   double weightedCircularity = 0.0;
   double totalArea = 0.0;
   int validContours = 0;
 
-  for (const auto &circle : circles) {
-     std::vector<cv::Point> contour = circle.contour;// findContours returns a vector of contours, so we wrap our single contour in another vector
-     if (circle.isValid) {
-         double area = cv::contourArea(contour);
-         double perimeter = cv::arcLength(contour, true);
+  // Check for corrupt collection, which should never exceed 10k contours.
+  if (circles.size() > 10000) {
+    return FocusEvaluator::frameScore{};
+  }
 
-         // Filter out noise / tiny fragments
-         if (perimeter > 0 && area > 10.0) {
-             double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
-             weightedCircularity += circularity * area; // use area as weight
-             validContours++;
-             totalArea += area;
-         }
-     }
+  for (const auto &circle : circles) {
+    if (!circle.isValid) continue;
+    const auto &contour = circle.contour;
+    if (contour.size() < 5) continue;
+
+    try {
+      double area = cv::contourArea(contour);
+      double perimeter = cv::arcLength(contour, true);
+
+      // Filter out noise / tiny fragments
+      if (perimeter > 0 && area > 10.0) {
+        double circularity =
+            100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
+        weightedCircularity += circularity * area;
+        validContours++;
+        totalArea += area;
+      }
+    } catch (const cv::Exception &) {
+      continue;
+    }
   }
 
   FocusEvaluator::frameScore fs{};
@@ -97,6 +70,7 @@ frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap *bmp, const std::vec
     fs.contourCount = validContours;
   }
   return fs;
+
 }
 
 /// <summary>
@@ -190,6 +164,7 @@ void FocusEvaluator::addFrameScore(frameScore fs) {
 /// </summary>
 void FocusEvaluator::onResetFocusStats() {
   qDebug("[dbg] FocusEvaluator reset: clearing data and resetting max score");
+  std::lock_guard<std::mutex> lock(scoreMutex);
   frameScoreSet.clear();
   maxInstanceScore = 0.0;
   smoothedRatio = 0.0;
@@ -201,8 +176,9 @@ void FocusEvaluator::onResetFocusStats() {
 /// <param name="bmp">Incoming frame data from camera</param>
 /// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal
 /// focus</returns>
-double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap *bmp, const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
-  frameScore fs = gradeFrame(bmp, circles);
+double FocusEvaluator::EvaluateBitmapFocus(const std::vector<CircleMarkerDetector::CircleMarker>& circles) {
+  frameScore fs = gradeFrame(circles);
+  std::lock_guard<std::mutex> lock(scoreMutex);
   double score = compareScoreToMax(fs);
   addFrameScore(fs);
   return score;

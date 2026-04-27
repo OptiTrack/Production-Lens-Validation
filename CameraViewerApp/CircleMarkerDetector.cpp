@@ -168,7 +168,12 @@ float CircleMarkerDetector::CalculateCircularity(
     cv::Point2f centroid(static_cast<float>(m.m10 / m.m00),
                          static_cast<float>(m.m01 / m.m00));
     float dist = cv::norm(centroid - center);
-    double area = cv::contourArea(contours[i]);
+    double area = 0.0;
+    try {
+      area = cv::contourArea(contours[i]);
+    } catch (const cv::Exception &) {
+      continue;
+    }
 
     if (dist < radius * 2.0f && area > maxArea) {
       maxArea = area;

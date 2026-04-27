@@ -276,6 +276,7 @@ void QtCameraViewer::wireSignals() {
               if (gl_viewer_window)
                 gl_viewer_window->setRoiZoomEnabled(enabled);
             });
+
   }
 }
 

@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options
 option(ENABLE_FFMPEG "Build with FFmpeg video decoding" OFF)
+option(ENABLE_ASAN "Build with AddressSanitizer (MSVC only)" OFF)
 
 # Default to a local 'ffmpeg' folder (Windows); can be overridden with -DFFMPEG_ROOT=...
 set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/ffmpeg" CACHE PATH "Path to FFmpeg install prefix (bin/include/lib layout)")
@@ -78,6 +79,14 @@ if(MSVC)
     )
 endif()
 
+if(ENABLE_ASAN AND MSVC)
+    # /RTC1 (injected by CMake in Debug) is incompatible with ASAN — strip it first
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(CameraViewerApp PRIVATE /fsanitize=address /Zi)
+    target_link_options(CameraViewerApp PRIVATE /INCREMENTAL:NO)
+    message(STATUS "AddressSanitizer enabled")
+endif()
+
 # Translations
 # Compile each .ts file to .qm directly into the per-config output directory as
 # a POST_BUILD step. This runs for every build configuration (Debug, Release,
@@ -113,14 +122,24 @@ add_custom_command(
     VERBATIM
 )
 
+
 # make assets dir and copy 
-add_custom_command(
-    TARGET CameraViewerApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CameraViewerApp>/Assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${DESIGNS_DIR}/Small/Lock/Lock-On.svg"
-            "$<TARGET_FILE_DIR:CameraViewerApp>/Assets/Lock-On.svg"
-    VERBATIM
+function(copy_assets TARGET SRC_DIR DEST_SUBDIR)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${SRC_DIR}"
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        VERBATIM
+    )
+endfunction()
+
+copy_assets(CameraViewerApp
+    "${CMAKE_SOURCE_DIR}/Assets"
+    "Assets"
 )
 
 
