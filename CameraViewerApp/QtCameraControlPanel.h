@@ -76,6 +76,7 @@ signals:
   // Update circle detection param2 (accumulator threshold)
   void circleParam2Changed(double param2);
   void edgeDetectToggled(bool enabled);
+  void clearLocksRequested();
   void onMarkerZoomPossible(bool enabled);
   void onMarkerZoomToggled(bool enabled);
   void focusToolToggled(bool enabled);
@@ -113,7 +114,7 @@ private:
 
   QPointer<CameraConnectionManager> camera_manager;
   unsigned selected_serial{0};
-  bool markerZoomPossible = false;
+  bool markerZoomPossible;
 
   QTabWidget *rightTabWidget{nullptr};
   QGroupBox *cam_group{nullptr};
@@ -159,8 +160,10 @@ private:
 
   QLabel *lens_inspection_mode_label{nullptr};
   QComboBox *lens_inspection_mode_combo{nullptr};
+  QPushButton* lens_inspection_clear_lock_button{nullptr};
   QLabel *general_lens_inspection_mode_label{nullptr};
   QComboBox *general_lens_inspection_mode_combo{nullptr};
+  QPushButton* general_clear_lock_button{ nullptr };
 
   QSlider *general_zoom_slider{nullptr};
   QLabel *general_zoom_label{nullptr};
@@ -225,6 +228,7 @@ private slots:
   void onSetZoom(bool reset);
   void onSetGamma();
   void onSetCompression();
+  void onClearROILocks();
   void onSetVideoMode(int modeEnum);
   bool isEdgeDetectCompatible(int mode);
   void onCircleParam2Changed();

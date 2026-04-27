@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
   LensResultLabel *lens_result = new LensResultLabel("Unknown");
 
   MetricsManager mMgr;
-  mMgr.testMM();
+  //mMgr.testMM();
 
   QTimer focusTimer, gradeTimer, circleDetectTimer;
 
@@ -510,6 +510,11 @@ int main(int argc, char *argv[]) {
                      cmd.SetDetectionParams(params);
                      qDebug("[ui] Circle param2 changed to %.1f", param2);
                    });
+
+  QObject::connect(panel, &CameraControlPanel::clearLocksRequested, viewer, [viewer]() {
+          viewer->videoWidget()->ClearROILocks();
+          qDebug("Clearing locked quadrants...");
+      });
 
   const int rc = app.exec();
   guard.finalize();

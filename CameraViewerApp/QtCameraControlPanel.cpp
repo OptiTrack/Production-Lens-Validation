@@ -50,10 +50,23 @@ bool CameraControlPanel::isMarkerZoomPossible() const {
 }
 
 void CameraControlPanel::buildUi() {
+
+  // asset-related
+  QString exeDir = QCoreApplication::applicationDirPath();
+  QString clearLockIconPath = QDir(exeDir).filePath("Assets/Lock-Broken-On.svg");
+  QIcon clearLockIcon(clearLockIconPath);
+
+  // DEBUG: highlights widgets in red to view parenting
+  this->setStyleSheet(R"(
+    QWidget {
+        border: 1px solid rgba(255, 0, 0, 120);
+    }
+    )");
+
+  // UI build start
   auto *root = new QHBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(6);
-
 
   rightTabWidget = new QTabWidget(this);
   // use the 'underline' tab style (sleek blue underline for active tab)
@@ -106,18 +119,54 @@ void CameraControlPanel::buildUi() {
   generalExposureRowLayout->addWidget(general_exposure_label);
   generalExposureLayout->addWidget(generalExposureRow);
   vGeneral->addWidget(generalExposureWidget);
-
-  auto *generalZoomModeWidget = new QWidget(tabGeneral);
-  auto *generalZoomModeLayout = new QVBoxLayout(generalZoomModeWidget);
+  auto* generalZoomModeWidget = new QWidget(tabGeneral);
+  auto* generalZoomModeLayout = new QVBoxLayout(generalZoomModeWidget);
   generalZoomModeLayout->setContentsMargins(6, 0, 6, 0);
   generalZoomModeLayout->setSpacing(6);
+
   general_lens_inspection_mode_label = new QLabel(generalZoomModeWidget);
-  generalZoomModeLayout->addWidget(general_lens_inspection_mode_label, 0,
-                                   Qt::AlignLeft);
+  generalZoomModeLayout->addWidget(general_lens_inspection_mode_label, 0, Qt::AlignLeft);
+
+  // horizontal row to house both the combobox and the clear lock button
+  auto* generalZoomModeRowLayout = new QHBoxLayout();
+  generalZoomModeRowLayout->setSpacing(6);
 
   general_lens_inspection_mode_combo = new QComboBox(generalZoomModeWidget);
   repopulateLensInspectionModes();
-  generalZoomModeLayout->addWidget(general_lens_inspection_mode_combo);
+  general_lens_inspection_mode_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  generalZoomModeRowLayout->addWidget(general_lens_inspection_mode_combo, 1);
+
+  general_clear_lock_button = new QPushButton(generalZoomModeWidget);
+  general_clear_lock_button->setFixedSize(32, 32);
+  general_clear_lock_button->setIcon(clearLockIcon);
+  general_clear_lock_button->setIconSize(QSize(56, 56));
+  general_clear_lock_button->setStyleSheet(R"(
+    QPushButton {
+        border: 1px solid #00c8d7;
+        border-radius: 6px;
+        background: transparent;
+        padding: 0px;
+    }
+
+    QPushButton:hover {
+        background: rgba(0, 200, 215, 0.08);
+    }
+
+    QPushButton:pressed {
+        background: rgba(0, 200, 215, 0.15);
+    }
+)");
+  general_clear_lock_button->setProperty("secondary", true);
+  general_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+
+  connect(general_clear_lock_button, &QPushButton::clicked, this,
+      [this]() { onClearROILocks(); });
+
+  general_clear_lock_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  generalZoomModeRowLayout->addWidget(general_clear_lock_button, 0);
+  generalZoomModeRowLayout->addStretch();
+
+  generalZoomModeLayout->addLayout(generalZoomModeRowLayout);
   vGeneral->addWidget(generalZoomModeWidget);
 
   auto *generalZoomWidget = new QWidget(tabGeneral);
@@ -356,28 +405,15 @@ void CameraControlPanel::buildUi() {
             const bool isCompatible = isEdgeDetectCompatible(mode);
             edge_button->setEnabled(isCompatible);
 
-            // // Disable ROI Zoom option in combo box
-            // QStandardItemModel *model =
-            //     qobject_cast<QStandardItemModel
-            //     *>(lens_inspection_mode_combo->model());
-            // Q_ASSERT(model != nullptr);
-            // bool disabled = true;
-            // QStandardItem *item = model->item(1);
-            // item->setFlags(disabled ? item->flags() & ~Qt::ItemIsEnabled
-            //                         : item->flags() | Qt::ItemIsEnabled);
-            // lens_inspection_mode_combo->show();
-
             // handle ROI-Zoom UI behavior
             bool possible = isMarkerZoomPossible();
             updateMarkerZoomControlsEnabled(possible);
             if (!possible) {
               qDebug("marker zoom not possible");
-              zoom_slider->setValue(10);
+              zoom_slider->setValue(20);
               setLensInspectionModeIndex(0);
             } else {
               qDebug("marker zoom is possible");
-              // lens_inspection_mode_combo->setItemData(1, true, Qt::UserRole
-              // -1);
             }
 
             if (!isCompatible && edge_button->isChecked()) {
@@ -386,7 +422,7 @@ void CameraControlPanel::buildUi() {
             }
 
             // Handle ROI marker zoom case with grayscale mode
-            emit onMarkerZoomPossible(possible);
+            emit onMarkerZoomToggled(possible);
           });
 
   // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -485,16 +521,63 @@ void CameraControlPanel::buildUi() {
   v1->addWidget(focusToolGroup);
 
   // Group: Lens Inspection
-
   lens_inspection_group = new QGroupBox(tr("Lens Inspection"));
-  auto *lensInspectionLayout = new QVBoxLayout(lens_inspection_group);
+  auto* lensInspectionLayout = new QVBoxLayout(lens_inspection_group);
   lensInspectionLayout->setContentsMargins(6, 6, 6, 6);
 
-  lens_inspection_mode_label = new QLabel(tr("Mode:"), lens_inspection_group);
-  lens_inspection_mode_label->setMaximumWidth(60);
-  lens_inspection_mode_label->setMinimumWidth(60);
-  lens_inspection_mode_combo = new QComboBox(tab1);
+  // row layout (mirror of generalZoomModeRowLayout)
+  auto* lensInspectionRowLayout = new QHBoxLayout();
+  lensInspectionRowLayout->setSpacing(6);
+
+  // combo (Lens Inspection version)
+  lens_inspection_mode_combo = new QComboBox(lens_inspection_group);
   repopulateLensInspectionModes();
+
+  lens_inspection_mode_combo->setSizePolicy(
+      QSizePolicy::Expanding,
+      QSizePolicy::Fixed
+  );
+
+  // button (Lens Inspection version)
+  lens_inspection_clear_lock_button = new QPushButton(lens_inspection_group);
+  lens_inspection_clear_lock_button->setFixedSize(32, 32);
+  lens_inspection_clear_lock_button->setIcon(clearLockIcon);
+  lens_inspection_clear_lock_button->setIconSize(QSize(56, 56));
+  lens_inspection_clear_lock_button->setStyleSheet(R"(
+    QPushButton {
+        border: 1px solid #00c8d7;
+        border-radius: 6px;
+        background: transparent;
+        padding: 0px;
+    }
+
+    QPushButton:hover {
+        background: rgba(0, 200, 215, 0.08);
+    }
+
+    QPushButton:pressed {
+        background: rgba(0, 200, 215, 0.15);
+    }
+)");
+
+  lens_inspection_clear_lock_button->setProperty("secondary", true);
+  lens_inspection_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+
+  connect(lens_inspection_clear_lock_button, &QPushButton::clicked, this,
+      [this]() { onClearROILocks(); });
+
+  lens_inspection_clear_lock_button->setSizePolicy(
+      QSizePolicy::Fixed,
+      QSizePolicy::Fixed
+  );
+
+  //lens_inspection_mode_combo->setParent(lens_inspection_group);
+  lensInspectionRowLayout->addWidget(lens_inspection_mode_combo, 1);
+  lensInspectionRowLayout->addWidget(lens_inspection_clear_lock_button, 0);
+  lensInspectionRowLayout->addStretch();
+
+  lensInspectionLayout->addLayout(lensInspectionRowLayout);
+  v1->addWidget(lens_inspection_group);
 
   connect(lens_inspection_mode_combo,
           static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this,
@@ -1568,6 +1651,10 @@ void CameraControlPanel::onSetVideoMode(int modeEnum) {
     if (!err.isEmpty())
       emit showWarning(tr("Unsupported Mode"), err);
   }
+}
+
+void CameraControlPanel::onClearROILocks() {
+    emit clearLocksRequested();
 }
 
 void CameraControlPanel::toggleTabVisibility(int index) {

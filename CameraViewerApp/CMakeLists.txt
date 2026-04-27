@@ -113,14 +113,24 @@ add_custom_command(
     VERBATIM
 )
 
+
 # make assets dir and copy 
-add_custom_command(
-    TARGET CameraViewerApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CameraViewerApp>/Assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${DESIGNS_DIR}/Small/Lock/Lock-On.svg"
-            "$<TARGET_FILE_DIR:CameraViewerApp>/Assets/Lock-On.svg"
-    VERBATIM
+function(copy_assets TARGET SRC_DIR DEST_SUBDIR)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${SRC_DIR}"
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        VERBATIM
+    )
+endfunction()
+
+copy_assets(CameraViewerApp
+    "${CMAKE_SOURCE_DIR}/Assets"
+    "Assets"
 )
 
 

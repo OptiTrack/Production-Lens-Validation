@@ -649,6 +649,14 @@ void VideoWidget::setNewZoomValue(float value) {
   }
 }
 
+// removes applied ROI locks
+void VideoWidget::ClearROILocks() {
+    cv::Point newPoint = cv::Point(-1, -1);
+    for (int i = 0; i < 5; i++) {
+        quadrantClickPositions[i] = newPoint;
+    }
+}
+
 /*
  Mouse button down event handler for QtVideoWidget
 

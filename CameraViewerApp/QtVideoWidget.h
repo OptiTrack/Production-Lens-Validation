@@ -211,6 +211,7 @@ private:
 public:
   /// @brief Update detected circle markers for rendering
   /// @param markers Vector of detected circle markers
+  void ClearROILocks();
   void setDetectedCircleMarkers(
       const std::vector<CircleMarkerDetector::CircleMarker> &markers) {
     std::lock_guard<std::mutex> lock(circleMarkersMutex);
@@ -223,6 +224,10 @@ public slots:
   }
   void setRoiZoomEnabled(bool enabled) {
     roiZoomEnabled.store(enabled, std::memory_order_release);
+    if (!enabled) {
+        qDebug("ROI zoom disabled, clearing locks");
+        ClearROILocks();
+    }
   }
   void setCircleDetectionEnabled(bool enabled) {
     circleDetectionEnabled.store(enabled, std::memory_order_release);
