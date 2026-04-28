@@ -308,9 +308,6 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt) {
         active_serial.store(c->Serial(), std::memory_order_release);
       }
 
-      // Tell the controls which serial to drive
-      camera_controls->setSelectedSerial(static_cast<unsigned>(serial));
-
 #ifdef HAVE_FFMPEG
       const QString camName = QString::fromUtf8(c->Name());
       const bool isColor = camName.startsWith(QStringLiteral("Prime Color"));
@@ -324,6 +321,9 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt) {
         switch_epoch.fetch_add(1, std::memory_order_acq_rel);
       }
 #endif
+
+      // Tell the controls which serial to drive
+      camera_controls->setSelectedSerial(static_cast<unsigned>(serial));
       setEmptyState(true);
       break;
     }
