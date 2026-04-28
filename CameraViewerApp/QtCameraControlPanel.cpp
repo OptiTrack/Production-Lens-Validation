@@ -31,6 +31,33 @@ using namespace CameraLibrary;
 
 // Specialized collection of widgets for camera controls
 
+void CameraControlPanel::setSelectedSerial(unsigned serial) {
+  selected_serial = serial;
+
+  if (!camera_manager || !currentSerialValid()) {
+    return;
+  }
+
+  auto cam = camera_manager->GetCamera(selected_serial);
+  if (!cam) {
+    return;
+  }
+
+  const int exposure = qBound(1, cam->Exposure(), 400);
+
+  const QSignalBlocker exposureBlocker(exposure_slider);
+  const QSignalBlocker generalExposureBlocker(general_exposure_slider);
+
+  if (exposure_slider) {
+    exposure_slider->setValue(exposure);
+  }
+  if (general_exposure_slider) {
+    general_exposure_slider->setValue(exposure);
+  }
+
+  updateSliderLabels();
+}
+
 CameraControlPanel::CameraControlPanel(CameraConnectionManager *mgr,
                                        MetricsManager &mMgr, QWidget *parent)
     : QWidget(parent), camera_manager(mgr), metrics_manager(mMgr) {
@@ -102,7 +129,7 @@ void CameraControlPanel::buildUi() {
                                    Qt::AlignLeft);
 
   general_exposure_slider = new QSlider(Qt::Horizontal, generalExposureWidget);
-  general_exposure_slider->setRange(1, 200);
+  general_exposure_slider->setRange(1, 400);
   general_exposure_slider->setValue(50);
   general_exposure_slider->setSizePolicy(QSizePolicy::Expanding,
                                          QSizePolicy::Fixed);
@@ -254,12 +281,12 @@ void CameraControlPanel::buildUi() {
 
   // Exposure: slider from 1 to 200
   exposure_slider = new QSlider(Qt::Horizontal, cam_group);
-  exposure_slider->setRange(1, 200);
+  exposure_slider->setRange(1, 400);
   exposure_slider->setValue(50);
   exposure_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   exposure_slider->setToolTip("Drag slider to adjust exposure");
   exposure_edit = new QLineEdit(cam_group);
-  exposure_edit->setValidator(new QIntValidator(1, 200, exposure_edit));
+  exposure_edit->setValidator(new QIntValidator(1, 400, exposure_edit));
   exposure_edit->setMaximumWidth(64);
   exposure_edit->setToolTip("Enter an exposure value here");
   exposure_label = new QLabel(cam_group);
@@ -646,34 +673,33 @@ void CameraControlPanel::buildUi() {
 
   lensInspectionLayout->addWidget(zoomWidget);
 
-  // Hough Circle Detection
+  // Lens Grading Controls
   circle_detect_button =
-      new QPushButton(tr("Enable Circle Detection"), lens_inspection_group);
+      new QPushButton(tr("Enable Lens Grading"), lens_inspection_group);
   circle_detect_button->setCheckable(true);
   circle_detect_button->setChecked(false);
   circle_detect_button->setProperty("secondary", true);
-  circle_detect_button->setToolTip("Click to enable circle marker detection");
+  circle_detect_button->setToolTip("Click to enable marker detection");
   connect(circle_detect_button, &QPushButton::clicked, this,
           [this](bool checked) { emit circleDetectionToggled(checked); });
 
   circle_count_label =
-      new QLabel(tr("Circles Detected: %1").arg(0), lens_inspection_group);
+      new QLabel(tr("Markers detected: %1").arg(0), lens_inspection_group);
 
   // Circle detection param2 (accumulator threshold)
   circle_param2_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
   circle_param2_slider->setRange(1, 100);
-  circle_param2_slider->setValue(5);
+  circle_param2_slider->setValue(90);
   circle_param2_slider->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Fixed);
   circle_param2_slider->setToolTip(
-      "Click to adjust accumulator threshold parameter value for circle marker "
-      "detection");
+      "Click to adjust sensitivity for marker detection");
 
   circle_param2_edit = new QLineEdit(lens_inspection_group);
-  circle_param2_edit->setText("5");
+  circle_param2_edit->setText("90");
   circle_param2_edit->setMaximumWidth(60);
   circle_param2_edit->setToolTip(
-      "Enter a new accumulator threshold value here");
+      "Enter a new sensitivity value here");
   connect(circle_param2_edit, &QLineEdit::textChanged, this,
           &CameraControlPanel::onCircleParam2Changed);
   connect(
@@ -691,7 +717,7 @@ void CameraControlPanel::buildUi() {
 
   auto *param2LblLayout = new QHBoxLayout();
   circle_param2_title_label =
-      new QLabel(tr("Param2 (Threshold):"), circleCtrlsWidget);
+      new QLabel(tr("Sensitivity:"), circleCtrlsWidget);
   circle_param2_title_label->setMinimumWidth(120);
   circle_param2_title_label->setMaximumWidth(120);
   param2LblLayout->addWidget(circle_param2_title_label, 0, Qt::AlignLeft);
@@ -702,7 +728,7 @@ void CameraControlPanel::buildUi() {
 
   lensInspectionLayout->addSpacing(12);
   hough_circle_header_label =
-      new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")),
+      new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Lens Grading Controls")),
                  lens_inspection_group);
   lensInspectionLayout->addWidget(hough_circle_header_label);
   lensInspectionLayout->addWidget(circleCtrlsWidget);
@@ -1481,18 +1507,18 @@ void CameraControlPanel::retranslateUi() {
     zoom_button->setText(tr("Reset"));
   }
   if (circle_detect_button) {
-    circle_detect_button->setText(tr("Enable Circle Detection"));
+    circle_detect_button->setText(tr("Enable Lens Grading"));
   }
   if (circle_count_label) {
     circle_count_label->setText(
-        tr("Circles Detected: %1").arg(circle_detected_count));
+        tr("Markers detected: %1").arg(circle_detected_count));
   }
   if (circle_param2_title_label) {
-    circle_param2_title_label->setText(tr("Param2 (Threshold):"));
+    circle_param2_title_label->setText(tr("Sensitivity:"));
   }
   if (hough_circle_header_label) {
     hough_circle_header_label->setText(
-        QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")));
+        QStringLiteral("<b>%1</b>").arg(tr("Lens Grading Controls")));
   }
 
   if (edge_button) {
@@ -1701,7 +1727,7 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode) {
 void CameraControlPanel::updateCircleCount(int count) {
   circle_detected_count = count;
   if (circle_count_label) {
-    circle_count_label->setText(tr("Circles Detected: %1").arg(count));
+    circle_count_label->setText(tr("Markers detected: %1").arg(count));
   }
 }
 
@@ -1709,7 +1735,8 @@ void CameraControlPanel::onCircleParam2Changed() {
   bool ok;
   double param2 = circle_param2_edit->text().toDouble(&ok);
   if (ok && param2 >= 5.0 && param2 <= 100.0) {
-    emit circleParam2Changed(param2);
+    double inverted = 101.0 - param2;
+    emit circleParam2Changed(inverted);
   }
 }
 

@@ -52,7 +52,7 @@ class CameraControlPanel : public QWidget {
 public:
   explicit CameraControlPanel(CameraConnectionManager *mgr,
                               MetricsManager &mMgr, QWidget *parent = nullptr);
-  void setSelectedSerial(unsigned serial) { selected_serial = serial; }
+  void setSelectedSerial(unsigned serial);
   void setMarkerZoomPossible(bool tf) { markerZoomPossible = tf; }
   MetricController *getFocusMetricsController() const {
     return focusMetricsController;
