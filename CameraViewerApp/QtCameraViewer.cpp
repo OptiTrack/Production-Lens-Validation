@@ -322,8 +322,7 @@ void QtCameraViewer::handleSerialSelected(std::optional<unsigned> serialOpt) {
       }
 #endif
 
-      // Tell the controls which serial to drive after any startup exposure
-      // adjustments so the slider reflects the active camera state.
+      // Tell the controls which serial to drive
       camera_controls->setSelectedSerial(static_cast<unsigned>(serial));
       setEmptyState(true);
       break;
