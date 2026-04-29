@@ -149,7 +149,6 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
   }
   
   // Clean up history for IDs that are no longer detected
-  // (keep a few extra frames worth for transition)
   if (m_circularityHistory.size() > circles.size() + 10) {
     std::vector<int> idsToRemove;
     for (auto &entry : m_circularityHistory) {
@@ -197,8 +196,8 @@ float CircleMarkerDetector::CalculateCircularity(
       continue;
 
     // Score: prefer contours close to center and with substantial area
-    // Distance weighting: closer is better. Area weighting: prefer larger contours
-    // but not so much that we pick noise artifacts
+    // Distance weighting: closer is better. 
+    // Area weighting: prefer larger contours
     double distanceWeight = 1.0 / (1.0 + dist / radius);
     double areaScore = std::sqrt(area);
     double combinedScore = distanceWeight * areaScore;

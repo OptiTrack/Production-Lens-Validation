@@ -321,7 +321,7 @@ int main(int argc, char *argv[]) {
           int circleCount = 0;
           auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
 
-          // Start each grade pass from a clean marker set.
+          // start each grade pass from a clean marker set.
           mMgr.clearMarkers();
 
           circles = cmd.DetectCircleMarkers(localFrame.get());
