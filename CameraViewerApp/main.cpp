@@ -319,8 +319,10 @@ int main(int argc, char *argv[]) {
         QtConcurrent::run([focus_result, localFrame, panel, viewer, &startTime,
                            &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
           int circleCount = 0;
-          bool hasHook = false;
           auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+
+          // Start each grade pass from a clean marker set.
+          mMgr.clearMarkers();
 
           circles = cmd.DetectCircleMarkers(localFrame.get());
           circleCount = static_cast<int>(circles.size());
@@ -359,7 +361,6 @@ int main(int argc, char *argv[]) {
                 }
               },
               Qt::QueuedConnection);
-          mMgr.clearMarkers();
           gradeBusy.store(false);
         });
       }

@@ -3,6 +3,7 @@
 #include "CameraHelpers.h"
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <map>
 
 /**
  * @class CircleMarkerDetector
@@ -38,10 +39,10 @@ public:
 
   struct DetectionParams {
     double dp = 1.0;         ///< Inverse ratio of accumulator resolution
-    double minDist = 5.0;    ///< Minimum distance between circles
+    double minDist = 12.0;   ///< Minimum distance between circles
     double param1 = 100.0;   ///< Upper threshold for Canny edge detection
-    double param2 = 1.0;     ///< Accumulator threshold for circle detection
-    double minRadius = 1.0;  ///< Minimum circle radius
+    double param2 = 10.0;    ///< Accumulator threshold for circle detection
+    double minRadius = 3.0;  ///< Minimum circle radius
     double maxRadius = 30.0; ///< Maximum circle radius
   };
 
@@ -81,4 +82,5 @@ private:
 
   DetectionParams m_params;
   int m_lastDetectionCount = 0;
+  std::map<int, float> m_circularityHistory;  ///< Previous circularity by marker ID for temporal smoothing
 };

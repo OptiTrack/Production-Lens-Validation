@@ -1680,8 +1680,19 @@ void VideoWidget::updateCircleMarkersTexture() {
       font.setBold(true);
       painter.setFont(font);
 
-      // Cyan color for markers and text (light blue)
+      // Find the marker with the lowest circularity (worst performer)
+      float worstCircularity = 1.0f;
+      int worstMarkerId = -1;
+      for (const auto &marker : detectedCircleMarkers) {
+        if (marker.circularity < worstCircularity) {
+          worstCircularity = marker.circularity;
+          worstMarkerId = marker.id;
+        }
+      }
+
+      // Cyan color for normal markers, red for worst marker
       QColor cyanColor(0, 255, 255);
+      QColor redColor(255, 0, 0);
       QPen circlePen(cyanColor, 2);
       circlePen.setCapStyle(Qt::RoundCap);
       painter.setPen(circlePen);
@@ -1694,6 +1705,15 @@ void VideoWidget::updateCircleMarkersTexture() {
         if (sx < 0 || sy < 0 || sx >= frame_width || sy >= frame_height) {
           continue;
         }
+
+        // Use red for worst marker, cyan for others
+        QColor markerColor = (marker.id == worstMarkerId) ? redColor : cyanColor;
+        QPen markerPen(markerColor, 2);
+        markerPen.setCapStyle(Qt::RoundCap);
+        painter.setPen(markerPen);
+
+        // Draw circle outline
+        painter.drawEllipse(QPoint(sx, sy), sr, sr);
 
         QString circularityText =
             QString("c:%1%\nID:%2")
@@ -1711,9 +1731,9 @@ void VideoWidget::updateCircleMarkersTexture() {
         QRect drawRect(tx, ty, textRect.width(), textRect.height());
 
         painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 180));
-        painter.setPen(cyanColor);
+        painter.setPen(markerColor);
         painter.drawText(drawRect, Qt::AlignCenter, circularityText);
-        painter.setPen(circlePen);
+        painter.setPen(markerPen);
       }
     }
 
