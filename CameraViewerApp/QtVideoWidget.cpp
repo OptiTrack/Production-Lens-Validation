@@ -649,6 +649,14 @@ void VideoWidget::setNewZoomValue(float value) {
   }
 }
 
+// removes applied ROI locks
+void VideoWidget::ClearROILocks() {
+    cv::Point newPoint = cv::Point(-1, -1);
+    for (int i = 0; i < 5; i++) {
+        quadrantClickPositions[i] = newPoint;
+    }
+}
+
 /*
  Mouse button down event handler for QtVideoWidget
 
@@ -665,6 +673,11 @@ void VideoWidget::mousePressEvent(QMouseEvent *event) {
 
   if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton)
     return;
+
+  // Lock placement requires ROI zoom to be active
+  if (!clearSelection && !roiZoomEnabled.load(std::memory_order_relaxed)) {
+      return;
+  }
 
   // click position in widget pixels
   QPoint c = event->pos();
@@ -1086,30 +1099,32 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char *src, cv::Mat &gray,
 
         // Update this slot's state with the chosen candidate.
         auto &s = quadrantSlots[slot];
-        if (quadrantClickPositions[slot].x != -1 &&
-            quadrantClickPositions[slot].y != -1) {
-          // Manual pin: lock centroid directly to the clicked image coordinate.
-          s.centroid.x = quadrantClickPositions[slot].x;
-          s.centroid.y = quadrantClickPositions[slot].y;
-        } else {
-          if (s.hasTrack) {
-            // EMA smoothing: blend the new detection toward the previous
-            // centroid. alpha (centroid_smoothing_alpha) controls how quickly
-            // the centroid follows movement — lower = smoother but slower to
-            // react.
-            s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x +
-                           (1.0f - centroid_smoothing_alpha) * s.centroid.x;
-            s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y +
-                           (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+        if (chosen != -1){
+          if (quadrantClickPositions[slot].x != -1 &&
+              quadrantClickPositions[slot].y != -1) {
+            // Manual pin: lock centroid directly to the clicked image coordinate.
+            s.centroid.x = quadrantClickPositions[slot].x;
+            s.centroid.y = quadrantClickPositions[slot].y;
           } else {
-            // First acquisition: snap directly with no blending.
-            s.centroid = rois[chosen].centroid;
+            if (s.hasTrack) {
+              // EMA smoothing: blend the new detection toward the previous
+              // centroid. alpha (centroid_smoothing_alpha) controls how quickly
+              // the centroid follows movement — lower = smoother but slower to
+              // react.
+              s.centroid.x = centroid_smoothing_alpha * rois[chosen].centroid.x +
+                            (1.0f - centroid_smoothing_alpha) * s.centroid.x;
+              s.centroid.y = centroid_smoothing_alpha * rois[chosen].centroid.y +
+                            (1.0f - centroid_smoothing_alpha) * s.centroid.y;
+            } else {
+              // First acquisition: snap directly with no blending.
+              s.centroid = rois[chosen].centroid;
+            }
           }
+          s.hasTrack = true;
+          // Record circularity from the chosen candidate so the displayed score
+          // always corresponds to the marker this slot is actually zoomed into.
+          s.circularity = rois[chosen].circularity;
         }
-        s.hasTrack = true;
-        // Record circularity from the chosen candidate so the displayed score
-        // always corresponds to the marker this slot is actually zoomed into.
-        s.circularity = rois[chosen].circularity;
 
         // Optional refinement: if the CircleMarkerDetector is running, replace
         // the contour centroid with its more precise circle center for a
@@ -1171,23 +1186,23 @@ cv::Mat VideoWidget::applyRoiZoomToFrame(unsigned char *src, cv::Mat &gray,
         // Circularity: when the user has manually pinned this slot, find the
         // ROI whose centroid is closest to the clicked point so we report the
         // score for the selected marker.
-        {
-          int circularityIdx = centerIdx;
-          const cv::Point2f &clickPos4 = quadrantClickPositions[4];
-          if (clickPos4.x != -1 && clickPos4.y != -1) {
-            float minDistSq = std::numeric_limits<float>::max();
-            for (size_t i = 0; i < rois.size(); ++i) {
-              float dx = rois[i].centroid.x - clickPos4.x;
-              float dy = rois[i].centroid.y - clickPos4.y;
-              float d = dx * dx + dy * dy;
-              if (d < minDistSq) {
-                minDistSq = d;
-                circularityIdx = static_cast<int>(i);
-              }
+        int circularityIdx = centerIdx;
+        const cv::Point2f &clickPos4 = quadrantClickPositions[4];
+
+        if (clickPos4.x != -1 && clickPos4.y != -1) {
+          float minDistSq = std::numeric_limits<float>::max();
+          for (size_t i = 0; i < rois.size(); ++i) {
+            float dx = rois[i].centroid.x - clickPos4.x;
+            float dy = rois[i].centroid.y - clickPos4.y;
+            float d = dx * dx + dy * dy;
+            if (d < minDistSq) {
+              minDistSq = d;
+              circularityIdx = static_cast<int>(i);
             }
           }
-          s.circularity = rois[circularityIdx].circularity;
         }
+        s.circularity = rois[circularityIdx].circularity;
+        
 
         // Optional circle-detector refinement (same as corner slots).
         if (quadrantClickPositions[4].x == -1 &&
@@ -1351,8 +1366,7 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW,
   const float H = float(height());
 
   // Coordinate mapping: Combined space → Frame space → Screen space → NDC
-  // 1. Combined image (combinedW x combinedH) was resized to (frame_width x
-  // frame_height)
+  // 1. Combined image (combinedW x combinedH) was resized to (frame_width x frame_height)
   // 2. Frame is fitted into screen rect (dstX, dstY, dstW, dstH)
 
   const float resizeScaleX = float(frame_width) / float(shapeParams.combinedW);

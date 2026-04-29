@@ -204,7 +204,7 @@ void MetricsManager::UpdateLensDisposition() {
     return;
   }
 
-  const double penaltyExponent = 2.0;
+  const double penaltyExponent = 1.0;
   double totalPenalty = 0.0;
 
   for (auto &m : m_metrics.visibleMarkers) {
@@ -221,6 +221,46 @@ void MetricsManager::UpdateLensDisposition() {
 
     double error = 1.0 - m.circularityScore;
     double penalty = std::pow(error, penaltyExponent);
+    totalPenalty += penalty;
+
+    double markerHypotToCenter =
+        std::hypot(std::abs(imageCenter.x - m.centroid.x),
+            std::abs(imageCenter.y - m.centroid.y));
+
+    // if oval, determine distance from center the centroid is, and apply scaled
+    // penalty based on distance. The further from center, the greater penalty,
+    // as we expect more deformation/pincushion there. Scale penalty with
+    // circularity for more dynamic scoring.
+    if (m.mClass == markerClass::oval) {
+
+      qDebug("\n[dbg] Oval marker at (%.2f, %.2f) with circularity %.2f",
+             m.centroid.x, m.centroid.y, m.circularityScore);
+
+      if (hypotToCenter == 0.0) {
+        qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
+        continue;
+      }
+
+      // marker centroid deviation from true image center as weight
+      // added scaling value to increase severity
+      double scaledMultiplier = 2 * 1 - (markerHypotToCenter / hypotToCenter);
+
+      qDebug("[dbg] Max hypot: %.2f, marker hypot to center: %.2f, Distance "
+             "weight: %.2f",
+             hypotToCenter, markerHypotToCenter, scaledMultiplier);
+
+      // scale distance with non-circularity
+      penalty = scaledMultiplier * (1 - m.circularityScore);
+
+      qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
+    }
+
+    // if circular, apply penalty proportional to circularity
+    else if (m.mClass == markerClass::circle) {
+      penalty = (1 - m.circularityScore); // apply unweighted circularity score
+      qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
+    }
+
     totalPenalty += penalty;
 
     qDebug("[dbg] Marker (%s) at (%.2f, %.2f): circularity=%.2f, error=%.2f, penalty=%.4f",

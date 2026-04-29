@@ -17,11 +17,12 @@ class MetricController : public QObject {
 
 public:
   MetricController(MetricWidgets *metricWidgets);
+  void addMetricWidgets(MetricWidgets *metricWidgets);
   void addData(qreal id, QHash<QString, qreal> metrics);
   MetricWidgets *getMetricWidgets();
   QList<QVector<qreal>> getGraphData(int i);
 
 private:
-  MetricWidgets *m_metricWidgets;
+  QVector<MetricWidgets *> m_metricWidgets;
 };
 #endif // METRICSCONTROLLER_H

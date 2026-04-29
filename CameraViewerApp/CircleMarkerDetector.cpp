@@ -72,6 +72,12 @@ CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap *bmp) {
 
 std::vector<CircleMarkerDetector::CircleMarker>
 CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
+  DetectionParams params;
+  {
+    std::lock_guard<std::mutex> lock(m_paramsMutex);
+    params = m_params;
+  }
+
   // Convert to grayscale
   cv::Mat gray;
   if (mat.channels() == 3) {
@@ -86,10 +92,10 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
   cv::Mat blurred;
   cv::GaussianBlur(gray, blurred, cv::Size(3, 3), 1.0);
   std::vector<cv::Vec3f> circles;
-  cv::HoughCircles(blurred, circles, cv::HOUGH_GRADIENT, m_params.dp,
-                   m_params.minDist, m_params.param1, m_params.param2,
-                   static_cast<int>(m_params.minRadius),
-                   static_cast<int>(m_params.maxRadius));
+  cv::HoughCircles(blurred, circles, cv::HOUGH_GRADIENT, params.dp,
+                   params.minDist, params.param1, params.param2,
+                   static_cast<int>(params.minRadius),
+                   static_cast<int>(params.maxRadius));
 
   m_lastDetectionCount = static_cast<int>(circles.size());
 
@@ -107,29 +113,17 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
   std::vector<CircleMarker> result;
   int id = 0;
   
-  // Temporal smoothing factor: 0.2 means 20% weight on new value, 80% on previous
-  const float CIRCULARITY_EMA_ALPHA = 0.2f;
-  
   for (const auto &circle : circles) {
     CircleMarker marker;
     marker.center = cv::Point2f(circle[0], circle[1]);
     marker.radius = circle[2];
     marker.isValid = true;
 
-    // Calculate circularity and define shape type based on circularitty
-    marker.circularity = CalculateCircularity(marker.center, marker.radius,
-                                              contours, marker.contour);
-    
-    // Apply temporal smoothing: blend with previous frame's circularity
-    auto historyIt = m_circularityHistory.find(id);
-    if (historyIt != m_circularityHistory.end()) {
-      float prevCircularity = historyIt->second;
-      marker.circularity = CIRCULARITY_EMA_ALPHA * marker.circularity + 
-                          (1.0f - CIRCULARITY_EMA_ALPHA) * prevCircularity;
-    }
-    
-    // Store current circularity for next frame
-    m_circularityHistory[id] = marker.circularity;
+   marker.circularity = CalculateCircularity(
+    marker.center,
+    marker.radius,
+    contours,
+    marker.contour);
     
     marker.shapeType = CategorizeShape(marker.circularity);
 
@@ -147,98 +141,93 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
 
     result.push_back(marker);
   }
-  
-  // Clean up history for IDs that are no longer detected
-  if (m_circularityHistory.size() > circles.size() + 10) {
-    std::vector<int> idsToRemove;
-    for (auto &entry : m_circularityHistory) {
-      if (entry.first >= id) {
-        idsToRemove.push_back(entry.first);
-      }
-    }
-    for (int idToRemove : idsToRemove) {
-      m_circularityHistory.erase(idToRemove);
-    }
-  }
-
   return result;
 }
 
 float CircleMarkerDetector::CalculateCircularity(
-    const cv::Point2f &center, float radius,
+    const cv::Point2f &center,
+    float radius,
     const std::vector<std::vector<cv::Point>> &contours,
-    std::vector<cv::Point> &outContour) {
-  outContour.clear();
+    std::vector<cv::Point> &outContour)
+{
+    outContour.clear();
 
-  if (contours.empty() || radius <= 0) {
-    return 1.0f;
-  }
+    if (contours.empty() || radius <= 0)
+        return 1.0f;
 
-  // Find the best contour: prioritize those closest to circle center with good area
-  int bestContourIdx = -1;
-  double bestScore = -1.0;
+    int bestContourIdx = -1;
+    double bestDistance = 1e9;
 
-  for (size_t i = 0; i < contours.size(); ++i) {
-    if (contours[i].size() < 5)
-      continue;
+    //
+    // Step 1: choose nearest valid contour
+    //
+    for (size_t i = 0; i < contours.size(); ++i) {
+        if (contours[i].size() < 10)
+            continue;
 
-    cv::Moments m = cv::moments(contours[i]);
-    if (m.m00 == 0)
-      continue;
+        cv::Moments m = cv::moments(contours[i]);
+        if (m.m00 == 0)
+            continue;
 
-    cv::Point2f centroid(static_cast<float>(m.m10 / m.m00),
-                         static_cast<float>(m.m01 / m.m00));
-    float dist = cv::norm(centroid - center);
-    double area = cv::contourArea(contours[i]);
-    
-    // Reject contours too far from the circle center
-    if (dist >= radius * 2.5f)
-      continue;
+        cv::Point2f centroid(
+            static_cast<float>(m.m10 / m.m00),
+            static_cast<float>(m.m01 / m.m00));
 
-    // Score: prefer contours close to center and with substantial area
-    // Distance weighting: closer is better. 
-    // Area weighting: prefer larger contours
-    double distanceWeight = 1.0 / (1.0 + dist / radius);
-    double areaScore = std::sqrt(area);
-    double combinedScore = distanceWeight * areaScore;
+        double dist = cv::norm(centroid - center);
 
-    if (combinedScore > bestScore) {
-      bestScore = combinedScore;
-      bestContourIdx = static_cast<int>(i);
-    }
-  }
+        if (dist > radius * 2.0)
+            continue;
 
-  if (bestContourIdx < 0) {
-    return 1.0f;
-  }
-
-  const auto &contour = contours[bestContourIdx];
-  outContour = contour;
-
-  if (contour.size() < 5) {
-    return 1.0f;
-  }
-
-  try {
-    cv::RotatedRect ellipse = cv::fitEllipse(contour);
-    float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
-    float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
-
-    if (majorAxis <= 0) {
-      return 1.0f;
+        if (dist < bestDistance)
+        {
+            bestDistance = dist;
+            bestContourIdx = static_cast<int>(i);
+        }
     }
 
-    const float circularity = minorAxis / majorAxis;
-    return std::clamp(circularity, 0.0f, 1.0f);
-  } catch (...) {
-    return 1.0f;
-  }
+    if (bestContourIdx < 0)
+        return 1.0f;
+
+    //
+    // Step 2: smooth contour
+    //
+    std::vector<cv::Point> smoothContour;
+    cv::approxPolyDP(
+        contours[bestContourIdx],
+        smoothContour,
+        2.0,
+        true);
+
+    if (smoothContour.size() < 5)
+        return 1.0f;
+
+    outContour = smoothContour;
+
+    //
+    // Step 3: robust circularity
+    //
+    double area = cv::contourArea(smoothContour);
+    double perimeter = cv::arcLength(
+        smoothContour,
+        true);
+
+    if (perimeter <= 0.0)
+        return 1.0f;
+
+    double circularity =
+        (4.0 * CV_PI * area) /
+        (perimeter * perimeter);
+
+    return std::clamp(
+        static_cast<float>(circularity),
+        0.0f,
+        1.0f);
 }
 
 CircleMarkerDetector::ShapeType
 CircleMarkerDetector::CategorizeShape(float circularity) {
   // Thresholds for shape categorization
-  const float OVAL_UPPER_THRESHOLD = 0.91f;
+  const float OVAL_UPPER_THRESHOLD = 0.92f;
   const float OVAL_LOWER_THRESHOLD = 0.70f;
 
   if (circularity > OVAL_UPPER_THRESHOLD) {
@@ -251,5 +240,6 @@ CircleMarkerDetector::CategorizeShape(float circularity) {
 }
 
 void CircleMarkerDetector::SetDetectionParams(const DetectionParams &params) {
+  std::lock_guard<std::mutex> lock(m_paramsMutex);
   m_params = params;
 }

@@ -15,6 +15,7 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
@@ -22,12 +23,40 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QStandardItemModel>
 #include <qguiapplication.h>
 
 using namespace CameraLibrary;
 
 // Specialized collection of widgets for camera controls
+
+void CameraControlPanel::setSelectedSerial(unsigned serial) {
+  selected_serial = serial;
+
+  if (!camera_manager || !currentSerialValid()) {
+    return;
+  }
+
+  auto cam = camera_manager->GetCamera(selected_serial);
+  if (!cam) {
+    return;
+  }
+
+  const int exposure = qBound(1, cam->Exposure(), 400);
+
+  const QSignalBlocker exposureBlocker(exposure_slider);
+  const QSignalBlocker generalExposureBlocker(general_exposure_slider);
+
+  if (exposure_slider) {
+    exposure_slider->setValue(exposure);
+  }
+  if (general_exposure_slider) {
+    general_exposure_slider->setValue(exposure);
+  }
+
+  updateSliderLabels();
+}
 
 CameraControlPanel::CameraControlPanel(CameraConnectionManager *mgr,
                                        MetricsManager &mMgr, QWidget *parent)
@@ -48,7 +77,22 @@ bool CameraControlPanel::isMarkerZoomPossible() const {
 }
 
 void CameraControlPanel::buildUi() {
-  // auto* root = new QVBoxLayout(this);
+
+  // asset-related
+  QString exeDir = QCoreApplication::applicationDirPath();
+  QString clearLockIconPath = QDir(exeDir).filePath("Assets/Lock-Broken-On.svg");
+  QIcon clearLockIcon(clearLockIconPath);
+
+  // DEBUG: highlights widgets in red to view parenting
+  /*
+  this->setStyleSheet(R"(
+    QWidget {
+        border: 1px solid rgba(255, 0, 0, 120);
+    }
+    )");
+  */
+
+  // UI build start
   auto *root = new QHBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(6);
@@ -64,6 +108,159 @@ void CameraControlPanel::buildUi() {
   rightTabWidget->setMaximumWidth(450);
 
   /*
+  ********** Tab: General operator workflow ***************
+  */
+
+  auto *tabGeneral = new QWidget;
+  auto *scrollAreaGeneral = new QScrollArea;
+  scrollAreaGeneral->setWidget(tabGeneral);
+  scrollAreaGeneral->setWidgetResizable(true);
+  scrollAreaGeneral->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scrollAreaGeneral->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  auto *vGeneral = new QVBoxLayout(tabGeneral);
+  vGeneral->setSpacing(10);
+
+  auto *generalExposureWidget = new QWidget(tabGeneral);
+  auto *generalExposureLayout = new QVBoxLayout(generalExposureWidget);
+  generalExposureLayout->setContentsMargins(6, 6, 6, 6);
+  generalExposureLayout->setSpacing(6);
+  general_exposure_title_label = new QLabel(generalExposureWidget);
+  generalExposureLayout->addWidget(general_exposure_title_label, 0,
+                                   Qt::AlignLeft);
+
+  general_exposure_slider = new QSlider(Qt::Horizontal, generalExposureWidget);
+  general_exposure_slider->setRange(1, 400);
+  general_exposure_slider->setValue(50);
+  general_exposure_slider->setSizePolicy(QSizePolicy::Expanding,
+                                         QSizePolicy::Fixed);
+  general_exposure_slider->setToolTip("Drag slider to adjust exposure");
+
+  general_exposure_label = new QLabel(generalExposureWidget);
+  general_exposure_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  general_exposure_label->setMinimumWidth(90);
+  general_exposure_label->setMaximumWidth(90);
+
+  auto *generalExposureRow = new QWidget(generalExposureWidget);
+  auto *generalExposureRowLayout = new QHBoxLayout(generalExposureRow);
+  generalExposureRowLayout->setContentsMargins(0, 0, 0, 0);
+  generalExposureRowLayout->setSpacing(8);
+  generalExposureRowLayout->addWidget(general_exposure_slider);
+  generalExposureRowLayout->addWidget(general_exposure_label);
+  generalExposureLayout->addWidget(generalExposureRow);
+  vGeneral->addWidget(generalExposureWidget);
+  auto* generalZoomModeWidget = new QWidget(tabGeneral);
+  auto* generalZoomModeLayout = new QVBoxLayout(generalZoomModeWidget);
+  generalZoomModeLayout->setContentsMargins(6, 0, 6, 0);
+  generalZoomModeLayout->setSpacing(6);
+
+  general_lens_inspection_mode_label = new QLabel(generalZoomModeWidget);
+  generalZoomModeLayout->addWidget(general_lens_inspection_mode_label, 0, Qt::AlignLeft);
+
+  // horizontal row to house both the combobox and the clear lock button
+  auto* generalZoomModeRowLayout = new QHBoxLayout();
+  generalZoomModeRowLayout->setSpacing(6);
+
+  general_lens_inspection_mode_combo = new QComboBox(generalZoomModeWidget);
+  repopulateLensInspectionModes();
+  general_lens_inspection_mode_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  generalZoomModeRowLayout->addWidget(general_lens_inspection_mode_combo, 1);
+
+  general_clear_lock_button = new QPushButton(generalZoomModeWidget);
+  general_clear_lock_button->setFixedSize(32, 32);
+  general_clear_lock_button->setIcon(clearLockIcon);
+  general_clear_lock_button->setIconSize(QSize(56, 56));
+  general_clear_lock_button->setStyleSheet(R"(
+    QPushButton {
+        border: 1px solid #00c8d7;
+        border-radius: 6px;
+        background: transparent;
+        padding: 0px;
+    }
+
+    QPushButton:hover {
+        background: rgba(0, 200, 215, 0.08);
+    }
+
+    QPushButton:pressed {
+        background: rgba(0, 200, 215, 0.15);
+    }
+)");
+  general_clear_lock_button->setProperty("secondary", true);
+  general_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+
+  connect(general_clear_lock_button, &QPushButton::clicked, this,
+      [this]() { onClearROILocks(); });
+
+  general_clear_lock_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  generalZoomModeRowLayout->addWidget(general_clear_lock_button, 0);
+  generalZoomModeRowLayout->addStretch();
+
+  generalZoomModeLayout->addLayout(generalZoomModeRowLayout);
+  vGeneral->addWidget(generalZoomModeWidget);
+
+  auto *generalZoomWidget = new QWidget(tabGeneral);
+  auto *generalZoomLayout = new QVBoxLayout(generalZoomWidget);
+  generalZoomLayout->setContentsMargins(6, 0, 6, 0);
+  generalZoomLayout->setSpacing(6);
+  general_zoom_title_label = new QLabel(generalZoomWidget);
+  generalZoomLayout->addWidget(general_zoom_title_label, 0, Qt::AlignLeft);
+
+  general_zoom_slider = new QSlider(Qt::Horizontal, generalZoomWidget);
+  general_zoom_slider->setRange(10, 200);
+  general_zoom_slider->setValue(20);
+  general_zoom_slider->setSingleStep(1);
+  general_zoom_slider->setPageStep(5);
+  general_zoom_slider->setSizePolicy(QSizePolicy::Expanding,
+                                     QSizePolicy::Fixed);
+  general_zoom_slider->setToolTip(
+      "Drag slider to adjust zoom (1.0x - 20.0x in 0.1x steps)");
+
+  general_zoom_label = new QLabel("2.0x", generalZoomWidget);
+  general_zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  general_zoom_label->setMinimumWidth(70);
+  general_zoom_label->setMaximumWidth(70);
+
+  auto *generalZoomRow = new QWidget(generalZoomWidget);
+  auto *generalZoomRowLayout = new QHBoxLayout(generalZoomRow);
+  generalZoomRowLayout->setContentsMargins(0, 0, 0, 0);
+  generalZoomRowLayout->setSpacing(8);
+  generalZoomRowLayout->addWidget(general_zoom_slider);
+  generalZoomRowLayout->addWidget(general_zoom_label);
+  generalZoomLayout->addWidget(generalZoomRow);
+  vGeneral->addWidget(generalZoomWidget);
+
+  QVector<QString> generalFocusLabels = {"FocusQuality"};
+  QVector<QString> generalFocusDescriptions = {""};
+  QVector<bool> generalFocusGraphs = {true};
+  general_focus_metrics_widgets = createCompactMetricWidgets(
+      QString(), QString(), generalFocusLabels, generalFocusDescriptions,
+      generalFocusGraphs, 88);
+  general_focus_metrics_widgets->passingThreshold = 0.65;
+  if (!general_focus_metrics_widgets->dataLabels.isEmpty()) {
+    QLabel *focusScoreDataLabel =
+        general_focus_metrics_widgets->dataLabels.first();
+    QFont focusScoreFont = focusScoreDataLabel->font();
+    focusScoreFont.setPixelSize(58);
+    focusScoreFont.setBold(true);
+    focusScoreDataLabel->setFont(focusScoreFont);
+    focusScoreDataLabel->setProperty("metricFontSizePx", 58);
+    focusScoreDataLabel->setFixedWidth(165);
+  }
+  vGeneral->addWidget(general_focus_metrics_widgets->groupBox);
+
+  QVector<QString> generalLensLabels = {"LensHealth"};
+  QVector<QString> generalLensDescriptions = {""};
+  QVector<bool> generalLensGraphs = {true};
+  general_lens_metrics_widgets = createCompactMetricWidgets(
+      QString(), QString(), generalLensLabels, generalLensDescriptions,
+      generalLensGraphs, 88);
+  general_lens_metrics_widgets->passingThreshold = 0.90;
+  vGeneral->addWidget(general_lens_metrics_widgets->groupBox);
+  vGeneral->addStretch();
+
+  rightTabWidget->addTab(scrollAreaGeneral, QString());
+
+  /*
   ********** Tab: Camera Controls and Video Modes ***************
   */
 
@@ -75,7 +272,7 @@ void CameraControlPanel::buildUi() {
   scrollArea0->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   auto *v0 = new QVBoxLayout(tab0);
 
-  // Group: Camera Controls (exposure, fps, gain)
+  // Group: Camera Controls (exposure, gain)
 
   cam_group = new QGroupBox(tab0);
   auto *camLayout = new QVBoxLayout();
@@ -84,12 +281,12 @@ void CameraControlPanel::buildUi() {
 
   // Exposure: slider from 1 to 200
   exposure_slider = new QSlider(Qt::Horizontal, cam_group);
-  exposure_slider->setRange(1, 200);
+  exposure_slider->setRange(1, 400);
   exposure_slider->setValue(50);
   exposure_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   exposure_slider->setToolTip("Drag slider to adjust exposure");
   exposure_edit = new QLineEdit(cam_group);
-  exposure_edit->setValidator(new QIntValidator(1, 200, exposure_edit));
+  exposure_edit->setValidator(new QIntValidator(1, 400, exposure_edit));
   exposure_edit->setMaximumWidth(64);
   exposure_edit->setToolTip("Enter an exposure value here");
   exposure_label = new QLabel(cam_group);
@@ -113,39 +310,17 @@ void CameraControlPanel::buildUi() {
     if (!exposure_edit->text().toInt(&ok) || !ok)
       exposure_edit->setText(QString::number(exposure_slider->value()));
   });
-  // Frame Rate: slider from 1 to 1000
-  fps_slider = new QSlider(Qt::Horizontal, cam_group);
-  fps_slider->setRange(1, 1000);
-  fps_slider->setValue(30);
-  fps_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  fps_slider->setToolTip("Drag slider to adjust maximum framerate");
-  fps_edit = new QLineEdit(cam_group);
-  fps_edit->setValidator(new QIntValidator(1, 1000, fps_edit));
-  fps_edit->setMaximumWidth(64);
-  fps_edit->setToolTip("Enter a new framerate here");
-  fps_label = new QLabel(cam_group);
-  fps_label->setMaximumWidth(80);
-  fps_label->setMinimumWidth(80);
-  connect(fps_slider, QOverload<int>::of(&QSlider::valueChanged), this,
-          [this](int val) {
-            Q_UNUSED(val);
-            updateSliderLabels();
-          });
-  connect(fps_slider, &QAbstractSlider::sliderReleased, this,
-          [this]() { onSetFps(); });
-  connect(fps_edit, &QLineEdit::textEdited, this, [this](const QString &text) {
-    bool ok = false;
-    const int v = text.toInt(&ok);
-    if (!ok)
-      return;
-    fps_slider->setValue(qBound(1, v, 1000));
-    onSetFps();
-  });
-  connect(fps_edit, &QLineEdit::editingFinished, this, [this]() {
-    bool ok = false;
-    if (!fps_edit->text().toInt(&ok) || !ok)
-      fps_edit->setText(QString::number(fps_slider->value()));
-  });
+  if (general_exposure_slider) {
+    connect(exposure_slider, &QSlider::valueChanged, general_exposure_slider,
+            &QSlider::setValue);
+    connect(general_exposure_slider, &QSlider::valueChanged, exposure_slider,
+            &QSlider::setValue);
+    connect(general_exposure_slider, &QSlider::valueChanged, this,
+            &CameraControlPanel::updateGeneralExposureLabel);
+    connect(general_exposure_slider, &QAbstractSlider::sliderReleased, this,
+            [this]() { onSetExposure(); });
+  }
+
   // Gain: slider from 0 to 7
   gain_slider = new QSlider(Qt::Horizontal, cam_group);
   gain_slider->setRange(0, 7);
@@ -197,23 +372,6 @@ void CameraControlPanel::buildUi() {
   expLayout->addWidget(exposureRow);
   expLayout->addWidget(exposure_label, 0, Qt::AlignLeft);
 
-  auto *fpsWidget = new QWidget(cam_group);
-  auto *fpsLayoutW = new QVBoxLayout(fpsWidget);
-  fpsLayoutW->setContentsMargins(0, 0, 0, 0);
-  fpsLayoutW->setSpacing(8);
-  fps_title_label = new QLabel(fpsWidget);
-  fps_title_label->setMinimumWidth(80);
-  fps_title_label->setMaximumWidth(80);
-  fpsLayoutW->addWidget(fps_title_label, 0, Qt::AlignLeft);
-  auto *fpsRow = new QWidget(fpsWidget);
-  auto *fpsRowLayout = new QHBoxLayout(fpsRow);
-  fpsRowLayout->setContentsMargins(0, 0, 0, 0);
-  fpsRowLayout->setSpacing(6);
-  fpsRowLayout->addWidget(fps_slider);
-  fpsRowLayout->addWidget(fps_edit);
-  fpsLayoutW->addWidget(fpsRow);
-  fpsLayoutW->addWidget(fps_label, 0, Qt::AlignLeft);
-
   auto *gainWidget = new QWidget(cam_group);
   auto *gainLayoutW = new QVBoxLayout(gainWidget);
   gainLayoutW->setContentsMargins(0, 0, 0, 0);
@@ -232,7 +390,6 @@ void CameraControlPanel::buildUi() {
   gainLayoutW->addWidget(gain_label, 0, Qt::AlignLeft);
 
   camLayout->addWidget(exposureWidget);
-  camLayout->addWidget(fpsWidget);
   camLayout->addWidget(gainWidget);
 
   // Edge Detect mode: behave like Grayscale but enable an edge-overlay in the
@@ -277,41 +434,23 @@ void CameraControlPanel::buildUi() {
             const bool isCompatible = isEdgeDetectCompatible(mode);
             edge_button->setEnabled(isCompatible);
 
-            // // Disable ROI Zoom option in combo box
-            // QStandardItemModel *model =
-            //     qobject_cast<QStandardItemModel
-            //     *>(lens_inspection_mode_combo->model());
-            // Q_ASSERT(model != nullptr);
-            // bool disabled = true;
-            // QStandardItem *item = model->item(1);
-            // item->setFlags(disabled ? item->flags() & ~Qt::ItemIsEnabled
-            //                         : item->flags() | Qt::ItemIsEnabled);
-            // lens_inspection_mode_combo->show();
-
             // handle ROI-Zoom UI behavior
             bool possible = isMarkerZoomPossible();
-            lens_inspection_mode_combo->setEnabled(possible);
-            zoom_button->setEnabled(possible);
-            zoom_slider->setEnabled(possible);
-            if (!possible) {
-              qDebug("marker zoom not possible");
-              zoom_slider->setValue(1.0);
-              // lens_inspection_mode_combo->setItemData(1, false, Qt::UserRole
-              // -1);
-              lens_inspection_mode_combo->setCurrentIndex(0);
-            } else {
-              qDebug("marker zoom is possible");
-              // lens_inspection_mode_combo->setItemData(1, true, Qt::UserRole
-              // -1);
-            }
+            updateMarkerZoomControlsEnabled(possible);
+            // Always reset to index 0 on mode change — ROI zoom must be
+            // explicitly re-enabled by the user regardless of whether the
+            // new mode supports it.
+            zoom_slider->setValue(20);
+            setLensInspectionModeIndex(0);
 
             if (!isCompatible && edge_button->isChecked()) {
               edge_button->setChecked(false);
               emit edgeDetectToggled(false);
             }
 
-            // Handle ROI marker zoom case with grayscale mode
-            emit onMarkerZoomPossible(possible);
+            // ROI zoom is always off after a mode change; the combo reset
+            // above ensures the UI matches.
+            emit onMarkerZoomToggled(false);
           });
 
   // Group: Video Modes (dropdown + Edge Detect toggle)
@@ -410,71 +549,92 @@ void CameraControlPanel::buildUi() {
   v1->addWidget(focusToolGroup);
 
   // Group: Lens Inspection
-
   lens_inspection_group = new QGroupBox(tr("Lens Inspection"));
-  auto *lensInspectionLayout = new QVBoxLayout(lens_inspection_group);
+  auto* lensInspectionLayout = new QVBoxLayout(lens_inspection_group);
   lensInspectionLayout->setContentsMargins(6, 6, 6, 6);
 
-  lens_inspection_mode_label = new QLabel(tr("Mode:"), lens_inspection_group);
-  lens_inspection_mode_label->setMaximumWidth(60);
-  lens_inspection_mode_label->setMinimumWidth(60);
-  lens_inspection_mode_combo = new QComboBox(tab1);
+  // row widget + layout (mirrors generalZoomModeWidget / generalZoomModeRowLayout)
+  auto* lensInspectionRowWidget = new QWidget(lens_inspection_group);
+  auto* lensInspectionRowLayout = new QHBoxLayout(lensInspectionRowWidget);
+  lensInspectionRowLayout->setContentsMargins(0, 0, 0, 0);
+  lensInspectionRowLayout->setSpacing(6);
+
+  // combo (Lens Inspection version)
+  lens_inspection_mode_combo = new QComboBox(lensInspectionRowWidget);
   repopulateLensInspectionModes();
+
+  lens_inspection_mode_combo->setSizePolicy(
+      QSizePolicy::Expanding,
+      QSizePolicy::Fixed
+  );
+
+  // button (Lens Inspection version)
+  lens_inspection_clear_lock_button = new QPushButton(lensInspectionRowWidget);
+  lens_inspection_clear_lock_button->setFixedSize(32, 32);
+  lens_inspection_clear_lock_button->setIcon(clearLockIcon);
+  lens_inspection_clear_lock_button->setIconSize(QSize(56, 56));
+  lens_inspection_clear_lock_button->setStyleSheet(R"(
+    QPushButton {
+        border: 1px solid #00c8d7;
+        border-radius: 6px;
+        background: transparent;
+        padding: 0px;
+    }
+
+    QPushButton:hover {
+        background: rgba(0, 200, 215, 0.08);
+    }
+
+    QPushButton:pressed {
+        background: rgba(0, 200, 215, 0.15);
+    }
+)");
+
+  lens_inspection_clear_lock_button->setProperty("secondary", true);
+  lens_inspection_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+
+  connect(lens_inspection_clear_lock_button, &QPushButton::clicked, this,
+      [this]() { onClearROILocks(); });
+
+  lens_inspection_clear_lock_button->setSizePolicy(
+      QSizePolicy::Fixed,
+      QSizePolicy::Fixed
+  );
+
+  lensInspectionRowLayout->addWidget(lens_inspection_mode_combo, 1);
+  lensInspectionRowLayout->addWidget(lens_inspection_clear_lock_button, 0);
+  lensInspectionRowLayout->addStretch();
+
+  lensInspectionLayout->addWidget(lensInspectionRowWidget);
+  v1->addWidget(lens_inspection_group);
 
   connect(lens_inspection_mode_combo,
           static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this,
-          [this](int idx) {
-            if (!currentSerialValid()) {
-              emit showWarning(tr("No Camera"),
-                               tr("No camera is currently selected."));
-              lens_inspection_mode_combo->setCurrentIndex(0);
-              return;
-            }
-            if (!isMarkerZoomPossible()) {
-              emit showWarning(
-                  tr("Wrong Video Mode"),
-                  tr("Must turn on Grayscale Mode to use the zoom feature."));
-              // lens_inspection_mode_combo->setItemData(1, false, Qt::UserRole
-              // -1);
-              lens_inspection_mode_combo->setCurrentIndex(0);
-              return;
-            }
-
-            // find mode value from current data and request it
-            QVariant itemData = lens_inspection_mode_combo->itemData(idx);
-            bool markerZoomToggled = false;
-
-            // markerZoomToggled becomes true or false based on item selected
-            markerZoomToggled = itemData.toBool();
-            qDebug("[dbg] markerZoomToggled = %d", markerZoomToggled);
-
-            // Handle ROI marker zoom case with grayscale mode
-            emit onMarkerZoomToggled(markerZoomToggled);
-          });
-
-  // Set initial state based on first item in combo (no zoom)
-  const int lens_inspection_initial_mode =
-      lens_inspection_mode_combo->itemData(0).toInt();
+          &CameraControlPanel::applyLensInspectionModeSelection);
+  if (general_lens_inspection_mode_combo) {
+    connect(general_lens_inspection_mode_combo,
+            static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this,
+            &CameraControlPanel::applyLensInspectionModeSelection);
+  }
 
   // Zoom Slider: 1.0x to 20.0x in 0.1x steps
   // The slider displays tenths-of-zoom (range 10–200), divided by 10.0f to get
   // the true value.
   zoom_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
   zoom_slider->setRange(10, 200);
-  zoom_slider->setValue(10);
+  zoom_slider->setValue(20);
   zoom_slider->setSingleStep(1); // 0.1x per arrow-key tick
   zoom_slider->setPageStep(5);   // 0.5x per page-up/down
   zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   zoom_slider->setToolTip(
       "Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)");
-  zoom_label = new QLabel("1.0x", lens_inspection_group);
+  zoom_label = new QLabel("2.0x", lens_inspection_group);
   zoom_label->setMaximumWidth(60);
   zoom_label->setMinimumWidth(60);
 
   connect(zoom_slider, QOverload<int>::of(&QSlider::valueChanged), this,
           [this](int val) {
-            // Convert tenths back to the real zoom value for display and
-            // emission.
+            // Convert tenths back to the real zoom value for display and emission.
             float zoom = val / 10.0f;
             zoom_label->setText(QString::number(zoom, 'f', 1) + "x");
             onSetZoom(false);
@@ -484,10 +644,18 @@ void CameraControlPanel::buildUi() {
   zoom_button->setProperty("secondary", true);
   zoom_button->setToolTip("Click to reset zoom to default");
   connect(zoom_button, &QPushButton::clicked, this, [this]() {
-    zoom_slider->setValue(10); // 10*0.1 = 1.0x initial zoom
+    zoom_slider->setValue(20); // 20*0.1 = 2.0x initial zoom for quartered image
   });
   zoom_button->setEnabled(false);
   zoom_slider->setEnabled(false);
+  if (general_zoom_slider) {
+    connect(zoom_slider, &QSlider::valueChanged, general_zoom_slider,
+            &QSlider::setValue);
+    connect(general_zoom_slider, &QSlider::valueChanged, zoom_slider,
+            &QSlider::setValue);
+    connect(general_zoom_slider, &QSlider::valueChanged, this,
+            &CameraControlPanel::updateGeneralZoomLabel);
+  }
 
   auto *zoomWidget = new QWidget(lens_inspection_group);
   zoomWidget->setToolTip("Zooms into captured image. Available only in "
@@ -503,38 +671,35 @@ void CameraControlPanel::buildUi() {
   zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
   zoomLayoutW->addWidget(zoom_button);
 
-  lensInspectionLayout->addWidget(lens_inspection_mode_label);
-  lensInspectionLayout->addWidget(lens_inspection_mode_combo);
   lensInspectionLayout->addWidget(zoomWidget);
 
-  // Hough Circle Detection
+  // Lens Grading Controls
   circle_detect_button =
-      new QPushButton(tr("Enable Circle Detection"), lens_inspection_group);
+      new QPushButton(tr("Enable Lens Grading"), lens_inspection_group);
   circle_detect_button->setCheckable(true);
   circle_detect_button->setChecked(false);
   circle_detect_button->setProperty("secondary", true);
-  circle_detect_button->setToolTip("Click to enable circle marker detection");
+  circle_detect_button->setToolTip("Click to enable marker detection");
   connect(circle_detect_button, &QPushButton::clicked, this,
           [this](bool checked) { emit circleDetectionToggled(checked); });
 
   circle_count_label =
-      new QLabel(tr("Circles Detected: %1").arg(0), lens_inspection_group);
+      new QLabel(tr("Markers detected: %1").arg(0), lens_inspection_group);
 
   // Circle detection param2 (accumulator threshold)
   circle_param2_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
   circle_param2_slider->setRange(1, 100);
-  circle_param2_slider->setValue(10);
+  circle_param2_slider->setValue(90);
   circle_param2_slider->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Fixed);
   circle_param2_slider->setToolTip(
-      "Click to adjust accumulator threshold parameter value for circle marker "
-      "detection");
+      "Click to adjust sensitivity for marker detection");
 
   circle_param2_edit = new QLineEdit(lens_inspection_group);
-  circle_param2_edit->setText("10");
+  circle_param2_edit->setText("90");
   circle_param2_edit->setMaximumWidth(60);
   circle_param2_edit->setToolTip(
-      "Enter a new accumulator threshold value here");
+      "Enter a new sensitivity value here");
   connect(circle_param2_edit, &QLineEdit::textChanged, this,
           &CameraControlPanel::onCircleParam2Changed);
   connect(
@@ -552,7 +717,7 @@ void CameraControlPanel::buildUi() {
 
   auto *param2LblLayout = new QHBoxLayout();
   circle_param2_title_label =
-      new QLabel(tr("Param2 (Threshold):"), circleCtrlsWidget);
+      new QLabel(tr("Sensitivity:"), circleCtrlsWidget);
   circle_param2_title_label->setMinimumWidth(120);
   circle_param2_title_label->setMaximumWidth(120);
   param2LblLayout->addWidget(circle_param2_title_label, 0, Qt::AlignLeft);
@@ -563,7 +728,7 @@ void CameraControlPanel::buildUi() {
 
   lensInspectionLayout->addSpacing(12);
   hough_circle_header_label =
-      new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")),
+      new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Lens Grading Controls")),
                  lens_inspection_group);
   lensInspectionLayout->addWidget(hough_circle_header_label);
   lensInspectionLayout->addWidget(circleCtrlsWidget);
@@ -784,7 +949,9 @@ void CameraControlPanel::buildUi() {
   QVector<bool> focusGraphs = {true};
   focus_metrics_widgets = createMetricWidgets(QString(), QString(), focusLabels,
                                               focusDescriptions, focusGraphs);
+  focus_metrics_widgets->passingThreshold = 0.65;
   focusMetricsController = new MetricController(focus_metrics_widgets);
+  focusMetricsController->addMetricWidgets(general_focus_metrics_widgets);
   vStats->addWidget(focus_metrics_widgets->groupBox);
 
   // Create Lens Metrics with controller
@@ -793,7 +960,9 @@ void CameraControlPanel::buildUi() {
   QVector<bool> lensGraphs = {true};
   lens_metrics_widgets = createMetricWidgets(QString(), QString(), lensLabels,
                                              lensDescriptions, lensGraphs);
+  lens_metrics_widgets->passingThreshold = 0.90;
   lensMetricsController = new MetricController(lens_metrics_widgets);
+  lensMetricsController->addMetricWidgets(general_lens_metrics_widgets);
   vStats->addWidget(lens_metrics_widgets->groupBox);
   vStats->addStretch();
 
@@ -884,6 +1053,14 @@ void CameraControlPanel::buildUi() {
   vExpo->addStretch();
 
   rightTabWidget->addTab(scrollAreaExpo, QString());
+  rightTabWidget->setCurrentIndex(0);
+
+  // Start at 1 to skip the first tab and end at count - 1 to skip last tab (exporter)
+  for (int i = 1; i < rightTabWidget->count() - 1; ++i)
+    rightTabWidget->setTabVisible(i, false);
+
+  updateMarkerZoomControlsEnabled(false);
+  setLensInspectionModeIndex(0);
 
   root->addWidget(rightTabWidget);
 
@@ -947,6 +1124,76 @@ MetricWidgets *CameraControlPanel::createMetricWidgets(
   return metricWidgets;
 }
 
+MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
+    const QString &name, const QString &units, const QVector<QString> &labels,
+    const QVector<QString> &descriptions, const QVector<bool> &graphs,
+    int graphHeight) {
+
+  MetricWidgets *metricWidgets = new MetricWidgets();
+  auto *layout = new QVBoxLayout(metricWidgets->groupBox);
+  layout->setContentsMargins(8, 8, 8, 8);
+  layout->setSpacing(8);
+
+  metricWidgets->name = name;
+  metricWidgets->units = units;
+  metricWidgets->groupBox->setTitle(name);
+
+  for (int i = 0; i < labels.count(); ++i) {
+    auto *rowWidget = new QWidget(metricWidgets->groupBox);
+    auto *rowLayout = new QHBoxLayout(rowWidget);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(14);
+
+    GraphWidget *metricGraph = nullptr;
+    if (graphs.value(i)) {
+      metricGraph = new GraphWidget(rowWidget);
+      metricGraph->setObjectName(labels[i] + "Graph");
+      metricGraph->setMinimumHeight(graphHeight);
+      metricGraph->setMaximumHeight(graphHeight);
+      metricGraph->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+
+    QLabel *dataLabel = new QLabel(rowWidget);
+    dataLabel->setObjectName(labels[i] + "DataLabel");
+    dataLabel->setText(QStringLiteral("-"));
+    dataLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    dataLabel->setMinimumHeight(graphHeight);
+    dataLabel->setMaximumHeight(graphHeight);
+    dataLabel->setFixedWidth(qMax(170, graphHeight * 2));
+    dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QFont labelFont = dataLabel->font();
+    const int labelFontPx = qMax(50, graphHeight - 10);
+    labelFont.setPixelSize(58);
+    labelFont.setBold(true);
+    dataLabel->setFont(labelFont);
+    dataLabel->setProperty("metricFontSizePx", 58);
+    dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
+    rowLayout->addWidget(dataLabel);
+
+    if (metricGraph) {
+      rowLayout->addWidget(metricGraph, 1);
+    } else {
+      rowLayout->addStretch(1);
+    }
+
+    layout->addWidget(rowWidget);
+    metricWidgets->dataLabels.append(dataLabel);
+    metricWidgets->metricGraphs.append(metricGraph);
+
+    const QString description = descriptions.value(i);
+    if (!description.isEmpty()) {
+      QLabel *descriptionLabel =
+          new QLabel(description, metricWidgets->groupBox);
+      descriptionLabel->setObjectName(labels[i] + "DescriptionLabel");
+      descriptionLabel->setAlignment(Qt::AlignRight);
+      layout->addWidget(descriptionLabel);
+      metricWidgets->descriptionLabels.append(descriptionLabel);
+    }
+  }
+
+  return metricWidgets;
+}
+
 void CameraControlPanel::setExportLanguage(
     MetricsManager::OutputLanguage lang) {
   metrics_manager.setLanguage(lang);
@@ -979,11 +1226,7 @@ void CameraControlPanel::updateSliderLabels() {
                             exposure_unit_ms);
     if (exposure_edit)
       exposure_edit->setText(QString::number(exposure_slider->value()));
-  }
-  if (fps_slider && fps_label) {
-    fps_label->setText(QString::number(fps_slider->value()) + " " + fps_unit);
-    if (fps_edit)
-      fps_edit->setText(QString::number(fps_slider->value()));
+    updateGeneralExposureLabel(exposure_slider->value());
   }
   if (gain_slider && gain_label) {
     gain_label->setText(QString::number(gain_slider->value()) + " " +
@@ -991,6 +1234,76 @@ void CameraControlPanel::updateSliderLabels() {
     if (gain_edit)
       gain_edit->setText(QString::number(gain_slider->value()));
   }
+}
+
+void CameraControlPanel::updateGeneralExposureLabel(int value) {
+  if (!general_exposure_label) {
+    return;
+  }
+  const QString units =
+      exposure_unit_ms.isEmpty() ? QStringLiteral("ms") : exposure_unit_ms;
+  general_exposure_label->setText(
+      QStringLiteral("%1 %2").arg(value).arg(units));
+}
+
+void CameraControlPanel::updateGeneralZoomLabel(int value) {
+  if (!general_zoom_label) {
+    return;
+  }
+  general_zoom_label->setText(QString::number(value / 10.0f, 'f', 1) +
+                              QStringLiteral("x"));
+}
+
+void CameraControlPanel::updateMarkerZoomControlsEnabled(bool enabled) {
+  if (lens_inspection_mode_combo) {
+    lens_inspection_mode_combo->setEnabled(enabled);
+  }
+  if (zoom_button) {
+    zoom_button->setEnabled(enabled);
+  }
+  if (zoom_slider) {
+    zoom_slider->setEnabled(enabled);
+  }
+  if (general_lens_inspection_mode_combo) {
+    general_lens_inspection_mode_combo->setEnabled(enabled);
+  }
+  if (general_zoom_slider) {
+    general_zoom_slider->setEnabled(enabled);
+  }
+}
+
+void CameraControlPanel::setLensInspectionModeIndex(int index) {
+  if (lens_inspection_mode_combo) {
+    const QSignalBlocker blocker(lens_inspection_mode_combo);
+    lens_inspection_mode_combo->setCurrentIndex(index);
+  }
+  if (general_lens_inspection_mode_combo) {
+    const QSignalBlocker blocker(general_lens_inspection_mode_combo);
+    general_lens_inspection_mode_combo->setCurrentIndex(index);
+  }
+}
+
+void CameraControlPanel::applyLensInspectionModeSelection(int index) {
+  if (!currentSerialValid()) {
+    emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
+    setLensInspectionModeIndex(0);
+    return;
+  }
+  if (!isMarkerZoomPossible()) {
+    emit showWarning(
+        tr("Wrong Video Mode"),
+        tr("Must turn on Grayscale Mode to use the zoom feature."));
+    setLensInspectionModeIndex(0);
+    return;
+  }
+
+  setLensInspectionModeIndex(index);
+  bool markerZoomToggled = false;
+  if (lens_inspection_mode_combo) {
+    markerZoomToggled = lens_inspection_mode_combo->itemData(index).toBool();
+  }
+  qDebug("[dbg] markerZoomToggled = %d", markerZoomToggled);
+  emit onMarkerZoomToggled(markerZoomToggled);
 }
 
 static bool videoModeDataEqual(const QVariant &a, const QVariant &b) {
@@ -1057,36 +1370,42 @@ void CameraControlPanel::repopulateVideoModes() {
 }
 
 void CameraControlPanel::repopulateLensInspectionModes() {
-  if (!lens_inspection_mode_combo)
-    return;
-
-  const QVariant currentData = lens_inspection_mode_combo->currentData();
-  lens_inspection_mode_combo->blockSignals(true);
-  lens_inspection_mode_combo->clear();
-
-  lens_inspection_mode_combo->addItem(tr("No Zoom"), QVariant(false));
-  lens_inspection_mode_combo->setItemData(
-      lens_inspection_mode_combo->count() - 1, tr("8bpp camera preview"),
-      Qt::ToolTipRole);
-
-  lens_inspection_mode_combo->addItem(tr("ROI Zoom"), QVariant(true));
-  lens_inspection_mode_combo->setItemData(
-      lens_inspection_mode_combo->count() - 1,
-      tr("8bpp camera preview with center/edge marker focus"), Qt::ToolTipRole);
-
-  int targetIdx = -1;
-  for (int i = 0; i < lens_inspection_mode_combo->count(); ++i) {
-    if (videoModeDataEqual(lens_inspection_mode_combo->itemData(i),
-                           currentData)) {
-      targetIdx = i;
-      break;
+  auto populateLensInspectionCombo = [this](QComboBox *lensInspectionCombo) {
+    if (!lensInspectionCombo) {
+      return;
     }
-  }
-  if (targetIdx < 0 && lens_inspection_mode_combo->count() > 0) {
-    targetIdx = 0;
-  }
-  lens_inspection_mode_combo->setCurrentIndex(targetIdx);
-  lens_inspection_mode_combo->blockSignals(false);
+
+    const QVariant currentData = lensInspectionCombo->currentData();
+    lensInspectionCombo->blockSignals(true);
+    lensInspectionCombo->clear();
+
+    lensInspectionCombo->addItem(tr("No Zoom"), QVariant(false));
+    lensInspectionCombo->setItemData(lensInspectionCombo->count() - 1,
+                                     tr("8bpp camera preview"),
+                                     Qt::ToolTipRole);
+
+    lensInspectionCombo->addItem(tr("ROI Zoom"), QVariant(true));
+    lensInspectionCombo->setItemData(
+        lensInspectionCombo->count() - 1,
+        tr("8bpp camera preview with center/edge marker focus"),
+        Qt::ToolTipRole);
+
+    int targetIdx = -1;
+    for (int i = 0; i < lensInspectionCombo->count(); ++i) {
+      if (videoModeDataEqual(lensInspectionCombo->itemData(i), currentData)) {
+        targetIdx = i;
+        break;
+      }
+    }
+    if (targetIdx < 0 && lensInspectionCombo->count() > 0) {
+      targetIdx = 0;
+    }
+    lensInspectionCombo->setCurrentIndex(targetIdx);
+    lensInspectionCombo->blockSignals(false);
+  };
+
+  populateLensInspectionCombo(lens_inspection_mode_combo);
+  populateLensInspectionCombo(general_lens_inspection_mode_combo);
 }
 
 void CameraControlPanel::repopulateCompressionModes() {
@@ -1131,8 +1450,8 @@ void CameraControlPanel::retranslateUi() {
 
   if (exposure_title_label)
     exposure_title_label->setText(tr("Exposure:"));
-  if (fps_title_label)
-    fps_title_label->setText(tr("FPS:"));
+  if (general_exposure_title_label)
+    general_exposure_title_label->setText(tr("Exposure:"));
   if (gain_title_label)
     gain_title_label->setText(tr("Gain:"));
   if (quality_title_label)
@@ -1143,7 +1462,6 @@ void CameraControlPanel::retranslateUi() {
     gamma_title_label->setText(tr("Gamma:"));
 
   exposure_unit_ms = tr("ms");
-  fps_unit = tr("fps");
   gain_unit_db = tr("dB");
   updateSliderLabels();
   if (quality_slider && quality_label) {
@@ -1176,25 +1494,31 @@ void CameraControlPanel::retranslateUi() {
   if (lens_inspection_mode_label) {
     lens_inspection_mode_label->setText(tr("Mode:"));
   }
+  if (general_lens_inspection_mode_label) {
+    general_lens_inspection_mode_label->setText(tr("Zoom Mode:"));
+  }
   if (zoom_title_label) {
     zoom_title_label->setText(tr("Zoom:"));
+  }
+  if (general_zoom_title_label) {
+    general_zoom_title_label->setText(tr("Zoom:"));
   }
   if (zoom_button) {
     zoom_button->setText(tr("Reset"));
   }
   if (circle_detect_button) {
-    circle_detect_button->setText(tr("Enable Circle Detection"));
+    circle_detect_button->setText(tr("Enable Lens Grading"));
   }
   if (circle_count_label) {
     circle_count_label->setText(
-        tr("Circles Detected: %1").arg(circle_detected_count));
+        tr("Markers detected: %1").arg(circle_detected_count));
   }
   if (circle_param2_title_label) {
-    circle_param2_title_label->setText(tr("Param2 (Threshold):"));
+    circle_param2_title_label->setText(tr("Sensitivity:"));
   }
   if (hough_circle_header_label) {
     hough_circle_header_label->setText(
-        QStringLiteral("<b>%1</b>").arg(tr("Hough Circle Detection")));
+        QStringLiteral("<b>%1</b>").arg(tr("Lens Grading Controls")));
   }
 
   if (edge_button) {
@@ -1219,11 +1543,24 @@ void CameraControlPanel::retranslateUi() {
   }
 
   if (rightTabWidget) {
-    rightTabWidget->setTabText(0, tr("Controls"));
-    rightTabWidget->setTabText(1, tr("Lens"));
-    rightTabWidget->setTabText(2, tr("Color"));
-    rightTabWidget->setTabText(3, tr("Statistics"));
-    rightTabWidget->setTabText(4, tr("Exporter"));
+    rightTabWidget->setTabText(0, tr("General"));
+    rightTabWidget->setTabText(1, tr("Controls"));
+    rightTabWidget->setTabText(2, tr("Lens"));
+    rightTabWidget->setTabText(3, tr("Color"));
+    rightTabWidget->setTabText(4, tr("Statistics"));
+    rightTabWidget->setTabText(5, tr("Exporter"));
+  }
+
+  if (general_focus_metrics_widgets &&
+      general_focus_metrics_widgets->groupBox) {
+    general_focus_metrics_widgets->name = tr("Focus Score");
+    general_focus_metrics_widgets->groupBox->setTitle(
+        general_focus_metrics_widgets->name);
+  }
+  if (general_lens_metrics_widgets && general_lens_metrics_widgets->groupBox) {
+    general_lens_metrics_widgets->name = tr("Lens Score");
+    general_lens_metrics_widgets->groupBox->setTitle(
+        general_lens_metrics_widgets->name);
   }
 
   if (focus_metrics_widgets && focus_metrics_widgets->groupBox) {
@@ -1254,6 +1591,10 @@ void CameraControlPanel::retranslateUi() {
     metrics_export_button->setToolTip(
         tr("Click to export information about the currently installed lens."));
   }
+
+  if (general_zoom_slider) {
+    updateGeneralZoomLabel(general_zoom_slider->value());
+  }
 }
 
 void CameraControlPanel::onSetExposure() {
@@ -1265,18 +1606,6 @@ void CameraControlPanel::onSetExposure() {
   if (!camera_manager->SetExposure(selected_serial, v)) {
     emit showWarning(tr("Failed"),
                      tr("Could not set exposure on the selected camera."));
-  }
-}
-
-void CameraControlPanel::onSetFps() {
-  if (!currentSerialValid()) {
-    emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
-    return;
-  }
-  const int v = fps_slider->value();
-  if (!camera_manager->SetFrameRate(selected_serial, v)) {
-    emit showWarning(tr("Failed"),
-                     tr("Could not set frame rate on the selected camera."));
   }
 }
 
@@ -1350,85 +1679,39 @@ void CameraControlPanel::onSetVideoMode(int modeEnum) {
   }
 }
 
-void CameraControlPanel::onSetTab0Visibility() {
-  // check if first tab in widget is visible
-  if (this->rightTabWidget->isTabVisible(0)) {
-    this->rightTabWidget->setTabVisible(0, false);
-    if (!(this->rightTabWidget->isTabVisible(1)) &&
-        !(this->rightTabWidget->isTabVisible(2)) &&
-        !(this->rightTabWidget->isTabVisible(3)) &&
-        !(this->rightTabWidget->isTabVisible(4))) {
-      this->rightTabWidget->setVisible(false);
-    }
-  } else {
-    this->rightTabWidget->setTabVisible(0, true);
-    this->rightTabWidget->setVisible(true);
-  }
+void CameraControlPanel::onClearROILocks() {
+    emit clearLocksRequested();
 }
 
-void CameraControlPanel::onSetTab1Visibility() {
-  // check if first tab in widget is visible
-  if (this->rightTabWidget->isTabVisible(1)) {
-    this->rightTabWidget->setTabVisible(1, false);
-    if (!(this->rightTabWidget->isTabVisible(0)) &&
-        !(this->rightTabWidget->isTabVisible(2)) &&
-        !(this->rightTabWidget->isTabVisible(3)) &&
-        !(this->rightTabWidget->isTabVisible(4))) {
-      this->rightTabWidget->setVisible(false);
-    }
-  } else {
-    this->rightTabWidget->setTabVisible(1, true);
-    this->rightTabWidget->setVisible(true);
+void CameraControlPanel::toggleTabVisibility(int index) {
+  if (!rightTabWidget || index < 0 || index >= rightTabWidget->count()) {
+    return;
   }
+
+  const bool currentlyVisible = rightTabWidget->isTabVisible(index);
+  rightTabWidget->setTabVisible(index, !currentlyVisible);
+
+  bool anyVisible = false;
+  for (int i = 0; i < rightTabWidget->count(); ++i) {
+    if (rightTabWidget->isTabVisible(i)) {
+      anyVisible = true;
+      break;
+    }
+  }
+  rightTabWidget->setVisible(anyVisible);
 }
 
-void CameraControlPanel::onSetTab2Visibility() {
-  // check if first tab in widget is visible
-  if (this->rightTabWidget->isTabVisible(2)) {
-    this->rightTabWidget->setTabVisible(2, false);
-    if (!(this->rightTabWidget->isTabVisible(0)) &&
-        !(this->rightTabWidget->isTabVisible(1)) &&
-        !(this->rightTabWidget->isTabVisible(3)) &&
-        !(this->rightTabWidget->isTabVisible(4))) {
-      this->rightTabWidget->setVisible(false);
-    }
-  } else {
-    this->rightTabWidget->setTabVisible(2, true);
-    this->rightTabWidget->setVisible(true);
-  }
-}
+void CameraControlPanel::onSetTab0Visibility() { toggleTabVisibility(0); }
 
-void CameraControlPanel::onSetTab3Visibility() {
-  // check if first tab in widget is visible
-  if (this->rightTabWidget->isTabVisible(3)) {
-    this->rightTabWidget->setTabVisible(3, false);
-    if (!(this->rightTabWidget->isTabVisible(0)) &&
-        !(this->rightTabWidget->isTabVisible(1)) &&
-        !(this->rightTabWidget->isTabVisible(2)) &&
-        !(this->rightTabWidget->isTabVisible(4))) {
-      this->rightTabWidget->setVisible(false);
-    }
-  } else {
-    this->rightTabWidget->setTabVisible(3, true);
-    this->rightTabWidget->setVisible(true);
-  }
-}
+void CameraControlPanel::onSetTab1Visibility() { toggleTabVisibility(1); }
 
-void CameraControlPanel::onSetTab4Visibility() {
-  // check if first tab in widget is visible
-  if (this->rightTabWidget->isTabVisible(4)) {
-    this->rightTabWidget->setTabVisible(4, false);
-    if (!(this->rightTabWidget->isTabVisible(0)) &&
-        !(this->rightTabWidget->isTabVisible(1)) &&
-        !(this->rightTabWidget->isTabVisible(2)) &&
-        !(this->rightTabWidget->isTabVisible(3))) {
-      this->rightTabWidget->setVisible(false);
-    }
-  } else {
-    this->rightTabWidget->setTabVisible(4, true);
-    this->rightTabWidget->setVisible(true);
-  }
-}
+void CameraControlPanel::onSetTab2Visibility() { toggleTabVisibility(2); }
+
+void CameraControlPanel::onSetTab3Visibility() { toggleTabVisibility(3); }
+
+void CameraControlPanel::onSetTab4Visibility() { toggleTabVisibility(4); }
+
+void CameraControlPanel::onSetTab5Visibility() { toggleTabVisibility(5); }
 
 bool CameraControlPanel::isEdgeDetectCompatible(int mode) {
   switch (mode) {
@@ -1444,7 +1727,7 @@ bool CameraControlPanel::isEdgeDetectCompatible(int mode) {
 void CameraControlPanel::updateCircleCount(int count) {
   circle_detected_count = count;
   if (circle_count_label) {
-    circle_count_label->setText(tr("Circles Detected: %1").arg(count));
+    circle_count_label->setText(tr("Markers detected: %1").arg(count));
   }
 }
 
@@ -1452,7 +1735,8 @@ void CameraControlPanel::onCircleParam2Changed() {
   bool ok;
   double param2 = circle_param2_edit->text().toDouble(&ok);
   if (ok && param2 >= 5.0 && param2 <= 100.0) {
-    emit circleParam2Changed(param2);
+    double inverted = 101.0 - param2;
+    emit circleParam2Changed(inverted);
   }
 }
 

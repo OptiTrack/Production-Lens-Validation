@@ -95,44 +95,47 @@ int main(int argc, char *argv[]) {
   else
     qWarning() << "[!] Could not open stylesheet file.";
 
-  // ==== Camera manager
-  // ========================================================
   auto *mgr = new CameraConnectionManager();
 
-  // ==== Shared state for capture thread ======================================
+  // ==== Shared state for capture thread ====
   std::mutex cam_mutex;
   std::shared_ptr<Camera> current_camera;
   std::atomic<uint64_t> switch_epoch{0};
   std::atomic<unsigned> active_serial{0};
-
-  CameraHelper::FrameRateCalculator fps_calculator{0.5 /*smoothing*/};
 
   FocusResultLabel *focus_result = new FocusResultLabel("Disabled");
   FocusScoreLabel *focus_score = new FocusScoreLabel("0");
   LensResultLabel *lens_result = new LensResultLabel("Unknown");
 
   MetricsManager mMgr;
-  mMgr.testMM();
+  //mMgr.testMM();
 
-  QTimer focusTimer, gradeTimer;
+  QTimer focusTimer, gradeTimer, circleDetectTimer;
 
   // set when QtConcurrent focus/grade is running
   std::atomic<bool> focusBusy{false};
   std::atomic<bool> gradeBusy{false};
+  std::atomic<bool> circleDetectionBusy{false};
 
   // bitmap frame shared between timed events
   std::shared_ptr<CameraLibrary::Bitmap> framePtr;
+  std::shared_ptr<std::vector<CircleMarkerDetector::CircleMarker>> markerCollection;
 
   FocusEvaluator fe;        // Focus evaluator instance
   CircleMarkerDetector cmd; // Circle marker detector instance
 
-  focusTimer.start(125);
-  gradeTimer.start(250);
+  const int focusIntervalMs = 125;       // Interval for focus evaluation (ms)
+  const int gradeIntervalMs = 250;       // Interval for grading (ms)   
+  const int circleDetectIntervalMs = 125; // Interval for circle detection (ms)
+
+  circleDetectTimer.start(circleDetectIntervalMs);
+  focusTimer.start(focusIntervalMs);
+  gradeTimer.start(gradeIntervalMs);
 
   // The core UI/window for the program
   auto *viewer = new QtCameraViewer(
       mgr, cam_mutex, current_camera, switch_epoch, active_serial,
-      fps_calculator, focus_result, focus_score, lens_result, mMgr, nullptr);
+      focus_result, focus_score, lens_result, mMgr, nullptr);
 
   // Remove any current installed translators to ensure a clean slate, then
   // install the appropriate ones based on the current locale use [&] to capture
@@ -171,14 +174,14 @@ int main(int argc, char *argv[]) {
       viewer->retranslateUi();
   };
 
-  QObject::connect(
-      viewer, &QtCameraViewer::languageChanged, &app,
-      [applyLanguage](const QString &locale) { applyLanguage(locale); });
-
-  applyLanguage(viewer->currentLanguage());
-
   // get instance to camera control panel for metrics updates
   auto *panel = viewer->getControlPanel();
+
+  QObject::connect(
+    viewer, &QtCameraViewer::languageChanged, &app,
+    [applyLanguage](const QString &locale) { applyLanguage(locale); });
+
+  applyLanguage(viewer->currentLanguage());
 
   // set up shared metrics object and make Qt signal connection
   QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
@@ -186,7 +189,6 @@ int main(int argc, char *argv[]) {
 
   viewer->resize(1400, 800);
   viewer->show();
-  // viewer->focus_score = 0;
 
   // Bitmap resource
   BitmapPool bmp_pool([](int w, int h, int bpp, int stride) -> Bitmap * {
@@ -197,8 +199,7 @@ int main(int argc, char *argv[]) {
     return new Bitmap(w, h, stride, fmt);
   });
 
-  // ==== Main Application Thread
-  // ===============================================
+  // ==== Main Application Thread ====
   std::atomic_bool running(true);
   std::atomic_bool focusToolEnabled(true); // changed by focus UI control
   std::atomic_bool circleDetectionEnabled(
@@ -209,27 +210,18 @@ int main(int argc, char *argv[]) {
   fe.focusToolEnabled =
       true; // changed by focus UI control; set True by default
 
-  // Wire UI signals after creating evaluator and panel
-  if (panel) {
-    QObject::connect(panel, &CameraControlPanel::circleDetectionToggled, &app,
-                     [&](bool enabled) {
-                       circleDetectionEnabled.store(enabled,
-                                                    std::memory_order_release);
-                     });
-
-    QObject::connect(panel, &CameraControlPanel::circleParam2Changed, &app,
-                     [&](double param2) {
-                       auto params = cmd.GetDetectionParams();
-                       params.param2 = param2;
-                       cmd.SetDetectionParams(params);
-                     });
-  }
-
   // Start time for relative timestamps in metrics
   auto startTime = std::chrono::steady_clock::now();
 
   QObject::connect(panel, &CameraControlPanel::resetFocusStats, &fe,
                    &FocusEvaluator::onResetFocusStats);
+  QObject::connect(panel, &CameraControlPanel::resetFocusStats, &app,
+                   [&markerCollection]() {
+                     std::atomic_store_explicit(
+                         &markerCollection,
+                         std::shared_ptr<std::vector<CircleMarkerDetector::CircleMarker>>{},
+                         std::memory_order_release);
+                   });
   QObject::connect(panel, &CameraControlPanel::focusToolToggled, &fe,
                    &FocusEvaluator::onSetFocusTool);
   QObject::connect(panel, &CameraControlPanel::zoomValueChanged, viewer,
@@ -242,20 +234,55 @@ int main(int argc, char *argv[]) {
                      &VideoWidget::setCircleDetectionEnabled);
   }
 
+  // Update shared marker collection on a timer
+  // The timer value used here should be less than or equal to the min(focustimer, gradetimer). 
+  QObject::connect(&circleDetectTimer, &QTimer::timeout, [&]() {
+      // if we're not grading or focusing, don't gather markers.
+      if (!fe.focusToolEnabled.load(std::memory_order_acquire) &&
+          !circleDetectionEnabled.load(std::memory_order_acquire)) {
+          return;
+      }
+
+      auto localFrame = std::atomic_load_explicit(&framePtr, std::memory_order_acquire);
+
+      if (!circleDetectionBusy.exchange(true)) {
+      QtConcurrent::run([&cmd, localFrame, &circleDetectionBusy, &markerCollection]() {
+          struct Guard {
+              std::atomic<bool>& flag;
+              ~Guard() { flag.store(false); }
+          } guard{ circleDetectionBusy };
+
+          if (!localFrame) return;
+
+          auto newMarkers = std::make_shared<std::vector<CircleMarkerDetector::CircleMarker>>(
+              cmd.DetectCircleMarkers(localFrame.get())
+          );
+          std::atomic_store_explicit(&markerCollection, newMarkers, std::memory_order_release);
+      });
+      }
+  });
+
   QObject::connect(&focusTimer, &QTimer::timeout, [&]() {
     if (!fe.focusToolEnabled.load(std::memory_order_acquire)) {
       return;
     }
 
-    auto localFrame = framePtr; // create copy of shared pointer
-    if (!localFrame) {
+    auto localMarkers = std::atomic_load_explicit(&markerCollection, std::memory_order_acquire);
+    if (!localMarkers) {
       return;
     }
 
     if (!focusBusy.exchange(true)) {
-      QtConcurrent::run([&fe, focus_result, focus_score, localFrame, panel,
-                         viewer, &startTime, &mMgr, &focusBusy]() {
-        double score = fe.EvaluateBitmapFocus(localFrame.get());
+
+      const auto& circles = *localMarkers;
+      QtConcurrent::run([&fe, focus_result, focus_score, panel,
+                         viewer, &startTime, &mMgr, &focusBusy, circles]() {
+        struct Guard {
+          std::atomic<bool> &flag;
+          ~Guard() { flag.store(false); }
+        } guard{focusBusy};
+
+        double score = fe.EvaluateBitmapFocus(circles);
         // qDebug("[dbg] Focus score: %.2f", score);
 
         auto now = std::chrono::steady_clock::now();
@@ -270,7 +297,6 @@ int main(int argc, char *argv[]) {
               mMgr.setFocusOptimal(score >= 0.65);
               focus_result->updateTextandColor(score, mMgr);
               focus_score->updateNumber(score, mMgr);
-              // viewer->focus_score = score;
 
               if (panel && panel->getFocusMetricsController()) {
                 QHash<QString, qreal> focusMetrics;
@@ -280,7 +306,6 @@ int main(int argc, char *argv[]) {
               }
             },
             Qt::QueuedConnection);
-        focusBusy.store(false);
       });
     }
 
@@ -295,7 +320,6 @@ int main(int argc, char *argv[]) {
                   [focus_result, focus_score, viewer, mMgr]() {
                     focus_result->updateTextandColor(-1, mMgr);
                     focus_score->updateNumber(0, mMgr);
-                    // viewer->focus_score = 0;
                   },
                   Qt::QueuedConnection);
               focusBusy.store(false);
@@ -309,28 +333,25 @@ int main(int argc, char *argv[]) {
       return;
     }
 
-    auto localFrame = framePtr; // create copy of shared pointer
-    if (!localFrame) {
+    auto localFrame = std::atomic_load_explicit(&framePtr, std::memory_order_acquire);
+    auto localMarkers = std::atomic_load_explicit(&markerCollection, std::memory_order_acquire);
+
+    if (!localFrame || !localMarkers) {
       return;
     }
 
+    const auto& circles = *localMarkers;
+
     if (circleDetectionEnabled.load(std::memory_order_acquire) && localFrame) {
       if (!gradeBusy.exchange(true)) {
-        QtConcurrent::run([focus_result, localFrame, panel, viewer, &startTime,
-                           &circleDetectionEnabled, &cmd, &mMgr, &gradeBusy]() {
-          int circleCount = 0;
-          auto circles = std::vector<CircleMarkerDetector::CircleMarker>();
+        QtConcurrent::run([circles, panel, viewer, &startTime,
+                           &mMgr, &gradeBusy]() {
+          struct Guard {
+            std::atomic<bool> &flag;
+            ~Guard() { flag.store(false); }
+          } guard{gradeBusy};
 
-          // start each grade pass from a clean marker set.
-          mMgr.clearMarkers();
-
-          circles = cmd.DetectCircleMarkers(localFrame.get());
-          circleCount = static_cast<int>(circles.size());
-
-          if (circleCount > 0) {
-            mMgr.addMarkers(circles);
-          }
-
+          int circleCount = static_cast<int>(circles.size());
           qDebug("[dbg] Contours: %d", circleCount);
 
           auto now = std::chrono::steady_clock::now();
@@ -338,13 +359,14 @@ int main(int argc, char *argv[]) {
               now - startTime);
           qreal relativeTime = elapsed.count() / 1000.0;
 
-          double lensScore = mMgr.getLensScore();
-          qDebug("[!!] Adding lens metrics at time %.2f: LensHealth=%.2f",
-                 relativeTime, lensScore);
-
           QMetaObject::invokeMethod(
               qApp,
-              [circleCount, circles, panel, viewer, relativeTime, lensScore]() {
+              [circleCount, circles, panel, viewer, relativeTime, &mMgr]() {
+                if (circleCount > 0) {
+                  mMgr.addMarkers(circles);
+                }
+                double lensScore = mMgr.getLensScore();
+
                 if (panel) {
                   panel->updateCircleCount(circleCount);
                 }
@@ -359,30 +381,20 @@ int main(int argc, char *argv[]) {
                   panel->getLensMetricsController()->addData(relativeTime,
                                                              lensMetrics);
                 }
+                mMgr.clearMarkers();
               },
               Qt::QueuedConnection);
-          gradeBusy.store(false);
         });
       }
     }
-
     // update lens result with current grade
-    QtConcurrent::run([lens_result, &mMgr]() {
-      QMetaObject::invokeMethod(
-          qApp,
-          [lens_result, &mMgr]() { lens_result->updateTextandColor(mMgr); },
-          Qt::QueuedConnection);
-    });
+    lens_result->updateTextandColor(mMgr);
   });
 
   std::thread capture([&]() {
     for (;;) {
       if (!running)
         break;
-
-      // // DEBUG
-      // qDebug("[dbg] main.cpp fe.focusToolEnabled = %d",
-      // fe.focusToolEnabled.load());
 
       std::shared_ptr<Camera> cam;
       {
@@ -406,8 +418,6 @@ int main(int argc, char *argv[]) {
           break;
         }
 
-        fps_calculator.update(*frame);
-
         int w = frame->Width();
         int h = frame->Height();
         if (w <= 0 || h <= 0)
@@ -426,9 +436,12 @@ int main(int argc, char *argv[]) {
 
         // Set up shared bmp resource for display, focus, and lens grade
         // purposes
-        framePtr = std::shared_ptr<CameraLibrary::Bitmap>(
-            raw_bmp,
-            [pool = &bmp_pool](CameraLibrary::Bitmap *b) { pool->release(b); });
+        std::atomic_store_explicit(
+            &framePtr,
+            std::shared_ptr<CameraLibrary::Bitmap>(
+                raw_bmp,
+                [pool = &bmp_pool](CameraLibrary::Bitmap *b) { pool->release(b); }),
+            std::memory_order_release);
 
         // repaint video widget with new frame
         QMetaObject::invokeMethod(
@@ -475,6 +488,11 @@ int main(int argc, char *argv[]) {
                      cmd.SetDetectionParams(params);
                      qDebug("[ui] Circle param2 changed to %.1f", param2);
                    });
+
+  QObject::connect(panel, &CameraControlPanel::clearLocksRequested, viewer, [viewer]() {
+          viewer->videoWidget()->ClearROILocks();
+          qDebug("Clearing locked quadrants...");
+      });
 
   const int rc = app.exec();
   guard.finalize();

@@ -14,6 +14,7 @@
 
 class GraphWidget;
 class MetricController;
+class QtCameraViewer;
 
 #pragma once
 #include <QGroupBox>
@@ -51,7 +52,7 @@ class CameraControlPanel : public QWidget {
 public:
   explicit CameraControlPanel(CameraConnectionManager *mgr,
                               MetricsManager &mMgr, QWidget *parent = nullptr);
-  void setSelectedSerial(unsigned serial) { selected_serial = serial; }
+  void setSelectedSerial(unsigned serial);
   void setMarkerZoomPossible(bool tf) { markerZoomPossible = tf; }
   MetricController *getFocusMetricsController() const {
     return focusMetricsController;
@@ -75,6 +76,7 @@ signals:
   // Update circle detection param2 (accumulator threshold)
   void circleParam2Changed(double param2);
   void edgeDetectToggled(bool enabled);
+  void clearLocksRequested();
   void onMarkerZoomPossible(bool enabled);
   void onMarkerZoomToggled(bool enabled);
   void focusToolToggled(bool enabled);
@@ -91,17 +93,28 @@ private:
                                      QVector<QString> labels,
                                      QVector<QString> descriptions,
                                      QVector<bool> graphs);
+  MetricWidgets *
+  createCompactMetricWidgets(const QString &name, const QString &units,
+                             const QVector<QString> &labels,
+                             const QVector<QString> &descriptions,
+                             const QVector<bool> &graphs, int graphHeight = 72);
   void updateFocusButtonText();
   void updateFocusHudButtonText();
   void updateOverlayButtonText();
   void updateSliderLabels();
+  void updateGeneralExposureLabel(int value);
+  void updateGeneralZoomLabel(int value);
+  void updateMarkerZoomControlsEnabled(bool enabled);
+  void setLensInspectionModeIndex(int index);
+  void applyLensInspectionModeSelection(int index);
   void repopulateVideoModes();
   void repopulateLensInspectionModes();
   void repopulateCompressionModes();
+  void toggleTabVisibility(int index);
 
   QPointer<CameraConnectionManager> camera_manager;
   unsigned selected_serial{0};
-  bool markerZoomPossible = false;
+  bool markerZoomPossible;
 
   QTabWidget *rightTabWidget{nullptr};
   QGroupBox *cam_group{nullptr};
@@ -113,20 +126,21 @@ private:
   QGroupBox *exporter_group{nullptr};
   MetricWidgets *focus_metrics_widgets{nullptr};
   MetricWidgets *lens_metrics_widgets{nullptr};
+  MetricWidgets *general_focus_metrics_widgets{nullptr};
+  MetricWidgets *general_lens_metrics_widgets{nullptr};
 
   // Metrics controllers for Statistics tab
   MetricController *focusMetricsController{nullptr};
   MetricController *lensMetricsController{nullptr};
 
+  QSlider *general_exposure_slider{nullptr};
+  QLabel *general_exposure_label{nullptr};
+  QLabel *general_exposure_title_label{nullptr};
+
   QLineEdit *exposure_edit{nullptr};
   QSlider *exposure_slider{nullptr};
   QLabel *exposure_label{nullptr};
   QLabel *exposure_title_label{nullptr};
-
-  QLineEdit *fps_edit{nullptr};
-  QSlider *fps_slider{nullptr};
-  QLabel *fps_label{nullptr};
-  QLabel *fps_title_label{nullptr};
 
   QLineEdit *gain_edit{nullptr};
   QSlider *gain_slider{nullptr};
@@ -146,6 +160,14 @@ private:
 
   QLabel *lens_inspection_mode_label{nullptr};
   QComboBox *lens_inspection_mode_combo{nullptr};
+  QPushButton* lens_inspection_clear_lock_button{nullptr};
+  QLabel *general_lens_inspection_mode_label{nullptr};
+  QComboBox *general_lens_inspection_mode_combo{nullptr};
+  QPushButton* general_clear_lock_button{ nullptr };
+
+  QSlider *general_zoom_slider{nullptr};
+  QLabel *general_zoom_label{nullptr};
+  QLabel *general_zoom_title_label{nullptr};
 
   QLineEdit *quality_edit{nullptr};
   QSlider *quality_slider{nullptr};
@@ -190,7 +212,6 @@ private:
   QCheckBox *overlay_button{nullptr};
 
   QString exposure_unit_ms;
-  QString fps_unit;
   QString gain_unit_db;
 
 public slots:
@@ -199,14 +220,15 @@ public slots:
   void onSetTab2Visibility();
   void onSetTab3Visibility();
   void onSetTab4Visibility();
+  void onSetTab5Visibility();
 
 private slots:
   void onSetExposure();
-  void onSetFps();
   void onSetGain();
   void onSetZoom(bool reset);
   void onSetGamma();
   void onSetCompression();
+  void onClearROILocks();
   void onSetVideoMode(int modeEnum);
   bool isEdgeDetectCompatible(int mode);
   void onCircleParam2Changed();

@@ -32,6 +32,11 @@
         <translation>切换选项卡：</translation>
     </message>
     <message>
+        <source>General</source>
+        <translation>常规</translation>
+    </message>
+
+    <message>
         <source>Controls</source>
         <translation>控制</translation>
     </message>
@@ -103,6 +108,11 @@
         <source>Exposure:</source>
         <translation>曝光：</translation>
     </message>
+
+    <message>
+        <source>Zoom Mode:</source>
+        <translation>变焦模式：</translation>
+    </message>
     <message>
         <source>FPS:</source>
         <translation>帧率：</translation>
@@ -172,6 +182,11 @@
         <translation>启用边缘叠加：适用于灰度、精度和MJPEG模式</translation>
     </message>
     <message>
+        <source>General</source>
+        <translation>常规</translation>
+    </message>
+
+    <message>
         <source>Controls</source>
         <translation>控制</translation>
     </message>
@@ -191,6 +206,16 @@
         <source>Exporter</source>
         <translation>导出</translation>
     </message>
+    <message>
+        <source>Focus Score</source>
+        <translation>对焦分数</translation>
+    </message>
+
+    <message>
+        <source>Lens Score</source>
+        <translation>镜头分数</translation>
+    </message>
+
     <message>
         <source>Focus Statistics</source>
         <translation>对焦统计</translation>
