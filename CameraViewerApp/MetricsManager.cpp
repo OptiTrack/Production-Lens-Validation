@@ -204,49 +204,33 @@ void MetricsManager::UpdateLensDisposition() {
     return;
   }
 
-  // radial exponent k gives quadratic emphasis on corner markers.
-  const double k = 2.0;
-
-  double totalWeight = 0.0;
-  double weightedScore = 0.0;
+  const double penaltyExponent = 2.0;
+  double totalPenalty = 0.0;
 
   for (auto &m : m_metrics.visibleMarkers) {
 
-    // Compute radial fraction (0 = image center, 1 = corner)
-    double radialFraction = 0.0;
-    if (hypotToCenter > 0.0) {
-      double dist = std::hypot(imageCenter.x - m.centroid.x,
-                               imageCenter.y - m.centroid.y);
-      radialFraction = dist / hypotToCenter;
-    } else {
-      qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
-    }
-
-    // baseWeight starts at 0.25 at center ranges to 1.00 at edges.
-    // quadratic curve means the outer ~25% of the image contributes most to lens quality
-    double baseWeight = 0.25;
-    double radialWeight = baseWeight + 0.75 * std::pow(radialFraction, k);
-
     // hooks = immediate fail
     if (m.mClass == markerClass::hook) {
-      qDebug("[dbg] Hook marker at (%.2f, %.2f), radial fraction %.2f — LENS FAIL",
-              m.centroid.x, m.centroid.y, radialFraction);
+      qDebug("[dbg] Hook marker at (%.2f, %.2f) — LENS FAIL",
+              m.centroid.x, m.centroid.y);
       m_metrics.lensDisp = lensDisposition::fail;
       m_metrics.lensScore = 0;
       m_snapshot = m_metrics;
       return;
     }
 
-    qDebug("[dbg] Marker (%s) at (%.2f, %.2f): circularity=%.2f, radialFraction=%.2f, weight=%.2f",
-           MarkerClassifierToString(m.mClass), m.centroid.x, m.centroid.y,
-           m.circularityScore, radialFraction, radialWeight);
+    double error = 1.0 - m.circularityScore;
+    double penalty = std::pow(error, penaltyExponent);
+    totalPenalty += penalty;
 
-    totalWeight += radialWeight;
-    weightedScore += radialWeight * m.circularityScore;
+    qDebug("[dbg] Marker (%s) at (%.2f, %.2f): circularity=%.2f, error=%.2f, penalty=%.4f",
+           MarkerClassifierToString(m.mClass), m.centroid.x, m.centroid.y,
+           m.circularityScore, error, penalty);
   }
 
-  // weighted mean circularity has corner markers contribute more to the final score
-  double scorePct = (totalWeight > 0.0) ? weightedScore / totalWeight : 0.0;
+  // Squared-error penalty makes multiple lower-scoring markers worse than a
+  // single marker at the same score, and makes lower scores hurt faster.
+  double scorePct = std::max(0.0, 1.0 - totalPenalty);
   if (scorePct >= passingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::pass;
   } else if (scorePct >= checkingScoreThreshold) {
