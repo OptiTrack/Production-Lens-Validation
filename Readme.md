@@ -73,13 +73,16 @@ The program the lens testing team currently uses is intended for direct motion c
 
 1. **Clone** this repository. *⚠️Avoid placing it too deep in your file system; Windows max-path issues can break the build script.*
 2. **Set environment variables (configure-time only)** 
-  - `OPENCV_DIR = ..\opencv\build`
-  - `OPENCV_BIN_DIR = ..\opencv\build\bin`
-  - `Qt6_DIR = ..\Qt\6.10.0\msvc2022_64\lib\cmake\Qt6` 
-  - `QT_PLUGIN_PATH = ..\Qt\6.10.0\msvc2022_64\plugins` *Avoid setting `QT_PLUGIN_PATH` globally; deployment handles plugins.*
+     - `OPENCV_DIR = ..\opencv\build`
+     - `OPENCV_BIN_DIR = ..\opencv\build\bin`
+     - `Qt6_DIR = ..\Qt\6.10.0\msvc2022_64\lib\cmake\Qt6` 
+     - `QT_PLUGIN_PATH = ..\Qt\6.10.0\msvc2022_64\plugins` *Avoid setting `QT_PLUGIN_PATH` globally; deployment handles plugins.*
 3. **Build** using the provided script: 
-  `..\Production-Lens-Validation\CameraViewerApp\winBuild.bat` Example:*`./WinBuild.bat <CameraSDK_PATH>`*
-4. Your executable will be located at `..\Production-Lens-Validation\CameraViewerApp\build\Release\CameraViewerApp.exe`.
+     ```
+     ..\Production-Lens-Validation\CameraViewerApp\winBuild.bat
+     ```
+     Example:*`./WinBuild.bat <CameraSDK_PATH>`*
+5. Your executable will be located at `..\Production-Lens-Validation\CameraViewerApp\build\Release\CameraViewerApp.exe`.
 
 
 ## Ubuntu Build Instructions
@@ -87,10 +90,12 @@ The program the lens testing team currently uses is intended for direct motion c
 <!-- DEPENDENCIES -->
 ### Dependencies
 
-1. Install Dependencies
-<br>`sudo apt update && sudo apt install -y cmake git build-essential`
-<br>`qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev`
-<br>`libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv`
+1. Install Dependencies:
+   ```
+   sudo apt update && sudo apt install -y cmake git build-essential
+   qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev
+   libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv
+   ```
 
 
 <!-- INSTALLATION -->
@@ -98,24 +103,32 @@ The program the lens testing team currently uses is intended for direct motion c
 
 1. Clone Repository
 <br>Navigate to the directory where you want the project, then run:
-<br>`git clone https://github.com/fuzzylogic88/Production-Lens-Validation.git`
-<br>`cd Production-Lens-Validation`
+    ```
+    git clone https://github.com/fuzzylogic88/Production-Lens-Validation.git
+    cd Production-Lens-Validation
+    ```
 
 2. Build Project
-<br>`chmod +x build.sh`
-<br>`./build.sh ../OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu`
+   ```
+   chmod +x build.sh
+   ./build.sh ../OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu
+   ```
 
 3. (Optional) Enable color camera support (FFmpeg)
-<br>Install FFmpeg:
-<br>`sudo apt install -y ffmpeg`
-<br>Build with FFmpeg support:
-<br>`./linuxBuild.sh ../CameraSDK --ffmpeg`
+    - Install FFmpeg:
+       ```
+       sudo apt install -y ffmpeg
+       ```
+    - Build with FFmpeg support:
+       ```
+       ./linuxBuild.sh ../CameraSDK --ffmpeg
+       ```
 
-4. Configure network (required)
+5. Configure network (required)
 <br>Set the camera network interface to Link-Local Only:
-<br>Settings → Network → Wired (camera port) → IPv4 → IPv4 Method → Link-Local Only
+<br>`Settings → Network → Wired (camera port) → IPv4 → IPv4 Method → Link-Local Only`
 
-5. Run application
+6. Run application
 <br>`./build/CameraViewerApp`
 
 
