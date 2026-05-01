@@ -11,11 +11,16 @@
         <li>
           <a href="windows-build-instructions">Windows Build Instructions</a>
               <ul>
-                <li><a href="windows-dependencies">Dependencies</a></li>
+                <li><a href="#dependencies-1">Dependencies</a></li>
                 <li><a href="#installation">Installation</a></li>
               </ul>
         </li>
-        <li><a href="#ubuntu-build-instructions">Ubuntu Build Instructions</a></li>
+        <li>
+          <a href="#ubuntu-build-instructions">Ubuntu Build Instructions</a>
+             <ul>
+                <li><a href="#dependencies-2">Dependencies</a></li>
+             </ul>
+        </li>
      </ul>
    </li>
    <li><a href="#license">License</a></li>
@@ -53,8 +58,8 @@ The program the lens testing team currently uses is intended for direct motion c
 
 ## Windows Build Instructions
 
-<!-- DEPENDEnCIES -->
-<h3 id="windows-dependencies">Dependencies</h3>
+<!-- DEPENDENCIES -->
+### Dependencies
 
 
 * [Qt](https://www.qt.io/download-dev) 6.10.0 (Important: select the `msvc2022_64` component during installation)
@@ -77,6 +82,8 @@ The program the lens testing team currently uses is intended for direct motion c
 
 
 ## Ubuntu Build Instructions
+
+### Dependencies
 
 1. Install Dependencies
 <br>`sudo apt update && sudo apt install -y cmake git build-essential`
