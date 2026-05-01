@@ -9,9 +9,9 @@
      <a href="#getting-started">Getting Started</a>
      <ul>
         <li>
-          <a href="#windows-build-instructions">Windows Build Instructions</a>
+          <a href="windows-build-instructions">Windows Build Instructions</a>
               <ul>
-                <li><a href="#dependencies">Dependencies</a></li>
+                <li><a href="#windows-dependencies">Dependencies</a></li>
                 <li><a href="#installation">Installation</a></li>
               </ul>
         </li>
@@ -53,8 +53,8 @@ The program the lens testing team currently uses is intended for direct motion c
 
 ## Windows Build Instructions
 
-<!-- DEPENDECIES -->
-### Dependecies
+<!-- DEPENDEnCIES -->
+<h2 id="#windows-dependencies">Dependencies</h2>
 
 
 * [Qt](https://www.qt.io/download-dev) 6.10.0 (Important: select the `msvc2022_64` component during installation)
