@@ -1,6 +1,5 @@
 #pragma once
 #include "MetricsManager.h"
-#include <algorithm>
 #include <QWidget>
 
 class LensResultLabel : public QLabel {
