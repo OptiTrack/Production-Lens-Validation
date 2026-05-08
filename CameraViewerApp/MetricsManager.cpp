@@ -204,24 +204,20 @@ void MetricsManager::UpdateLensDisposition() {
     return;
   }
 
-  const double penaltyExponent = 1.0;
-  double totalPenalty = 0.0;
+    // score starts at max value, apply penalties as required
+  double maxScore = 1.0 * m_metrics.visibleMarkers.size();
+  double score = maxScore;
+  bool hasHook = false;
 
   for (auto &m : m_metrics.visibleMarkers) {
 
     // hooks = immediate fail
     if (m.mClass == markerClass::hook) {
-      qDebug("[dbg] Hook marker at (%.2f, %.2f) — LENS FAIL",
-              m.centroid.x, m.centroid.y);
-      m_metrics.lensDisp = lensDisposition::fail;
-      m_metrics.lensScore = 0;
-      m_snapshot = m_metrics;
-      return;
+      hasHook = true;
+      continue;
     }
 
-    double error = 1.0 - m.circularityScore;
-    double penalty = std::pow(error, penaltyExponent);
-    totalPenalty += penalty;
+    double penalty = 0;
 
     double markerHypotToCenter =
         std::hypot(std::abs(imageCenter.x - m.centroid.x),
@@ -261,16 +257,21 @@ void MetricsManager::UpdateLensDisposition() {
       qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
     }
 
-    totalPenalty += penalty;
+    else if (m.mClass == markerClass::hook) {
+      double scaledMultiplier = 8.8 * 1 - (markerHypotToCenter / hypotToCenter);
+      penalty = 8 * (1 - m.circularityScore);
+      qDebug("[dbg] Calculated hook marker penalty: %.2f", penalty);
+    }
 
-    qDebug("[dbg] Marker (%s) at (%.2f, %.2f): circularity=%.2f, error=%.2f, penalty=%.4f",
-           MarkerClassifierToString(m.mClass), m.centroid.x, m.centroid.y,
-           m.circularityScore, error, penalty);
+    score -= penalty;
   }
 
-  // Squared-error penalty makes multiple lower-scoring markers worse than a
-  // single marker at the same score, and makes lower scores hurt faster.
-  double scorePct = std::max(0.0, 1.0 - totalPenalty);
+    // no negative scores, no scores in excess of max
+  std::clamp(score, 0.0, maxScore);
+
+  // assign disposition to metrics object
+  double scorePct = score / maxScore;
+
   if (scorePct >= passingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::pass;
   } else if (scorePct >= checkingScoreThreshold) {
