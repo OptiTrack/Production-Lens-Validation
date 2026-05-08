@@ -155,13 +155,16 @@ float CircleMarkerDetector::CalculateCircularity(
     if (contours.empty() || radius <= 0)
         return 1.0f;
 
-    int bestContourIdx = -1;
-    double bestDistance = 1e9;
+    // Expected area of the ideal circle — used for sanity filtering.
+    const double expectedArea = CV_PI * radius * radius;
 
-    //
-    // Step 1: choose nearest valid contour
-    //
-    for (size_t i = 0; i < contours.size(); ++i) {
+    int    bestContourIdx = -1;
+    double bestDistance   = 1e9;
+
+
+    // Choose nearest valid contour.
+    for (size_t i = 0; i < contours.size(); ++i)
+    {
         if (contours[i].size() < 10)
             continue;
 
@@ -169,18 +172,21 @@ float CircleMarkerDetector::CalculateCircularity(
         if (m.m00 == 0)
             continue;
 
+        // Area must be at least 20% of the expected circle area to be a plausible candidate.
+        if (m.m00 < 0.20 * expectedArea)
+            continue;
+
         cv::Point2f centroid(
             static_cast<float>(m.m10 / m.m00),
             static_cast<float>(m.m01 / m.m00));
 
         double dist = cv::norm(centroid - center);
-
         if (dist > radius * 2.0)
             continue;
 
         if (dist < bestDistance)
         {
-            bestDistance = dist;
+            bestDistance   = dist;
             bestContourIdx = static_cast<int>(i);
         }
     }
@@ -188,40 +194,26 @@ float CircleMarkerDetector::CalculateCircularity(
     if (bestContourIdx < 0)
         return 1.0f;
 
-    //
-    // Step 2: smooth contour
-    //
+    const std::vector<cv::Point> &rawContour = contours[bestContourIdx];
+
+    // Compute circularity on the RAW contour.
+    double area      = cv::contourArea(rawContour);
+    double perimeter = cv::arcLength(rawContour, true);
+
+    if (perimeter <= 0.0 || area <= 0.0)
+        return 1.0f;
+
+    double circularity = (4.0 * CV_PI * area) / (perimeter * perimeter);
+
+    // Step 3: smooth only for the output contour (rendering / overlay).
     std::vector<cv::Point> smoothContour;
-    cv::approxPolyDP(
-        contours[bestContourIdx],
-        smoothContour,
-        2.0,
-        true);
+    cv::approxPolyDP(rawContour, smoothContour, 2.0, true);
 
-    if (smoothContour.size() < 5)
-        return 1.0f;
+    outContour = (smoothContour.size() >= 5)
+                     ? smoothContour
+                     : rawContour;
 
-    outContour = smoothContour;
-
-    //
-    // Step 3: robust circularity
-    //
-    double area = cv::contourArea(smoothContour);
-    double perimeter = cv::arcLength(
-        smoothContour,
-        true);
-
-    if (perimeter <= 0.0)
-        return 1.0f;
-
-    double circularity =
-        (4.0 * CV_PI * area) /
-        (perimeter * perimeter);
-
-    return std::clamp(
-        static_cast<float>(circularity),
-        0.0f,
-        1.0f);
+    return std::clamp(static_cast<float>(circularity), 0.0f, 1.0f);
 }
 
 CircleMarkerDetector::ShapeType
