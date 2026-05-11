@@ -101,7 +101,8 @@ void QtCameraViewer::buildUi() {
 
   focus_result_label = new QLabel("Focus Result:", focus_bar);
   focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-  focus_result_label->setMinimumWidth(80);
+  focus_result_label->setMinimumWidth(90);
+  focus_result_label->setMaximumWidth(90);
 
   focus_score_label = new QLabel("Focus Score:", focus_bar);
   focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
@@ -112,7 +113,8 @@ void QtCameraViewer::buildUi() {
   lens_result_label->setMinimumWidth(70);
 
   focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-  focus_result->setMinimumWidth(110);
+  focus_result->setMinimumWidth(200);
+  focus_result->setMinimumWidth(200);
   focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
   focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
