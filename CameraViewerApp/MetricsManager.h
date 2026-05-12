@@ -3,6 +3,7 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class MetricsManager {
@@ -16,9 +17,17 @@ public:
   };
 
   struct contourData {
+    int id = -1;
     markerClass mClass;      // appearance classification of contour
     cv::Point2f centroid;    // defines position of contour in image
     double circularityScore; // closeness of contour to perfect circle (1.0 max)
+  };
+
+  struct SmoothedMarker {
+    int id = -1;
+    markerClass mClass = circle;
+    cv::Point2f centroid = cv::Point2f(0.0f, 0.0f);
+    double circularityScore = 0.0;
   };
 
   enum OutputLanguage { English, Chinese };
@@ -83,6 +92,9 @@ private:
   double hypotToCenter;
   int imageW;
   int imageH;
+
+  double markerSmoothingAlpha = 0.1;
+  std::unordered_map<int, SmoothedMarker> m_smoothedMarkers;
 
   lensMetrics m_metrics;  // current metrics
   lensMetrics m_snapshot; // metrics snapshot of prior frame
