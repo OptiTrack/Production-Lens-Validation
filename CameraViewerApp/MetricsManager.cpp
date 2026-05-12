@@ -326,9 +326,9 @@ void MetricsManager::UpdateLensDisposition() {
   score = std::clamp(score, 0.0, maxScore);
   double scorePct = score / maxScore;
 
-  if (scorePct > passingScoreThreshold) {
+  if (scorePct >= passingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::pass;
-  } else if (scorePct > checkingScoreThreshold) {
+  } else if (scorePct >= checkingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::check;
   } else {
     m_metrics.lensDisp = lensDisposition::fail;
