@@ -183,22 +183,77 @@ void MetricsManager::addMarkers(
     return markerClass::hook;
   };
 
-  std::unordered_set<int> seenIds;
+  struct MatchEntry {
+    int prevId;
+    int circleIndex;
+    float dist;
+  };
 
-  for (const auto &circle : circles) {
-    seenIds.insert(circle.id);
+  std::vector<MatchEntry> matches;
+  matches.reserve(m_smoothedMarkers.size() * circles.size());
 
-    auto it = m_smoothedMarkers.find(circle.id);
+  for (const auto &entry : m_smoothedMarkers) {
+    for (int i = 0; i < static_cast<int>(circles.size()); ++i) {
+      float dx = entry.second.centroid.x - circles[i].center.x;
+      float dy = entry.second.centroid.y - circles[i].center.y;
+      float dist = std::hypot(dx, dy);
+      matches.push_back({entry.first, i, dist});
+    }
+  }
+
+  std::sort(matches.begin(), matches.end(), [](const MatchEntry &a,
+                                              const MatchEntry &b) {
+    return a.dist < b.dist;
+  });
+
+  std::unordered_set<int> usedPrevIds;
+  std::unordered_set<int> usedCircleIndices;
+  std::unordered_map<int, int> circleToPrevId;
+
+  for (const auto &match : matches) {
+    if (match.dist > markerMatchDistanceThreshold) {
+      break;
+    }
+    if (usedPrevIds.count(match.prevId) ||
+        usedCircleIndices.count(match.circleIndex)) {
+      continue;
+    }
+    usedPrevIds.insert(match.prevId);
+    usedCircleIndices.insert(match.circleIndex);
+    circleToPrevId[match.circleIndex] = match.prevId;
+  }
+
+  auto findExistingId = [&](int circleIndex) -> int {
+    auto it = circleToPrevId.find(circleIndex);
+    if (it != circleToPrevId.end()) {
+      return it->second;
+    }
+    return -1;
+  };
+
+  std::unordered_set<int> currentIds;
+
+  for (int i = 0; i < static_cast<int>(circles.size()); ++i) {
+    const auto &circle = circles[i];
+    int assignedId = findExistingId(i);
+    auto it = (assignedId >= 0) ? m_smoothedMarkers.find(assignedId)
+                                : m_smoothedMarkers.end();
+
     if (it == m_smoothedMarkers.end()) {
+      assignedId = nextMarkerId++;
       SmoothedMarker sm;
-      sm.id = circle.id;
+      sm.id = assignedId;
       sm.centroid = circle.center;
       sm.radius = circle.radius;
       sm.circularityScore = circle.circularity;
+      sm.rawCircularity = circle.circularity;
+      sm.forceHookDisplay = (classFromScore(circle.circularity) == markerClass::hook);
       sm.mClass = classFromScore(sm.circularityScore);
-      it = m_smoothedMarkers.emplace(circle.id, sm).first;
+      sm.missedFrames = 0;
+      it = m_smoothedMarkers.emplace(assignedId, sm).first;
     } else {
       SmoothedMarker &sm = it->second;
+      bool rawHook = (classFromScore(circle.circularity) == markerClass::hook);
       sm.centroid = cv::Point2f(
           static_cast<float>(markerSmoothingAlpha * circle.center.x +
                              (1.0 - markerSmoothingAlpha) * sm.centroid.x),
@@ -206,25 +261,42 @@ void MetricsManager::addMarkers(
                              (1.0 - markerSmoothingAlpha) * sm.centroid.y));
       sm.radius = static_cast<float>(markerSmoothingAlpha * circle.radius +
                                      (1.0 - markerSmoothingAlpha) * sm.radius);
-      sm.circularityScore =
-          markerSmoothingAlpha * circle.circularity +
-          (1.0 - markerSmoothingAlpha) * sm.circularityScore;
-      sm.mClass = classFromScore(sm.circularityScore);
+      if (rawHook) {
+        sm.forceHookDisplay = true;
+        sm.rawCircularity = circle.circularity;
+      } else {
+        sm.forceHookDisplay = false;
+        sm.circularityScore = markerSmoothingAlpha * circle.circularity +
+                               (1.0 - markerSmoothingAlpha) * sm.circularityScore;
+        sm.mClass = classFromScore(sm.circularityScore);
+      }
+      sm.missedFrames = 0;
     }
 
-    const SmoothedMarker &sm = it->second;
+    currentIds.insert(assignedId);
+    SmoothedMarker &sm = it->second;
+
     contourData cd;
-    cd.id              = sm.id;
-    cd.mClass          = sm.mClass;
-    cd.centroid        = sm.centroid;
-    cd.circularityScore = sm.circularityScore;
+    cd.id = sm.id;
+    cd.mClass = sm.forceHookDisplay ? markerClass::hook : sm.mClass;
+    cd.centroid = sm.centroid;
+    cd.circularityScore = sm.forceHookDisplay ? sm.rawCircularity
+                                              : sm.circularityScore;
     m_metrics.visibleMarkers.push_back(cd);
   }
 
-  // evict markers that were not detected this frame
-  for (auto it = m_smoothedMarkers.begin(); it != m_smoothedMarkers.end(); ) {
-    it = seenIds.count(it->first) ? std::next(it)
-                                  : m_smoothedMarkers.erase(it);
+  for (auto it = m_smoothedMarkers.begin(); it != m_smoothedMarkers.end();) {
+    if (currentIds.count(it->first)) {
+      it->second.missedFrames = 0;
+      ++it;
+    } else {
+      it->second.missedFrames += 1;
+      if (it->second.missedFrames > maxMissingFrames) {
+        it = m_smoothedMarkers.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 
   UpdateLensDisposition();
@@ -241,12 +313,16 @@ MetricsManager::getSmoothedMarkers() const {
     marker.center = entry.second.centroid;
     marker.radius = entry.second.radius;
     marker.isValid = true;
-    marker.circularity = static_cast<float>(entry.second.circularityScore);
-    marker.shapeType = (entry.second.mClass == markerClass::circle)
-                          ? CircleMarkerDetector::ShapeType::Circle
-                      : (entry.second.mClass == markerClass::oval)
-                          ? CircleMarkerDetector::ShapeType::Oval
-                          : CircleMarkerDetector::ShapeType::Hook;
+    marker.circularity = static_cast<float>(entry.second.forceHookDisplay
+                                                ? entry.second.rawCircularity
+                                                : entry.second.circularityScore);
+    marker.shapeType = entry.second.forceHookDisplay
+                          ? CircleMarkerDetector::ShapeType::Hook
+                          : (entry.second.mClass == markerClass::circle)
+                                ? CircleMarkerDetector::ShapeType::Circle
+                                : (entry.second.mClass == markerClass::oval)
+                                      ? CircleMarkerDetector::ShapeType::Oval
+                                      : CircleMarkerDetector::ShapeType::Hook;
     marker.quality = marker.circularity;
     markers.push_back(marker);
   }
