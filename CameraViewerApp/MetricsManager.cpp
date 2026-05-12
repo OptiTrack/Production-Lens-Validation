@@ -309,20 +309,23 @@ MetricsManager::getSmoothedMarkers() const {
 
   for (const auto &entry : m_smoothedMarkers) {
     CircleMarkerDetector::CircleMarker marker;
-    marker.id = entry.second.id;
-    marker.center = entry.second.centroid;
-    marker.radius = entry.second.radius;
+    const SmoothedMarker &sm = entry.second;
+    marker.id = sm.id;
+    marker.center = sm.centroid;
+    marker.radius = sm.radius;
     marker.isValid = true;
-    marker.circularity = static_cast<float>(entry.second.forceHookDisplay
-                                                ? entry.second.rawCircularity
-                                                : entry.second.circularityScore);
-    marker.shapeType = entry.second.forceHookDisplay
-                          ? CircleMarkerDetector::ShapeType::Hook
-                          : (entry.second.mClass == markerClass::circle)
-                                ? CircleMarkerDetector::ShapeType::Circle
-                                : (entry.second.mClass == markerClass::oval)
-                                      ? CircleMarkerDetector::ShapeType::Oval
-                                      : CircleMarkerDetector::ShapeType::Hook;
+    marker.circularity = static_cast<float>(sm.forceHookDisplay
+                                                ? sm.rawCircularity
+                                                : sm.circularityScore);
+    auto toShapeType = [](markerClass mc) {
+      switch (mc) {
+        case markerClass::circle: return CircleMarkerDetector::ShapeType::Circle;
+        case markerClass::oval:   return CircleMarkerDetector::ShapeType::Oval;
+        default:                  return CircleMarkerDetector::ShapeType::Hook;
+        }
+    };
+    marker.shapeType = sm.forceHookDisplay ? CircleMarkerDetector::ShapeType::Hook
+                                          : toShapeType(sm.mClass);
     marker.quality = marker.circularity;
     markers.push_back(marker);
   }
@@ -373,7 +376,7 @@ void MetricsManager::UpdateLensDisposition() {
         qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
         continue;
       }
-      double scaledMultiplier = 2 * 1 - (markerHypotToCenter / hypotToCenter);
+      double scaledMultiplier = 2.0 - (markerHypotToCenter / hypotToCenter);
       penalty = scaledMultiplier * (1 - m.circularityScore);
       qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
     }

@@ -1351,6 +1351,27 @@ std::vector<RoiInfo> VideoWidget::extractROIs(const cv::Mat &gray,
   if (rois.size() > maxROIs)
     rois.resize(maxROIs);
 
+  // Match extracted ROIs to smoothed markers by proximity and update circularity
+  {
+    std::lock_guard<std::mutex> lock(circleMarkersMutex);
+    for (auto &roi : rois) {
+      float bestDist = std::numeric_limits<float>::max();
+      int bestIdx = -1;
+      for (int i = 0; i < static_cast<int>(detectedCircleMarkers.size()); ++i) {
+        float dx = roi.centroid.x - detectedCircleMarkers[i].center.x;
+        float dy = roi.centroid.y - detectedCircleMarkers[i].center.y;
+        float dist = std::hypot(dx, dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0 && bestDist < 100.0f) {
+        roi.circularity = detectedCircleMarkers[bestIdx].circularity;
+      }
+    }
+  }
+
   return rois;
 }
 
@@ -1496,8 +1517,21 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW,
       painter.setFont(font);
       QFontMetrics fm(font);
       QColor cyanColor(0, 255, 255);
+      QColor redColor(255, 0, 0);
 
-      for (const auto &lbl : shapeParams.roiLabels) {
+      // Find the ROI with lowest circularity (worst performer)
+      double worstCircularity = 1.0;
+      int worstIdx = -1;
+      for (size_t i = 0; i < shapeParams.roiLabels.size(); ++i) {
+        if (shapeParams.roiLabels[i].circularity < worstCircularity) {
+          worstCircularity = shapeParams.roiLabels[i].circularity;
+          worstIdx = static_cast<int>(i);
+        }
+      }
+
+      for (int idx = 0; idx < static_cast<int>(shapeParams.roiLabels.size());
+           ++idx) {
+        const auto &lbl = shapeParams.roiLabels[idx];
         float sx = toScreenX(lbl.combinedPos.x);
         float sy = toScreenY(lbl.combinedPos.y);
 
@@ -1514,7 +1548,8 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW,
         QRect drawRect(tx, ty, textRect.width(), textRect.height());
 
         painter.fillRect(drawRect.adjusted(-2, -2, 2, 2), QColor(0, 0, 0, 160));
-        painter.setPen(cyanColor);
+        QColor textColor = (idx == worstIdx) ? redColor : cyanColor;
+        painter.setPen(textColor);
 
         painter.drawText(drawRect, Qt::AlignCenter, circularityText);
       }
@@ -1727,7 +1762,7 @@ void VideoWidget::updateCircleMarkersTexture() {
         painter.setPen(markerPen);
 
         // Draw circle outline
-        painter.drawEllipse(QPoint(sx, sy), sr, sr);
+        // painter.drawEllipse(QPoint(sx, sy), sr, sr);
 
         QString circularityText =
             QString("c:%1%\nID:%2")
