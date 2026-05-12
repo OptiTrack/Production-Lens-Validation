@@ -92,8 +92,7 @@ public:
 private:
   // lens grading vars
   double passingScoreThreshold = 0.90; // minimum score for 'pass'
-  double checkingScoreThreshold =
-      0.78; // minimum score for 'check'; below this is a fail
+  double checkingScoreThreshold = 0.78; // minimum score for 'check'; below this is a fail
 
   // vars relating to image dimensions
   cv::Point2f imageCenter;
@@ -103,7 +102,6 @@ private:
 
   double markerSmoothingAlpha = 0.2;
   float markerMatchDistanceThreshold = 50.0f;
-  int nextMarkerId = 0;
   int maxMissingFrames = 3;
   std::unordered_map<int, SmoothedMarker> m_smoothedMarkers;
 
