@@ -372,7 +372,8 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (viewer && viewer->videoWidget()) {
-                  viewer->videoWidget()->setDetectedCircleMarkers(circles);
+                  viewer->videoWidget()->setDetectedCircleMarkers(
+                      mMgr.getSmoothedMarkers());
                 }
 
                 if (panel && panel->getLensMetricsController()) {

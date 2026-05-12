@@ -191,10 +191,11 @@ void MetricsManager::addMarkers(
     auto it = m_smoothedMarkers.find(circle.id);
     if (it == m_smoothedMarkers.end()) {
       SmoothedMarker sm;
-      sm.id              = circle.id;
-      sm.centroid        = circle.center;
+      sm.id = circle.id;
+      sm.centroid = circle.center;
+      sm.radius = circle.radius;
       sm.circularityScore = circle.circularity;
-      sm.mClass          = classFromScore(sm.circularityScore);
+      sm.mClass = classFromScore(sm.circularityScore);
       it = m_smoothedMarkers.emplace(circle.id, sm).first;
     } else {
       SmoothedMarker &sm = it->second;
@@ -203,9 +204,11 @@ void MetricsManager::addMarkers(
                              (1.0 - markerSmoothingAlpha) * sm.centroid.x),
           static_cast<float>(markerSmoothingAlpha * circle.center.y +
                              (1.0 - markerSmoothingAlpha) * sm.centroid.y));
+      sm.radius = static_cast<float>(markerSmoothingAlpha * circle.radius +
+                                     (1.0 - markerSmoothingAlpha) * sm.radius);
       sm.circularityScore =
-          static_cast<float>(markerSmoothingAlpha * circle.circularity +
-                             (1.0 - markerSmoothingAlpha) * sm.circularityScore);
+          markerSmoothingAlpha * circle.circularity +
+          (1.0 - markerSmoothingAlpha) * sm.circularityScore;
       sm.mClass = classFromScore(sm.circularityScore);
     }
 
@@ -225,6 +228,35 @@ void MetricsManager::addMarkers(
   }
 
   UpdateLensDisposition();
+}
+
+std::vector<CircleMarkerDetector::CircleMarker>
+MetricsManager::getSmoothedMarkers() const {
+  std::vector<CircleMarkerDetector::CircleMarker> markers;
+  markers.reserve(m_smoothedMarkers.size());
+
+  for (const auto &entry : m_smoothedMarkers) {
+    CircleMarkerDetector::CircleMarker marker;
+    marker.id = entry.second.id;
+    marker.center = entry.second.centroid;
+    marker.radius = entry.second.radius;
+    marker.isValid = true;
+    marker.circularity = static_cast<float>(entry.second.circularityScore);
+    marker.shapeType = (entry.second.mClass == markerClass::circle)
+                          ? CircleMarkerDetector::ShapeType::Circle
+                      : (entry.second.mClass == markerClass::oval)
+                          ? CircleMarkerDetector::ShapeType::Oval
+                          : CircleMarkerDetector::ShapeType::Hook;
+    marker.quality = marker.circularity;
+    markers.push_back(marker);
+  }
+
+  std::sort(markers.begin(), markers.end(), [](const CircleMarkerDetector::CircleMarker &a,
+                                              const CircleMarkerDetector::CircleMarker &b) {
+    return a.id < b.id;
+  });
+
+  return markers;
 }
 
 /// <summary>

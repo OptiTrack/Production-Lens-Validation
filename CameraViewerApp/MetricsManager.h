@@ -27,6 +27,7 @@ public:
     int id = -1;
     markerClass mClass = circle;
     cv::Point2f centroid = cv::Point2f(0.0f, 0.0f);
+    float radius = 0.0f;
     double circularityScore = 0.0;
   };
 
@@ -81,6 +82,8 @@ public:
     UpdateLensDisposition();
   }
 
+  std::vector<CircleMarkerDetector::CircleMarker> getSmoothedMarkers() const;
+
 private:
   // lens grading vars
   double passingScoreThreshold = 0.90; // minimum score for 'pass'
@@ -93,7 +96,7 @@ private:
   int imageW;
   int imageH;
 
-  double markerSmoothingAlpha = 0.1;
+  double markerSmoothingAlpha = 0.2;
   std::unordered_map<int, SmoothedMarker> m_smoothedMarkers;
 
   lensMetrics m_metrics;  // current metrics
