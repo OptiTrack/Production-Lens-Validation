@@ -140,11 +140,11 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
     result.push_back(marker);
   }
 
-  // Assign stable IDs based on marker position: top-left is ID 0,
-  // then left-to-right within rows, top-to-bottom across rows.
+  // Assign IDs based on marker position
+  // top to bottom, then left to right: top-most is ID 0,
   std::sort(result.begin(), result.end(), [](const CircleMarker &a,
                                             const CircleMarker &b) {
-    if (a.center.y < b.center.y - 1e-3f) {
+    if (a.center.y < b.center.y - 1e-3f) { //1e-3f is a tiny absolute tolerance (0.001 less than)
       return true;
     }
     if (a.center.y > b.center.y + 1e-3f) {
