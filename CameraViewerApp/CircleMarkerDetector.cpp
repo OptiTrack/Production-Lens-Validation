@@ -1,5 +1,6 @@
 #include "CircleMarkerDetector.h"
 #include <QtLogging>
+#include <algorithm>
 
 CircleMarkerDetector::CircleMarkerDetector() : m_params() {}
 
@@ -111,20 +112,20 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
 
   // Convert results to CircleMarker objects
   std::vector<CircleMarker> result;
-  int id = 0;
-  
+  result.reserve(circles.size());
+
   for (const auto &circle : circles) {
     CircleMarker marker;
     marker.center = cv::Point2f(circle[0], circle[1]);
     marker.radius = circle[2];
     marker.isValid = true;
 
-   marker.circularity = CalculateCircularity(
-    marker.center,
-    marker.radius,
-    contours,
-    marker.contour);
-    
+    marker.circularity = CalculateCircularity(
+        marker.center,
+        marker.radius,
+        contours,
+        marker.contour);
+
     marker.shapeType = CategorizeShape(marker.circularity);
 
     // Quality metric based on ideal circularity/shape
@@ -136,11 +137,26 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
       marker.quality = 0.0f;
     }
 
-    marker.id = id;
-    id++;
-
     result.push_back(marker);
   }
+
+  // Assign stable IDs based on marker position: top-left is ID 0,
+  // then left-to-right within rows, top-to-bottom across rows.
+  std::sort(result.begin(), result.end(), [](const CircleMarker &a,
+                                            const CircleMarker &b) {
+    if (a.center.y < b.center.y - 1e-3f) {
+      return true;
+    }
+    if (a.center.y > b.center.y + 1e-3f) {
+      return false;
+    }
+    return a.center.x < b.center.x;
+  });
+
+  for (int i = 0; i < static_cast<int>(result.size()); ++i) {
+    result[i].id = i;
+  }
+
   return result;
 }
 
