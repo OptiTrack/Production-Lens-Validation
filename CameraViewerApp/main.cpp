@@ -371,10 +371,21 @@ int main(int argc, char *argv[]) {
                   panel->updateCircleCount(circleCount);
                 }
 
-                if (viewer && viewer->videoWidget()) {
-                  viewer->videoWidget()->setDetectedCircleMarkers(
-                      mMgr.getSmoothedMarkers());
+                // Start from raw circles, replace circularity with smoothed value
+                auto smoothed = mMgr.getSmoothedMarkers();
+                std::unordered_map<int, float> smoothedCircularity;
+                for (const auto &sm : smoothed)
+                    smoothedCircularity[sm.id] = sm.circularity;
+
+                auto displayMarkers = circles;
+                for (auto &m : displayMarkers) {
+                    auto it = smoothedCircularity.find(m.id);
+                    if (it != smoothedCircularity.end())
+                        m.circularity = it->second;
                 }
+
+                if (viewer && viewer->videoWidget())
+                    viewer->videoWidget()->setDetectedCircleMarkers(displayMarkers);
 
                 if (panel && panel->getLensMetricsController()) {
                   QHash<QString, qreal> lensMetrics;

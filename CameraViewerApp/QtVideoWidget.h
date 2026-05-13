@@ -31,6 +31,7 @@ public:
     double circularity;
     cv::Rect rect;
     cv::Point2f centroid;
+    float radius = 0.0f;
   };
 
 signals:
