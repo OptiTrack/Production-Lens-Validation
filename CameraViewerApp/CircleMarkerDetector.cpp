@@ -168,11 +168,17 @@ float CircleMarkerDetector::CalculateCircularity(
 {
     outContour.clear();
 
-    if (contours.empty() || radius <= 0)
+    if (contours.empty() || radius <= 0) {
+        qDebug("No markers!");
         return 0.0f;
+    }
+
 
     // Expected area of the ideal circle — used for sanity filtering.
     const double expectedArea = CV_PI * radius * radius;
+    if (expectedArea == 0) {
+        qDebug("Bad radius for circlemarkerdetector!");
+    }
 
     int    bestContourIdx = -1;
     double bestDistance   = 1e9;
@@ -181,6 +187,7 @@ float CircleMarkerDetector::CalculateCircularity(
     // Choose nearest valid contour.
     for (size_t i = 0; i < contours.size(); ++i)
     {
+
         if (contours[i].size() < 10)
             continue;
 
@@ -204,8 +211,10 @@ float CircleMarkerDetector::CalculateCircularity(
         }
     }
 
-    if (bestContourIdx < 0)
-        return 0.0f;
+    if (bestContourIdx < 0) {
+        qDebug("No best contour!");
+        return 0.0f; 
+    }
 
     const std::vector<cv::Point> &rawContour = contours[bestContourIdx];
 
@@ -221,8 +230,12 @@ float CircleMarkerDetector::CalculateCircularity(
             if (majorAxis > 0) {
                 circularity = std::clamp(
                     static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
+                if (circularity == 0.0) {
+                    qDebug("Circularity clamped to zero!");
+                }
             }
         } catch (...) {
+            qDebug("Exception!");
             circularity = 0.0;
         }
     }
@@ -240,13 +253,10 @@ float CircleMarkerDetector::CalculateCircularity(
 
 CircleMarkerDetector::ShapeType
 CircleMarkerDetector::CategorizeShape(float circularity) {
-  // Thresholds for shape categorization
-  const float OVAL_UPPER_THRESHOLD = 0.92f;
-  const float OVAL_LOWER_THRESHOLD = 0.70f;
 
-  if (circularity > OVAL_UPPER_THRESHOLD) {
+  if (circularity > CircleDetectorConsts::OVAL_UPPER_THRESHOLD) {
     return ShapeType::Circle;
-  } else if (circularity >= OVAL_LOWER_THRESHOLD) {
+  } else if (circularity >= CircleDetectorConsts::OVAL_LOWER_THRESHOLD) {
     return ShapeType::Oval;
   } else {
     return ShapeType::Hook;

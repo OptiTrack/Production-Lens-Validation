@@ -100,7 +100,7 @@ private:
   int imageW;
   int imageH;
 
-  double markerSmoothingAlpha = 0.2;
+  double markerSmoothingAlpha = 0.1;
   float markerMatchDistanceThreshold = 50.0f;
   int maxMissingFrames = 3;
   std::unordered_map<int, SmoothedMarker> m_smoothedMarkers;

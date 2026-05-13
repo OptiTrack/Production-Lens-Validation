@@ -12,6 +12,7 @@
 #include <qmessagebox.h>
 #include <qstring.h>
 #include <string>
+#include "CircleMarkerDetector.h"
 
 const char *ENHeaders[] = {
     "Lens Serial Number",  "Lens Disposition", "Marker Appearance",
@@ -178,8 +179,8 @@ void MetricsManager::addMarkers(
   m_metrics.visibleMarkers.clear();
 
   auto classFromScore = [](float score) -> markerClass {
-    if (score > 0.92f)  return markerClass::circle;
-    if (score >= 0.70f) return markerClass::oval;
+    if (score > CircleDetectorConsts::OVAL_UPPER_THRESHOLD)  return markerClass::circle;
+    if (score >= CircleDetectorConsts::OVAL_LOWER_THRESHOLD) return markerClass::oval;
     return markerClass::hook;
   };
 
@@ -315,7 +316,16 @@ void MetricsManager::UpdateLensDisposition() {
     // Central markers scored more strictly; edge markers more leniently,
     // since pincushion distortion naturally affects the periphery more.
     double distanceWeight = 2.0 - (markerHypot / hypotToCenter);
-    double penalty        = distanceWeight * (1.0 - m.circularityScore);
+
+    double penaltyB = 0.0;
+    if (m.mClass == markerClass::oval) {
+        penaltyB = 1.8;
+    }
+    else if (m.mClass == markerClass::circle) {
+        penaltyB = 1.0;
+    }
+
+    double penalty = penaltyB * (distanceWeight * (1.0 - m.circularityScore));
 
     qDebug("[dbg] Marker %d (%.2f, %.2f): circularity=%.2f weight=%.2f penalty=%.2f",
            m.id, m.centroid.x, m.centroid.y, m.circularityScore, distanceWeight, penalty);

@@ -5,6 +5,13 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
+namespace CircleDetectorConsts {
+
+    // Thresholds for shape categorization
+    constexpr float OVAL_UPPER_THRESHOLD = 0.92f;
+    constexpr float OVAL_LOWER_THRESHOLD = 0.62f;
+}
+
 /**
  * @class CircleMarkerDetector
  * @brief Detects circular marker shapes using OpenCV Hough Circle Transform and
