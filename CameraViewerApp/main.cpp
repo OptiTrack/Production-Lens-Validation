@@ -345,7 +345,7 @@ int main(int argc, char *argv[]) {
     if (circleDetectionEnabled.load(std::memory_order_acquire) && localFrame) {
       if (!gradeBusy.exchange(true)) {
         QtConcurrent::run([circles, panel, viewer, &startTime,
-                           &mMgr, &gradeBusy]() {
+                           &mMgr, lens_result, &gradeBusy]() {
           struct Guard {
             std::atomic<bool> &flag;
             ~Guard() { flag.store(false); }
@@ -361,7 +361,7 @@ int main(int argc, char *argv[]) {
 
           QMetaObject::invokeMethod(
               qApp,
-              [circleCount, circles, panel, viewer, relativeTime, &mMgr]() {
+              [circleCount, circles, panel, viewer, relativeTime, &mMgr, lens_result]() {
                 if (circleCount > 0) {
                   mMgr.addMarkers(circles);
                 }
@@ -371,9 +371,21 @@ int main(int argc, char *argv[]) {
                   panel->updateCircleCount(circleCount);
                 }
 
-                if (viewer && viewer->videoWidget()) {
-                  viewer->videoWidget()->setDetectedCircleMarkers(circles);
+                // Start from raw circles, replace circularity with smoothed value
+                auto smoothed = mMgr.getSmoothedMarkers();
+                std::unordered_map<int, float> smoothedCircularity;
+                for (const auto &sm : smoothed)
+                    smoothedCircularity[sm.id] = sm.circularity;
+
+                auto displayMarkers = circles;
+                for (auto &m : displayMarkers) {
+                    auto it = smoothedCircularity.find(m.id);
+                    if (it != smoothedCircularity.end())
+                        m.circularity = it->second;
                 }
+
+                if (viewer && viewer->videoWidget())
+                    viewer->videoWidget()->setDetectedCircleMarkers(displayMarkers);
 
                 if (panel && panel->getLensMetricsController()) {
                   QHash<QString, qreal> lensMetrics;
@@ -381,14 +393,15 @@ int main(int argc, char *argv[]) {
                   panel->getLensMetricsController()->addData(relativeTime,
                                                              lensMetrics);
                 }
+                if (lens_result) {
+                  lens_result->updateTextandColor(mMgr);
+                }
                 mMgr.clearMarkers();
               },
               Qt::QueuedConnection);
         });
       }
     }
-    // update lens result with current grade
-    lens_result->updateTextandColor(mMgr);
   });
 
   std::thread capture([&]() {

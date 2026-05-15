@@ -23,7 +23,7 @@ using frameScore = FocusEvaluator::frameScore;
 const int minContourCount = 3;
 const double loFocusThreshold = 0.3;
 const double decayRate = 0.93; // per evaluation, forget old max val a little bit
-const double ewm_alpha = 0.2;
+const double ewm_alpha = 0.1;
 
 /// <summary>
 /// Given a grayscale Mat, determine avg circularity and area of contours found

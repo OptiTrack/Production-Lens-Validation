@@ -5,6 +5,13 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
+namespace CircleDetectorConsts {
+
+    // Thresholds for shape categorization
+    constexpr float OVAL_UPPER_THRESHOLD = 0.92f;
+    constexpr float OVAL_LOWER_THRESHOLD = 0.62f;
+}
+
 /**
  * @class CircleMarkerDetector
  * @brief Detects circular marker shapes using OpenCV Hough Circle Transform and
@@ -39,7 +46,7 @@ public:
 
   struct DetectionParams {
     double dp = 1.0;         ///< Inverse ratio of accumulator resolution
-    double minDist = 10.0;    ///< Minimum distance between circles
+    double minDist = 10.0;   ///< Minimum distance between circles
     double param1 = 300.0;   ///< Upper threshold for Canny edge detection
     double param2 = 10.0;    ///< Accumulator threshold for circle detection
     double minRadius = 1.0;  ///< Minimum circle radius

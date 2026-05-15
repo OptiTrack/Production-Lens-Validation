@@ -20,7 +20,7 @@ public:
       this->setStyleSheet("color:DarkOrange; font-weight:600;");
     } else {
       this->setText(QCoreApplication::translate("DisplayResults", "Pass"));
-      this->setStyleSheet("color:ForestGreen; font-weight:600;");
+      this->setStyleSheet("color:Cyan; font-weight:600;");
     }
     this->update();
   }

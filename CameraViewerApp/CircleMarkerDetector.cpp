@@ -1,5 +1,6 @@
 #include "CircleMarkerDetector.h"
 #include <QtLogging>
+#include <algorithm>
 
 CircleMarkerDetector::CircleMarkerDetector() : m_params() {}
 
@@ -48,8 +49,6 @@ CircleMarkerDetector::DetectCircleMarkers(CameraLibrary::Bitmap *bmp) {
     auto circles = DetectCircles(bmp);
 
     if (!circles.empty()) {
-      // qDebug("[dbg] Circle Detection: Found %d circles",
-      // static_cast<int>(circles.size()));
       for (size_t i = 0; i < circles.size(); ++i) {
         const auto &circle = circles[i];
         const char *shapeStr =
@@ -113,16 +112,20 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
 
   // Convert results to CircleMarker objects
   std::vector<CircleMarker> result;
-  int id = 0;
+  result.reserve(circles.size());
+
   for (const auto &circle : circles) {
     CircleMarker marker;
     marker.center = cv::Point2f(circle[0], circle[1]);
     marker.radius = circle[2];
     marker.isValid = true;
 
-    // Calculate circularity and define shape type based on circularitty
-    marker.circularity = CalculateCircularity(marker.center, marker.radius,
-                                              contours, marker.contour);
+    marker.circularity = CalculateCircularity(
+        marker.center,
+        marker.radius,
+        contours,
+        marker.contour);
+
     marker.shapeType = CategorizeShape(marker.circularity);
 
     // Quality metric based on ideal circularity/shape
@@ -134,89 +137,126 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
       marker.quality = 0.0f;
     }
 
-    marker.id = id;
-    id++;
-
     result.push_back(marker);
+  }
+
+  // Assign IDs based on marker position
+  // top-left is ID 0, left-to-right within rows, top-to-bottom across rows
+  std::sort(result.begin(), result.end(), [](const CircleMarker &a,
+                                            const CircleMarker &b) {
+    if (a.center.y < b.center.y - 1e-3f) { //1e-3f is a tiny absolute tolerance (0.001 less than)
+      return true;
+    }
+    if (a.center.y > b.center.y + 1e-3f) {
+      return false;
+    }
+    return a.center.x < b.center.x;
+  });
+
+  for (int i = 0; i < static_cast<int>(result.size()); ++i) {
+    result[i].id = i;
   }
 
   return result;
 }
 
 float CircleMarkerDetector::CalculateCircularity(
-    const cv::Point2f &center, float radius,
+    const cv::Point2f &center,
+    float radius,
     const std::vector<std::vector<cv::Point>> &contours,
-    std::vector<cv::Point> &outContour) {
-  outContour.clear();
+    std::vector<cv::Point> &outContour)
+{
+    outContour.clear();
 
-  if (contours.empty() || radius <= 0) {
-    return 1.0f;
-  }
-
-  // Find the largest contour by area that is near the circle center
-  int bestContourIdx = -1;
-  double maxArea = 0.0;
-
-  for (size_t i = 0; i < contours.size(); ++i) {
-    if (contours[i].size() < 5)
-      continue;
-
-    cv::Moments m = cv::moments(contours[i]);
-    if (m.m00 == 0)
-      continue;
-
-    cv::Point2f centroid(static_cast<float>(m.m10 / m.m00),
-                         static_cast<float>(m.m01 / m.m00));
-    float dist = cv::norm(centroid - center);
-    double area = 0.0;
-    try {
-      area = cv::contourArea(contours[i]);
-    } catch (const cv::Exception &) {
-      continue;
+    if (contours.empty() || radius <= 0) {
+        qDebug("No markers!");
+        return 0.0f;
     }
 
-    if (dist < radius * 2.0f && area > maxArea) {
-      maxArea = area;
-      bestContourIdx = static_cast<int>(i);
-    }
-  }
 
-  if (bestContourIdx < 0) {
-    return 1.0f;
-  }
-
-  const auto &contour = contours[bestContourIdx];
-  outContour = contour;
-
-  if (contour.size() < 5) {
-    return 1.0f;
-  }
-
-  try {
-    cv::RotatedRect ellipse = cv::fitEllipse(contour);
-    float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
-    float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
-
-    if (majorAxis <= 0) {
-      return 1.0f;
+    // Expected area of the ideal circle — used for sanity filtering.
+    const double expectedArea = CV_PI * radius * radius;
+    if (expectedArea == 0) {
+        qDebug("Bad radius for circlemarkerdetector!");
     }
 
-    const float circularity = minorAxis / majorAxis;
-    return std::clamp(circularity, 0.0f, 1.0f);
-  } catch (...) {
-    return 1.0f;
-  }
+    int    bestContourIdx = -1;
+    double bestDistance   = 1e9;
+
+
+    // Choose nearest valid contour.
+    for (size_t i = 0; i < contours.size(); ++i)
+    {
+
+        if (contours[i].size() < 10)
+            continue;
+
+        // Area must be at least 20% of the expected circle area to be a plausible candidate.
+        cv::Moments m = cv::moments(contours[i]);
+        if (m.m00 < 0.20 * expectedArea)
+            continue;
+
+        cv::Point2f centroid(
+            static_cast<float>(m.m10 / m.m00),
+            static_cast<float>(m.m01 / m.m00));
+
+        double dist = cv::norm(centroid - center);
+        if (dist > radius * 2.0)
+            continue;
+
+        if (dist < bestDistance)
+        {
+            bestDistance   = dist;
+            bestContourIdx = static_cast<int>(i);
+        }
+    }
+
+    if (bestContourIdx < 0) {
+        qDebug("No best contour!");
+        return 0.0f; 
+    }
+
+    const std::vector<cv::Point> &rawContour = contours[bestContourIdx];
+
+    // Compute circularity using ellipse fitting (consistent with ROI zoom mode)
+    double circularity = 0.0;
+    if (rawContour.size() >= 5) {
+        try {
+            cv::RotatedRect ellipse = cv::fitEllipse(rawContour);
+            float majorAxis =
+                std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
+            float minorAxis =
+                std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
+            if (majorAxis > 0) {
+                circularity = std::clamp(
+                    static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
+                if (circularity == 0.0) {
+                    qDebug("Circularity clamped to zero!");
+                }
+            }
+        } catch (...) {
+            qDebug("Exception!");
+            circularity = 0.0;
+        }
+    }
+
+    // Smooth only for the output contour (rendering / overlay).
+    std::vector<cv::Point> smoothContour;
+    cv::approxPolyDP(rawContour, smoothContour, 2.0, true);
+
+    outContour = (smoothContour.size() >= 5)
+                     ? smoothContour
+                     : rawContour;
+
+    return static_cast<float>(circularity);
 }
 
 CircleMarkerDetector::ShapeType
 CircleMarkerDetector::CategorizeShape(float circularity) {
-  // Thresholds for shape categorization
-  const float OVAL_UPPER_THRESHOLD = 0.92f;
-  const float OVAL_LOWER_THRESHOLD = 0.70f;
 
-  if (circularity > OVAL_UPPER_THRESHOLD) {
+  if (circularity > CircleDetectorConsts::OVAL_UPPER_THRESHOLD) {
     return ShapeType::Circle;
-  } else if (circularity >= OVAL_LOWER_THRESHOLD) {
+  } else if (circularity >= CircleDetectorConsts::OVAL_LOWER_THRESHOLD) {
     return ShapeType::Oval;
   } else {
     return ShapeType::Hook;

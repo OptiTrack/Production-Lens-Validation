@@ -3,6 +3,7 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class MetricsManager {
@@ -16,9 +17,21 @@ public:
   };
 
   struct contourData {
+    int id = -1;
     markerClass mClass;      // appearance classification of contour
     cv::Point2f centroid;    // defines position of contour in image
     double circularityScore; // closeness of contour to perfect circle (1.0 max)
+  };
+
+  struct SmoothedMarker {
+    int id = -1;
+    markerClass mClass = circle;
+    cv::Point2f centroid = cv::Point2f(0.0f, 0.0f);
+    float radius = 0.0f;
+    double circularityScore = 0.0;
+    bool forceHookDisplay = false;
+    double rawCircularity = 0.0;
+    int missedFrames = 0;
   };
 
   enum OutputLanguage { English, Chinese };
@@ -55,6 +68,8 @@ public:
     imageH = size.height;
     imageCenter = cv::Point2f(size.width / 2.0f, size.height / 2.0f);
     hypotToCenter = std::hypot(imageCenter.x, imageCenter.y);
+    markerMatchDistanceThreshold = static_cast<float>(
+        std::max(30.0, std::hypot(imageW, imageH) * 0.06));
   }
 
   void testMM();
@@ -72,17 +87,23 @@ public:
     UpdateLensDisposition();
   }
 
+  std::vector<CircleMarkerDetector::CircleMarker> getSmoothedMarkers() const;
+
 private:
   // lens grading vars
   double passingScoreThreshold = 0.90; // minimum score for 'pass'
-  double checkingScoreThreshold =
-      0.78; // minimum score for 'check'; below this is a fail
+  double checkingScoreThreshold = 0.78; // minimum score for 'check'; below this is a fail
 
   // vars relating to image dimensions
   cv::Point2f imageCenter;
   double hypotToCenter;
   int imageW;
   int imageH;
+
+  double markerSmoothingAlpha = 0.1;
+  float markerMatchDistanceThreshold = 50.0f;
+  int maxMissingFrames = 3;
+  std::unordered_map<int, SmoothedMarker> m_smoothedMarkers;
 
   lensMetrics m_metrics;  // current metrics
   lensMetrics m_snapshot; // metrics snapshot of prior frame

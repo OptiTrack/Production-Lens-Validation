@@ -12,6 +12,7 @@
 #include <qmessagebox.h>
 #include <qstring.h>
 #include <string>
+#include "CircleMarkerDetector.h"
 
 const char *ENHeaders[] = {
     "Lens Serial Number",  "Lens Disposition", "Marker Appearance",
@@ -175,20 +176,107 @@ void MetricsManager::testMM() {
 /// </summary>
 void MetricsManager::addMarkers(
     const std::vector<CircleMarkerDetector::CircleMarker> &circles) {
+  m_metrics.visibleMarkers.clear();
+
+  auto classFromScore = [](float score) -> markerClass {
+    if (score > CircleDetectorConsts::OVAL_UPPER_THRESHOLD)  return markerClass::circle;
+    if (score >= CircleDetectorConsts::OVAL_LOWER_THRESHOLD) return markerClass::oval;
+    return markerClass::hook;
+  };
+
+  std::unordered_set<int> currentIds;
+
   for (const auto &circle : circles) {
-    contourData circ = {
-        (circle.shapeType == CircleMarkerDetector::ShapeType::Circle)
-            ? markerClass::circle
-        : (circle.shapeType == CircleMarkerDetector::ShapeType::Oval)
-            ? markerClass::oval
-        : (circle.shapeType == CircleMarkerDetector::ShapeType::Hook)
-            ? markerClass::hook
-            : markerClass::circle,
-        circle.center, circle.circularity};
-    m_metrics.visibleMarkers.push_back(circ);
+    auto it = m_smoothedMarkers.find(circle.id);
+
+    if (it == m_smoothedMarkers.end()) {
+      SmoothedMarker sm;
+      sm.id               = circle.id;
+      sm.centroid         = circle.center;
+      sm.radius           = circle.radius;
+      sm.circularityScore = circle.circularity;
+      sm.rawCircularity   = circle.circularity;
+      sm.mClass           = classFromScore(circle.circularity);
+      sm.forceHookDisplay = (sm.mClass == markerClass::hook);
+      it = m_smoothedMarkers.emplace(circle.id, sm).first;
+    } else {
+      SmoothedMarker &sm = it->second;
+      bool rawHook = (classFromScore(circle.circularity) == markerClass::hook);
+      sm.centroid = cv::Point2f(
+          static_cast<float>(markerSmoothingAlpha * circle.center.x +
+                             (1.0 - markerSmoothingAlpha) * sm.centroid.x),
+          static_cast<float>(markerSmoothingAlpha * circle.center.y +
+                             (1.0 - markerSmoothingAlpha) * sm.centroid.y));
+      sm.radius = static_cast<float>(markerSmoothingAlpha * circle.radius +
+                                     (1.0 - markerSmoothingAlpha) * sm.radius);
+      if (rawHook) {
+        sm.forceHookDisplay = true;
+        sm.rawCircularity   = circle.circularity;
+      } else {
+        sm.forceHookDisplay  = false;
+        sm.circularityScore  = markerSmoothingAlpha * circle.circularity +
+                               (1.0 - markerSmoothingAlpha) * sm.circularityScore;
+        sm.mClass = classFromScore(sm.circularityScore);
+      }
+    }
+
+    currentIds.insert(circle.id);
+    const SmoothedMarker &sm = it->second;
+    contourData cd;
+    cd.id              = sm.id;
+    cd.mClass          = sm.forceHookDisplay ? markerClass::hook : sm.mClass;
+    cd.centroid        = sm.centroid;
+    cd.circularityScore = sm.forceHookDisplay ? sm.rawCircularity : sm.circularityScore;
+    m_metrics.visibleMarkers.push_back(cd);
+  }
+
+  for (auto it = m_smoothedMarkers.begin(); it != m_smoothedMarkers.end();) {
+    if (currentIds.count(it->first)) {
+      ++it;
+    } else if (++it->second.missedFrames > maxMissingFrames) {
+      it = m_smoothedMarkers.erase(it);
+    } else {
+      ++it;
+    }
   }
 
   UpdateLensDisposition();
+}
+
+std::vector<CircleMarkerDetector::CircleMarker>
+MetricsManager::getSmoothedMarkers() const {
+  std::vector<CircleMarkerDetector::CircleMarker> markers;
+  markers.reserve(m_smoothedMarkers.size());
+
+  for (const auto &entry : m_smoothedMarkers) {
+    CircleMarkerDetector::CircleMarker marker;
+    const SmoothedMarker &sm = entry.second;
+    marker.id = sm.id;
+    marker.center = sm.centroid;
+    marker.radius = sm.radius;
+    marker.isValid = true;
+    marker.circularity = static_cast<float>(sm.forceHookDisplay
+                                                ? sm.rawCircularity
+                                                : sm.circularityScore);
+    auto toShapeType = [](markerClass mc) {
+      switch (mc) {
+        case markerClass::circle: return CircleMarkerDetector::ShapeType::Circle;
+        case markerClass::oval:   return CircleMarkerDetector::ShapeType::Oval;
+        default:                  return CircleMarkerDetector::ShapeType::Hook;
+        }
+    };
+    marker.shapeType = sm.forceHookDisplay ? CircleMarkerDetector::ShapeType::Hook
+                                          : toShapeType(sm.mClass);
+    marker.quality = marker.circularity;
+    markers.push_back(marker);
+  }
+
+  std::sort(markers.begin(), markers.end(), [](const CircleMarkerDetector::CircleMarker &a,
+                                              const CircleMarkerDetector::CircleMarker &b) {
+    return a.id < b.id;
+  });
+
+  return markers;
 }
 
 /// <summary>
@@ -197,80 +285,57 @@ void MetricsManager::addMarkers(
 /// ExportMetrics() always has data regardless of render loop timing.
 /// </summary>
 void MetricsManager::UpdateLensDisposition() {
-
   if (m_metrics.visibleMarkers.empty()) {
-    m_metrics.lensDisp = lensDisposition::untested;
-    m_metrics.lensScore = 0;
+    m_metrics.lensDisp  = lensDisposition::untested;
+    m_metrics.lensScore = 0.0;
     return;
   }
 
-  // score starts at max value, apply penalties as required
-  double maxScore = 1.0 * m_metrics.visibleMarkers.size();
-  double score = maxScore;
-  bool hasHook = false;
-
-  for (auto &m : m_metrics.visibleMarkers) {
-
-    // hooks fail immediately
+  // Any hook is an immediate fail — skip scoring entirely
+  for (const auto &m : m_metrics.visibleMarkers) {
     if (m.mClass == markerClass::hook) {
-      hasHook = true;
-      continue;
+      m_metrics.lensDisp  = lensDisposition::fail;
+      m_metrics.lensScore = 0.0;
+      m_snapshot = m_metrics;
+      return;
     }
+  }
 
-    double penalty = 0;
+  if (hypotToCenter == 0.0) {
+    qDebug("[!] hypotToCenter is zero — setActiveResolution() not called?");
+    return;
+  }
 
-    double markerHypotToCenter =
-        std::hypot(std::abs(imageCenter.x - m.centroid.x),
-            std::abs(imageCenter.y - m.centroid.y));
+  double maxScore = static_cast<double>(m_metrics.visibleMarkers.size());
+  double score    = maxScore;
 
-    // if oval, determine distance from center the centroid is, and apply scaled
-    // penalty based on distance. The further from center, the greater penalty,
-    // as we expect more deformation/pincushion there. Scale penalty with
-    // circularity for more dynamic scoring.
+  for (const auto &m : m_metrics.visibleMarkers) {
+    double markerHypot = std::hypot(imageCenter.x - m.centroid.x,
+                                    imageCenter.y - m.centroid.y);
+
+    // Central markers scored more strictly; edge markers more leniently,
+    // since pincushion distortion naturally affects the periphery more.
+    double distanceWeight = 2.0 - (markerHypot / hypotToCenter);
+
+    double penaltyB = 0.0;
     if (m.mClass == markerClass::oval) {
-
-      qDebug("\n[dbg] Oval marker at (%.2f, %.2f) with circularity %.2f",
-             m.centroid.x, m.centroid.y, m.circularityScore);
-
-      if (hypotToCenter == 0.0) {
-        qDebug("[!] hypotToCenter is zero, setActiveResolution() not called?");
-        continue;
-      }
-
-      // marker centroid deviation from true image center as weight
-      // added scaling value to increase severity
-      double scaledMultiplier = 2 * 1 - (markerHypotToCenter / hypotToCenter);
-
-      qDebug("[dbg] Max hypot: %.2f, marker hypot to center: %.2f, Distance "
-             "weight: %.2f",
-             hypotToCenter, markerHypotToCenter, scaledMultiplier);
-
-      // scale distance with non-circularity
-      penalty = scaledMultiplier * (1 - m.circularityScore);
-
-      qDebug("[dbg] Calculated oval marker penalty: %.2f", penalty);
+        penaltyB = 1.8;
     }
-
-    // if circular, apply penalty proportional to circularity
     else if (m.mClass == markerClass::circle) {
-      penalty = (1 - m.circularityScore); // apply unweighted circularity score
-      qDebug("[dbg] Calculated circle marker penalty: %.2f", penalty);
+        penaltyB = 1.0;
     }
 
-    else if (m.mClass == markerClass::hook) {
-      double scaledMultiplier = 8.8 * 1 - (markerHypotToCenter / hypotToCenter);
-      penalty = 8 * (1 - m.circularityScore);
-      qDebug("[dbg] Calculated hook marker penalty: %.2f", penalty);
-    }
+    double penalty = penaltyB * (distanceWeight * (1.0 - m.circularityScore));
+
+    qDebug("[dbg] Marker %d (%.2f, %.2f): circularity=%.2f weight=%.2f penalty=%.2f",
+           m.id, m.centroid.x, m.centroid.y, m.circularityScore, distanceWeight, penalty);
 
     score -= penalty;
   }
 
-  // no negative scores, no scores in excess of max
-  std::clamp(score, 0.0, maxScore);
-
-  // assign disposition to metrics object
+  score = std::clamp(score, 0.0, maxScore);
   double scorePct = score / maxScore;
+
   if (scorePct >= passingScoreThreshold) {
     m_metrics.lensDisp = lensDisposition::pass;
   } else if (scorePct >= checkingScoreThreshold) {
@@ -278,10 +343,9 @@ void MetricsManager::UpdateLensDisposition() {
   } else {
     m_metrics.lensDisp = lensDisposition::fail;
   }
-  m_metrics.lensScore = scorePct;
-  qDebug("[dbg] Overall lens health: %.2f%\n", scorePct * 100.f);
 
-  // Retain this result so ExportMetrics() always has the last valid frame data
+  m_metrics.lensScore = scorePct;
+  qDebug("[dbg] Overall lens health: %.2f%%\n", scorePct * 100.0);
   m_snapshot = m_metrics;
 }
 
