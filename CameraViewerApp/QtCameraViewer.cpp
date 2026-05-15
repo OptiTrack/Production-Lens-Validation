@@ -113,8 +113,11 @@ void QtCameraViewer::buildUi() {
   lens_result_label->setMinimumWidth(70);
 
   focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-  focus_result->setMinimumWidth(200);
-  focus_result->setMinimumWidth(200);
+  QFont focus_font("Times", 10);
+  QFontMetrics fm(focus_font);
+  int result_max_width = fm.horizontalAdvance(focus_result->wide_angle_success);
+  focus_result->setMinimumWidth(result_max_width);
+  focus_result->setMaximumWidth(result_max_width);
   focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
   focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
