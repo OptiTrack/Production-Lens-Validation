@@ -99,25 +99,24 @@ void QtCameraViewer::buildUi() {
   auto *sh = new QHBoxLayout(focus_bar);
   sh->setContentsMargins(6, 0, 6, 0);
 
+  // set font for using horizontalAdvance()
+  // font itself based on what's defined in motive.css
+  QFont focus_font("Lato", 12);
+  fm = new QFontMetricsF(focus_font);
+
   focus_result_label = new QLabel("Focus Result:", focus_bar);
   focus_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-  focus_result_label->setMinimumWidth(90);
-  focus_result_label->setMaximumWidth(90);
 
   focus_score_label = new QLabel("Focus Score:", focus_bar);
   focus_score_label->setStyleSheet("color:#ddd; font-weight:600;");
-  focus_score_label->setMinimumWidth(80);
 
   lens_result_label = new QLabel("Lens Grade:", focus_bar);
   lens_result_label->setStyleSheet("color:#ddd; font-weight:600;");
-  lens_result_label->setMinimumWidth(70);
 
   focus_result->setStyleSheet("color:CadetBlue; font-weight:600;");
-  QFont focus_font("Times", 10);
-  QFontMetrics fm(focus_font);
-  int result_max_width = fm.horizontalAdvance(focus_result->wide_angle_success);
-  focus_result->setMinimumWidth(result_max_width);
-  focus_result->setMaximumWidth(result_max_width);
+  double focus_result_width = fm->horizontalAdvance(focus_result->wide_angle_success);
+  focus_result->setMinimumWidth(focus_result_width);
+  focus_result->setMaximumWidth(focus_result_width);
   focus_result->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
   focus_score->setStyleSheet("color:CadetBlue; font-weight:600;");
@@ -134,7 +133,7 @@ void QtCameraViewer::buildUi() {
   sh->addWidget(focus_score);
   sh->addWidget(lens_result_label);
   sh->addWidget(lens_result);
-  sh->addStretch(1);
+  // sh->addStretch(1);
   
   v->addWidget(focus_bar);
 
@@ -349,14 +348,23 @@ void QtCameraViewer::retranslateUi() {
   if (focus_result_label) {
     focus_result_label->setText(
         QCoreApplication::translate("QtCameraViewer", "Focus Result:"));
-  }
-  if (lens_result_label) {
-    lens_result_label->setText(
-        QCoreApplication::translate("QtCameraViewer", "Lens Grade:"));
+    fr_label_width = fm->horizontalAdvance(focus_result_label->text());
+    focus_result_label->setMinimumWidth(fr_label_width);
+    focus_result_label->setMaximumWidth(fr_label_width);
   }
   if (focus_score_label) {
     focus_score_label->setText(
         QCoreApplication::translate("QtCameraViewer", "Focus Score:"));
+    fs_label_width = fm->horizontalAdvance(focus_score_label->text());
+    focus_score_label->setMinimumWidth(fs_label_width);
+    focus_score_label->setMaximumWidth(fs_label_width);
+  }
+  if (lens_result_label) {
+    lens_result_label->setText(
+        QCoreApplication::translate("QtCameraViewer", "Lens Grade:"));
+    lr_label_width = fm->horizontalAdvance(lens_result_label->text());
+    lens_result_label->setMinimumWidth(lr_label_width);
+    lens_result_label->setMaximumWidth(lr_label_width);
   }
   if (toggle_label) {
     toggle_label->setText(

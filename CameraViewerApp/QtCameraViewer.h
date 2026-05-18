@@ -85,6 +85,10 @@ private:
   QLabel *lens_result_label{nullptr};
   QLabel *focus_score_label{nullptr};
   QLabel *focus_score_display{nullptr};
+  QFontMetricsF *fm{nullptr};
+  qreal fr_label_width{5.0};
+  qreal fs_label_width{5.0};
+  qreal lr_label_width{5.0};
 
   CameraConnectionManager *camera_manager{nullptr};
   std::mutex &camera_mutex;
