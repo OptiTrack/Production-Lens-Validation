@@ -70,17 +70,10 @@ public:
 private:
   cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap *bmp);
 
-  /// @brief Calculate circularity metric for a detected circle using contour
-  /// geometry
-  /// @param center Circle center point
-  /// @param radius Circle radius
-  /// @param contours Detected contours for comparison
-  /// @param outContour Output: the contour used for calculation
-  /// @return Circularity value (0.0 to 1.0, where 1.0 is perfect circle)
-  float
-  CalculateCircularity(const cv::Point2f &center, float radius,
-                       const std::vector<std::vector<cv::Point>> &contours,
-                       std::vector<cv::Point> &outContour);
+  float CalculateCircularity(const cv::Mat &blurred,
+                           const cv::Point2f &center,
+                           float radius,
+                           std::vector<cv::Point> &outContour);
 
   /// @brief Categorize shape based on circularity
   /// @param circularity The circularity value (0.0-1.0)
