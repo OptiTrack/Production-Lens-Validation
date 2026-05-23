@@ -157,7 +157,6 @@ void CameraControlPanel::buildUi() {
   general_exposure_slider->setToolTip("Drag slider to adjust exposure");
 
   general_exposure_label = new QLabel(generalExposureWidget);
-  general_exposure_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   general_exposure_label->setMinimumWidth(90);
   general_exposure_label->setMaximumWidth(90);
 
@@ -173,8 +172,9 @@ void CameraControlPanel::buildUi() {
   generalExposureRowLayout->setSpacing(8);
   generalExposureRowLayout->addWidget(general_exposure_slider);
   generalExposureRowLayout->addWidget(general_exposure_edit);
-  generalExposureRowLayout->addWidget(general_exposure_label);
   generalExposureLayout->addWidget(generalExposureRow);
+  generalExposureLayout->addWidget(general_exposure_label, 0,
+                                   Qt::AlignLeft);
   vGeneral->addWidget(generalExposureWidget);
   auto* generalZoomModeWidget = new QWidget(tabGeneral);
   auto* generalZoomModeLayout = new QVBoxLayout(generalZoomModeWidget);
@@ -1102,7 +1102,8 @@ void CameraControlPanel::buildUi() {
   for (int i = 1; i < rightTabWidget->count() - 1; ++i)
     rightTabWidget->setTabVisible(i, false);
 
-  updateMarkerZoomControlsEnabled(false);
+  setMarkerZoomPossible(true);
+  updateMarkerZoomControlsEnabled(true);
   setLensInspectionModeIndex(0);
 
   root->addWidget(rightTabWidget);
