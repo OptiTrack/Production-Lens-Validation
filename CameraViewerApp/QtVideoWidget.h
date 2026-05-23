@@ -42,6 +42,8 @@ signals:
 public slots:
   void updateFrameFromBitmap(CameraLibrary::Bitmap *bmp);
   void setNewZoomValue(float zoom);
+  void setWorstMarkersN(int n) { worstN = n; }
+
 
 protected:
   void initializeGL() override;
@@ -87,6 +89,7 @@ private:
   std::atomic<bool> roiZoomEnabled{false};
 
   float ROIZoomScale = 2.f; // degree of zoom for ROI quadrants
+  int worstN = 1; // default # of worst markers to display as red
 
   // Per-slot tracking: each of the 5 display slots (TL, TR, BL, BR, center)
   // independently tracks its chosen marker across frames, selecting the closest

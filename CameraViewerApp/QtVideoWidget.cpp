@@ -1729,13 +1729,19 @@ void VideoWidget::updateCircleMarkersTexture() {
       font.setBold(true);
       painter.setFont(font);
 
-      // Find the marker with the lowest circularity (worst performer)
-      float worstCircularity = 1.0f;
-      int worstMarkerId = -1;
-      for (const auto &marker : detectedCircleMarkers) {
-        if (marker.circularity < worstCircularity) {
-          worstCircularity = marker.circularity;
-          worstMarkerId = marker.id;
+      std::vector<int> worstMarkerIds;
+      {
+        std::vector<std::pair<float, int>> circularities;
+        circularities.reserve(detectedCircleMarkers.size());
+        for (const auto &marker : detectedCircleMarkers) {
+          circularities.emplace_back(marker.circularity, marker.id);
+        }
+        std::partial_sort(circularities.begin(),
+                          circularities.begin() +
+                              std::min((int)circularities.size(), worstN),
+                          circularities.end());
+        for (int i = 0; i < std::min((int)circularities.size(), worstN); ++i) {
+          worstMarkerIds.push_back(circularities[i].second);
         }
       }
 
@@ -1755,8 +1761,10 @@ void VideoWidget::updateCircleMarkersTexture() {
           continue;
         }
 
-        // Use red for worst marker, cyan for others
-        QColor markerColor = (marker.id == worstMarkerId) ? redColor : cyanColor;
+        // Use red for worst N markers, cyan for others
+        bool isWorst = std::find(worstMarkerIds.begin(), worstMarkerIds.end(),
+                                marker.id) != worstMarkerIds.end();
+        QColor markerColor = isWorst ? redColor : cyanColor;
         QPen markerPen(markerColor, 2);
         markerPen.setCapStyle(Qt::RoundCap);
         painter.setPen(markerPen);
