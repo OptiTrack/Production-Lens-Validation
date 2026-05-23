@@ -1,43 +1,49 @@
 #pragma once
 
-#include "CameraHelpers.h"
 #include <atomic>
-#include <deque>
-#include <memory>
 #include <mutex>
-#include <opencv2/opencv.hpp>
-#include "CircleMarkerDetector.h"
 
 #include <QObject>
+#include <opencv2/opencv.hpp>
+
+#include "CameraHelpers.h"
 
 class FocusEvaluator : public QObject {
-  Q_OBJECT
-public:
-  double EvaluateBitmapFocus(const std::vector<CircleMarkerDetector::CircleMarker>& circles);
+    Q_OBJECT
 
-  struct frameScore {
-    double circularity;
-    double avgContourArea;
-    int contourCount;
-  };
-  std::atomic_bool
-      focusToolEnabled; // changed by focus UI control; set True by default
+public:
+    explicit FocusEvaluator(QObject* parent = nullptr)
+        : QObject(parent),
+          focusToolEnabled(true) {}
+
+    double EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp);
+
+    std::atomic_bool focusToolEnabled;
 
 public slots:
-  void onSetFocusTool(bool toggle);
-  void onResetFocusStats();
+    void onSetFocusTool(bool toggle);
+    void onResetFocusStats();
 
 private:
-  frameScore gradeFrame(const std::vector<CircleMarkerDetector::CircleMarker>& circles);
-  void addFrameScore(frameScore fs);
-  double compareScoreToMax(const frameScore &fs);
-  double getBestLocalFocus();
+    cv::Mat ConvertBitmapToMat(CameraLibrary::Bitmap* bmp);
 
-  // Shared & mutable scoring state - accessed from both the QtConcurrent worker
-  // during EvaluateBitmapFocus and the main thread (onResetFocusStats).
-  std::mutex scoreMutex;
-  std::deque<frameScore> frameScoreSet;
-  static constexpr size_t sampleCount = 65535;
-  double maxInstanceScore{0.0};
-  double smoothedRatio{0.0};
+    std::mutex scoreMutex;
+    double smoothedScore = 0.0;
+
+    // Initial Laplacian-stddev bounds, adjusted as new values arrive
+    static constexpr double lapStdBlur  = 15.0;
+    static constexpr double lapStdSharp = 200.0;
+
+    // Per-session adaptive bounds. 
+    // Sharp grows when exceeded, blur shrinks when undershot
+    double observedSharp = lapStdSharp;
+    double observedBlur  = lapStdBlur;
+
+    static constexpr double boundsAlpha = 0.05; // EWM for bound expansion to prevent spikes from transient peaks
+	static constexpr double ewmAlpha = 0.2;     // EWM alpha for smoothing the final score to prevent jitter
+
+    static constexpr int minMaskPixels = 3; // minimum pixel width of a marker to filter noise
+
+    static constexpr double markerThreshRatio = 0.5; // Mask anything within markerThreshRatio of the brightest pixel.
+    static constexpr double minImageBrightness = 30.0; //  gates "frame too dark to contain any marker at all" before we divide by max.
 };

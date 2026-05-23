@@ -137,6 +137,7 @@ private:
   QSlider *general_exposure_slider{nullptr};
   QLabel *general_exposure_label{nullptr};
   QLabel *general_exposure_title_label{nullptr};
+  QLineEdit *general_exposure_edit{nullptr};
 
   QLineEdit *exposure_edit{nullptr};
   QSlider *exposure_slider{nullptr};

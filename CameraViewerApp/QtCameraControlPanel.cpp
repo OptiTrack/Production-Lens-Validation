@@ -47,6 +47,8 @@ void CameraControlPanel::setSelectedSerial(unsigned serial) {
 
   const QSignalBlocker exposureBlocker(exposure_slider);
   const QSignalBlocker generalExposureBlocker(general_exposure_slider);
+  const QSignalBlocker exposureEditBlocker(exposure_edit);
+  const QSignalBlocker generalExposureEditBlocker(general_exposure_edit);
 
   if (exposure_slider) {
     exposure_slider->setValue(exposure);
@@ -54,8 +56,27 @@ void CameraControlPanel::setSelectedSerial(unsigned serial) {
   if (general_exposure_slider) {
     general_exposure_slider->setValue(exposure);
   }
+  if (exposure_edit) {
+    exposure_edit->setText(QString::number(exposure));
+  }
+  if (general_exposure_edit) {
+    general_exposure_edit->setText(QString::number(exposure));
+  }
 
   updateSliderLabels();
+
+  // Apply the UI's currently-selected video mode to the newly-selected camera
+  if (video_mode_combo) {
+    const QVariant itemData = video_mode_combo->currentData();
+    int mode = 0;
+    if (itemData.canConvert<QVariantList>()) {
+      const QVariantList dataList = itemData.toList();
+      mode = dataList.value(0).toInt();
+    } else {
+      mode = itemData.toInt();
+    }
+    onSetVideoMode(mode);
+  }
 }
 
 CameraControlPanel::CameraControlPanel(CameraConnectionManager *mgr,
@@ -136,17 +157,24 @@ void CameraControlPanel::buildUi() {
   general_exposure_slider->setToolTip("Drag slider to adjust exposure");
 
   general_exposure_label = new QLabel(generalExposureWidget);
-  general_exposure_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   general_exposure_label->setMinimumWidth(90);
   general_exposure_label->setMaximumWidth(90);
+
+  general_exposure_edit = new QLineEdit(generalExposureWidget);
+  general_exposure_edit->setValidator(
+      new QIntValidator(1, 400, general_exposure_edit));
+  general_exposure_edit->setMaximumWidth(64);
+  general_exposure_edit->setToolTip("Enter an exposure value here");
 
   auto *generalExposureRow = new QWidget(generalExposureWidget);
   auto *generalExposureRowLayout = new QHBoxLayout(generalExposureRow);
   generalExposureRowLayout->setContentsMargins(0, 0, 0, 0);
   generalExposureRowLayout->setSpacing(8);
   generalExposureRowLayout->addWidget(general_exposure_slider);
-  generalExposureRowLayout->addWidget(general_exposure_label);
+  generalExposureRowLayout->addWidget(general_exposure_edit);
   generalExposureLayout->addWidget(generalExposureRow);
+  generalExposureLayout->addWidget(general_exposure_label, 0,
+                                   Qt::AlignLeft);
   vGeneral->addWidget(generalExposureWidget);
   auto* generalZoomModeWidget = new QWidget(tabGeneral);
   auto* generalZoomModeLayout = new QVBoxLayout(generalZoomModeWidget);
@@ -309,6 +337,21 @@ void CameraControlPanel::buildUi() {
     bool ok = false;
     if (!exposure_edit->text().toInt(&ok) || !ok)
       exposure_edit->setText(QString::number(exposure_slider->value()));
+  });
+  connect(general_exposure_edit, &QLineEdit::textEdited, this,
+          [this](const QString &text) {
+            bool ok = false;
+            const int v = text.toInt(&ok);
+            if (!ok)
+              return;
+            general_exposure_slider->setValue(qBound(1, v, 400));
+            onSetExposure();
+          });
+  connect(general_exposure_edit, &QLineEdit::editingFinished, this, [this]() {
+    bool ok = false;
+    if (!general_exposure_edit->text().toInt(&ok) || !ok)
+      general_exposure_edit->setText(
+          QString::number(general_exposure_slider->value()));
   });
   if (general_exposure_slider) {
     connect(exposure_slider, &QSlider::valueChanged, general_exposure_slider,
@@ -1091,7 +1134,8 @@ void CameraControlPanel::buildUi() {
   for (int i = 1; i < rightTabWidget->count() - 1; ++i)
     rightTabWidget->setTabVisible(i, false);
 
-  updateMarkerZoomControlsEnabled(false);
+  setMarkerZoomPossible(true);
+  updateMarkerZoomControlsEnabled(true);
   setLensInspectionModeIndex(0);
 
   root->addWidget(rightTabWidget);
@@ -1276,6 +1320,9 @@ void CameraControlPanel::updateGeneralExposureLabel(int value) {
       exposure_unit_ms.isEmpty() ? QStringLiteral("ms") : exposure_unit_ms;
   general_exposure_label->setText(
       QStringLiteral("%1 %2").arg(value).arg(units));
+  if (general_exposure_edit) {
+    general_exposure_edit->setText(QString::number(value));
+  }
 }
 
 void CameraControlPanel::updateGeneralZoomLabel(int value) {
@@ -1392,6 +1439,22 @@ void CameraControlPanel::repopulateVideoModes() {
     if (videoModeDataEqual(video_mode_combo->itemData(i), currentData)) {
       targetIdx = i;
       break;
+    }
+  }
+  if (targetIdx < 0) {
+    // Prefer Grayscale as the default mode if present in the list
+    for (int i = 0; i < video_mode_combo->count(); ++i) {
+      QVariant d = video_mode_combo->itemData(i);
+      if (d.canConvert<QVariantList>()) {
+        const QVariantList l = d.toList();
+        if (l.value(0).toInt() == static_cast<int>(Core::GrayscaleMode)) {
+          targetIdx = i;
+          break;
+        }
+      } else if (d.toInt() == static_cast<int>(Core::GrayscaleMode)) {
+        targetIdx = i;
+        break;
+      }
     }
   }
   if (targetIdx < 0 && video_mode_combo->count() > 0) {

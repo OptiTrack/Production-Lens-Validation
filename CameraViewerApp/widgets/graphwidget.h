@@ -26,9 +26,9 @@ private:
   qreal xWindowSize = 10.0;
   qreal xScrollOffset = 0.0;
   const int segments = 20;
-  const float lineWidth = 3.0f;
-  const float markerRadius = 1.0f;
-  const float ringRadius = markerRadius + 0.1f;
+  const float lineWidth = 4.0f;
+  const float markerRadius = 3.0f;
+  const float ringRadius = markerRadius + 0.2f;
 
   void drawMarker(qreal x, qreal y, float ringXRad, float ringYRad,
                   float diskXRad, float diskYRad);

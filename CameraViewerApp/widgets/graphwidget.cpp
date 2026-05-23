@@ -83,12 +83,20 @@ void GraphWidget::paintGL() {
   if (xData.isEmpty())
     return;
 
-  // Fixed Y-axis range for focus metrics (0-1 with padding)
-  qreal yMin = 0.0;
-  qreal yMax = 1.0;
-  qreal yPadding = (yMax - yMin) * 0.15; // 15% padding on top and bottom
-  yMin -= yPadding;
-  yMax += yPadding;
+  // Dynamic Y-axis range for focus metrics (0-1 with padding)
+  qreal minVal = *std::min_element(yData.begin(), yData.end());
+  qreal maxVal = *std::max_element(yData.begin(), yData.end());
+
+  qreal fullRange = maxVal - minVal;
+
+  // Display fraction of total range
+  qreal visibleRange = fullRange / 2.5;
+
+  qreal latest = yData.back();
+
+  // Center latest value in graph
+  qreal yMin = latest - visibleRange / 2.0;
+  qreal yMax = latest + visibleRange / 2.0;
 
   qreal xPadding = xWindowSize * 0.1;
 
@@ -125,8 +133,8 @@ void GraphWidget::paintGL() {
   float pxToWorldY = worldHeight / float(h);
 
   // two pixel‐radii: one for the white ring, one for the inner disk
-  int diskPixels = 4;
-  int ringPixels = diskPixels + 1;
+  int diskPixels = 5;
+  int ringPixels = diskPixels + 2;
 
   // convert to world‐space radii
   float ringRadiusX = ringPixels * pxToWorldX;
