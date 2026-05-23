@@ -267,22 +267,22 @@ int main(int argc, char *argv[]) {
       return;
     }
 
-    auto localMarkers = std::atomic_load_explicit(&markerCollection, std::memory_order_acquire);
-    if (!localMarkers) {
+    auto localFrame = std::atomic_load_explicit(&framePtr, std::memory_order_acquire);
+    if (!localFrame) {
       return;
     }
 
     if (!focusBusy.exchange(true)) {
 
-      const auto& circles = *localMarkers;
       QtConcurrent::run([&fe, focus_result, focus_score, panel,
-                         viewer, &startTime, &mMgr, &focusBusy, circles]() {
+                         viewer, &startTime, &mMgr, &focusBusy,
+                         localFrame]() {
         struct Guard {
           std::atomic<bool> &flag;
           ~Guard() { flag.store(false); }
         } guard{focusBusy};
 
-        double score = fe.EvaluateBitmapFocus(circles);
+        double score = fe.EvaluateBitmapFocus(localFrame.get());
         // qDebug("[dbg] Focus score: %.2f", score);
 
         auto now = std::chrono::steady_clock::now();
