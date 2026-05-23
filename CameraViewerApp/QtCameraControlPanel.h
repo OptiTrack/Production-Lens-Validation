@@ -84,6 +84,7 @@ signals:
   void zoomValueChanged(float val);
   void focusHUDToggled(bool enabled);
   void exportMetricsRequested();
+  void worstCircleMarkersNChanged(int n);
 
 private:
   void buildUi();
@@ -196,6 +197,9 @@ private:
   QLabel *circle_param2_title_label{nullptr};
   QLineEdit *circle_param2_edit{nullptr};
   QSlider *circle_param2_slider{nullptr};
+  QLabel   *circle_worst_n_label{nullptr};
+  QLineEdit *circle_worst_n_edit{nullptr};
+  QSlider *circle_worst_n_slider{nullptr};
   int circle_detected_count{0};
 
   // Exporter Tab
@@ -234,4 +238,5 @@ private slots:
   bool isEdgeDetectCompatible(int mode);
   void onCircleParam2Changed();
   void takeScreenshot();
+  void onWorstMarkersNChanged();
 };

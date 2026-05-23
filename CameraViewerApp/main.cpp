@@ -232,6 +232,9 @@ int main(int argc, char *argv[]) {
     QObject::connect(panel, &CameraControlPanel::circleDetectionToggled,
                      viewer->videoWidget(),
                      &VideoWidget::setCircleDetectionEnabled);
+    QObject::connect(panel, &CameraControlPanel::worstCircleMarkersNChanged,
+                     viewer->videoWidget(),
+                     &VideoWidget::setWorstMarkersN);
   }
 
   // Update shared marker collection on a timer

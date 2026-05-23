@@ -769,6 +769,38 @@ void CameraControlPanel::buildUi() {
   param2LblLayout->addStretch();
   circleCtrlsLayout->addLayout(param2LblLayout);
 
+  auto *worstNLblLayout = new QHBoxLayout();
+  circle_worst_n_label = new QLabel(tr("Highlight worst:"), circleCtrlsWidget);
+  circle_worst_n_label->setMinimumWidth(120);
+  circle_worst_n_label->setMaximumWidth(120);
+
+  circle_worst_n_slider = new QSlider(Qt::Horizontal, circleCtrlsWidget);
+  circle_worst_n_slider->setRange(1, 20);
+  circle_worst_n_slider->setValue(1);
+  circle_worst_n_slider->setSingleStep(1);
+  circle_worst_n_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  circle_worst_n_slider->setToolTip(
+      "Number of worst-circularity markers to highlight in red");
+
+  circle_worst_n_edit = new QLineEdit(circleCtrlsWidget);
+  circle_worst_n_edit->setText("1");
+  circle_worst_n_edit->setMaximumWidth(60);
+  circle_worst_n_edit->setToolTip("Number of worst-circularity markers to highlight in red");
+
+
+  worstNLblLayout->addWidget(circle_worst_n_label, 0, Qt::AlignLeft);
+  worstNLblLayout->addWidget(circle_worst_n_slider);
+  worstNLblLayout->addWidget(circle_worst_n_edit, 0, Qt::AlignLeft);
+  worstNLblLayout->addStretch();
+  circleCtrlsLayout->addLayout(worstNLblLayout);
+
+  connect(circle_worst_n_edit, &QLineEdit::textChanged, this,
+          &CameraControlPanel::onWorstMarkersNChanged);
+  connect(circle_worst_n_slider, QOverload<int>::of(&QSlider::valueChanged),
+          this, [this](int val) {
+              circle_worst_n_edit->setText(QString::number(val));
+          });
+
   lensInspectionLayout->addSpacing(12);
   hough_circle_header_label =
       new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Lens Grading Controls")),
@@ -1762,6 +1794,13 @@ void CameraControlPanel::toggleTabVisibility(int index) {
     }
   }
   rightTabWidget->setVisible(anyVisible);
+}
+
+void CameraControlPanel::onWorstMarkersNChanged() {
+    bool ok;
+    int n = circle_worst_n_edit->text().toInt(&ok);
+    if (ok && n >= 1 && n <= 20)
+        emit worstCircleMarkersNChanged(n);
 }
 
 void CameraControlPanel::onSetTab0Visibility() { toggleTabVisibility(0); }
