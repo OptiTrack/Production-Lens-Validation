@@ -1946,7 +1946,11 @@ void CameraControlPanel::takeScreenshot() {
     if (!topWidget) {
       return;
     }
-    pix = topWidget->grab();
+
+    pix = QPixmap(topWidget->size() * VideoWidget::kCaptureScale);
+    pix.setDevicePixelRatio(VideoWidget::kCaptureScale);
+    pix.fill(Qt::transparent);
+    topWidget->render(&pix);
 
     if (gl_viewer_window && !glImg.isNull()) {
       const QPoint offset = gl_viewer_window->mapToGlobal(QPoint(0, 0)) -

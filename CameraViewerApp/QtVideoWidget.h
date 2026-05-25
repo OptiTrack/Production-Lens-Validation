@@ -214,8 +214,10 @@ private:
 
 public:
 
-  /// Renders the current scene into an off-screen FBO and returns it as a QImage.
-  /// Used by the screenshot (with no overlay) path.
+  // Supersampling factor applied to screenshot capture
+  static constexpr qreal kCaptureScale = 4.0;
+
+  // Renders the current scene into an off-screen FBO and returns it as a QImage
   QImage captureToImage();
 
   /// @brief Update detected circle markers for rendering

@@ -435,8 +435,8 @@ QImage VideoWidget::captureToImage() {
   makeCurrent();
 
   const qreal dpr = devicePixelRatio();
-  const QSize sz(std::max(1, int(width() * dpr)),
-                 std::max(1, int(height() * dpr)));
+  const QSize sz(std::max(1, int(width() * dpr * kCaptureScale)),
+                 std::max(1, int(height() * dpr * kCaptureScale)));
 
   QOpenGLFramebufferObjectFormat fmt;
   fmt.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
