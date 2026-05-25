@@ -564,6 +564,22 @@
         <translation>失败</translation>
     </message>
     <message>
+        <source>Check</source>
+        <translation>需检查</translation>
+    </message>
+    <message>
+        <source>Pass</source>
+        <translation>通过</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>未知</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>已禁用</translation>
+    </message>
+    <message>
         <source>Success (Wide Angle Lens)</source>
         <translation>成功（广角镜头）</translation>
     </message>

@@ -366,6 +366,12 @@ void QtCameraViewer::retranslateUi() {
     lens_result_label->setMinimumWidth(lr_label_width);
     lens_result_label->setMaximumWidth(lr_label_width);
   }
+  if (focus_result) {
+    focus_result->retranslateUi();
+  }
+  if (lens_result) {
+    lens_result->retranslateUi();
+  }
   if (toggle_label) {
     toggle_label->setText(
         QCoreApplication::translate("QtCameraViewer", "Tabs:"));

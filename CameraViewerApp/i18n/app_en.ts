@@ -602,6 +602,22 @@
         <translation>Failure</translation>
     </message>
     <message>
+        <source>Check</source>
+        <translation>Check</translation>
+    </message>
+    <message>
+        <source>Pass</source>
+        <translation>Pass</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Unknown</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Disabled</translation>
+    </message>
+    <message>
         <source>Success (Wide Angle Lens)</source>
         <translation>Success (Wide Angle Lens)</translation>
     </message>
