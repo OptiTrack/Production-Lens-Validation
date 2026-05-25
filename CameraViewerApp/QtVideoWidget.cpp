@@ -7,6 +7,7 @@
 #include <QFontMetrics>
 #include <QImage>
 #include <QMouseEvent>
+#include <QOpenGLFramebufferObject>
 #include <QOpenGLTexture>
 #include <QPainter>
 #include <QThread>
@@ -425,6 +426,36 @@ void VideoWidget::paintGL() {
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_BLEND);
   }
+}
+
+QImage VideoWidget::captureToImage() {
+  if (!isExposed() || frame_width <= 0 || frame_height <= 0)
+    return QImage();
+
+  makeCurrent();
+
+  const qreal dpr = devicePixelRatio();
+  const QSize sz(std::max(1, int(width() * dpr)),
+                 std::max(1, int(height() * dpr)));
+
+  QOpenGLFramebufferObjectFormat fmt;
+  fmt.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+  fmt.setSamples(0);
+
+  QOpenGLFramebufferObject fbo(sz, fmt);
+  if (!fbo.isValid()) {
+    doneCurrent();
+    return QImage();
+  }
+
+  fbo.bind();
+  glViewport(0, 0, sz.width(), sz.height());
+  paintGL();
+  fbo.release();
+
+  QImage img = fbo.toImage();
+  doneCurrent();
+  return img;
 }
 
 void VideoWidget::updateFrameFromBitmap(CameraLibrary::Bitmap *bmp) {

@@ -213,6 +213,11 @@ private:
   std::atomic<bool> circleDetectionEnabled{false};
 
 public:
+
+  /// Renders the current scene into an off-screen FBO and returns it as a QImage.
+  /// Used by the screenshot (with no overlay) path.
+  QImage captureToImage();
+
   /// @brief Update detected circle markers for rendering
   /// @param markers Vector of detected circle markers
   void ClearROILocks();

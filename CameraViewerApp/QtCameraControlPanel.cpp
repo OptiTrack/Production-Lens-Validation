@@ -1934,30 +1934,28 @@ void CameraControlPanel::takeScreenshot() {
                        ? serial_input->text()
                        : "#";
 
+  // Render the GL scene into an off-screen FBO instead of relying on the
+  // window's swap chain, which is unreliable on some Linux compositors
+  // (was producing null/blank screenshots on Ubuntu).
+  const QImage glImg =
+      gl_viewer_window ? gl_viewer_window->captureToImage() : QImage();
+
   QPixmap pix;
   if (overlayState) {
-
-    // Hopefully fixes black screenshot issue on Ubuntu
     QWidget *topWidget = window();
     if (!topWidget) {
       return;
     }
     pix = topWidget->grab();
 
-    if (gl_viewer_window) {
-      const QImage glImg = gl_viewer_window->grabFramebuffer();
-      if (!glImg.isNull()) {
-        const QPoint offset = gl_viewer_window->mapToGlobal(QPoint(0, 0)) -
-                              topWidget->mapToGlobal(QPoint(0, 0));
-        QPainter painter(&pix);
-        painter.drawImage(QRect(offset, gl_viewer_window->size()), glImg);
-      }
+    if (gl_viewer_window && !glImg.isNull()) {
+      const QPoint offset = gl_viewer_window->mapToGlobal(QPoint(0, 0)) -
+                            topWidget->mapToGlobal(QPoint(0, 0));
+      QPainter painter(&pix);
+      painter.drawImage(QRect(offset, gl_viewer_window->size()), glImg);
     }
   } else {
-    // Capture just the video widget if overlay is disabled
-    const QImage img =
-        gl_viewer_window ? gl_viewer_window->grabFramebuffer() : QImage();
-    pix = QPixmap::fromImage(img);
+    pix = QPixmap::fromImage(glImg);
   }
 
   if (pix.isNull()) {
