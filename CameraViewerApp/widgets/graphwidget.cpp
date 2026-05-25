@@ -77,6 +77,7 @@ void GraphWidget::initializeGL() {
 
 void GraphWidget::resizeGL(int w, int h) { glViewport(0, 0, w, h); }
 
+#define GRAPH_RANGE 1.0f
 void GraphWidget::paintGL() {
   glClear(GL_COLOR_BUFFER_BIT);
 
@@ -84,14 +85,7 @@ void GraphWidget::paintGL() {
     return;
 
   // Dynamic Y-axis range for focus metrics (0-1 with padding)
-  qreal minVal = *std::min_element(yData.begin(), yData.end());
-  qreal maxVal = *std::max_element(yData.begin(), yData.end());
-
-  qreal fullRange = maxVal - minVal;
-
-  // Display fraction of total range
-  qreal visibleRange = fullRange / 2.5;
-
+  qreal visibleRange = 0.5;
   qreal latest = yData.back();
 
   // Center latest value in graph
