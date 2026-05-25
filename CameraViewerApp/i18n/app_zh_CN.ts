@@ -166,12 +166,8 @@
         <translation>对焦HUD已禁用</translation>
     </message>
     <message>
-        <source>Overlay Enabled</source>
-        <translation>叠加已启用</translation>
-    </message>
-    <message>
-        <source>Overlay Disabled</source>
-        <translation>叠加已禁用</translation>
+        <source>Include UI in screenshot</source>
+        <translation>截图包含界面</translation>
     </message>
     <message>
         <source>Edge Detect</source>
@@ -589,6 +585,41 @@
     <message>
         <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
         <translation>CSV文件 (*.csv);;文本文件 (*.txt);;所有文件 (*)</translation>
+    </message>
+</context>
+<context>
+    <name>MetricsManager</name>
+    <message>
+        <source>Export Data</source>
+        <translation>导出数据</translation>
+    </message>
+    <message>
+        <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
+        <translation>CSV文件 (*.csv);;文本文件 (*.txt);;所有文件 (*)</translation>
+    </message>
+    <message>
+        <source>No data!</source>
+        <translation>没有数据！</translation>
+    </message>
+    <message>
+        <source>No lens data is available for export. Check lens grading is enabled and try again.</source>
+        <translation>没有可用于导出的镜头数据。请确认已启用镜头评分后重试。</translation>
+    </message>
+    <message>
+        <source>No output path!</source>
+        <translation>没有输出路径！</translation>
+    </message>
+    <message>
+        <source>No output path has been selected for export. Select an output folder and try again.</source>
+        <translation>尚未选择导出输出路径。请选择输出文件夹后重试。</translation>
+    </message>
+    <message>
+        <source>Failed to create file!</source>
+        <translation>创建文件失败！</translation>
+    </message>
+    <message>
+        <source>Could not create export file. Check folder permissions and try again.</source>
+        <translation>无法创建导出文件。请检查文件夹权限后重试。</translation>
     </message>
 </context>
 </TS>

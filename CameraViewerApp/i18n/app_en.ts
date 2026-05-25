@@ -203,12 +203,8 @@
         <translation>Focus HUD Disabled</translation>
     </message>
     <message>
-        <source>Overlay Enabled</source>
-        <translation>Overlay Enabled</translation>
-    </message>
-    <message>
-        <source>Overlay Disabled</source>
-        <translation>Overlay Disabled</translation>
+        <source>Include UI in screenshot</source>
+        <translation>Include UI in screenshot</translation>
     </message>
     <message>
         <source>Edge Detect</source>
@@ -628,6 +624,42 @@
     <message>
         <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
         <translation>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</translation>
+    </message>
+</context>
+
+<context>
+    <name>MetricsManager</name>
+    <message>
+        <source>Export Data</source>
+        <translation>Export Data</translation>
+    </message>
+    <message>
+        <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
+        <translation>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</translation>
+    </message>
+    <message>
+        <source>No data!</source>
+        <translation>No data!</translation>
+    </message>
+    <message>
+        <source>No lens data is available for export. Check lens grading is enabled and try again.</source>
+        <translation>No lens data is available for export. Check lens grading is enabled and try again.</translation>
+    </message>
+    <message>
+        <source>No output path!</source>
+        <translation>No output path!</translation>
+    </message>
+    <message>
+        <source>No output path has been selected for export. Select an output folder and try again.</source>
+        <translation>No output path has been selected for export. Select an output folder and try again.</translation>
+    </message>
+    <message>
+        <source>Failed to create file!</source>
+        <translation>Failed to create file!</translation>
+    </message>
+    <message>
+        <source>Could not create export file. Check folder permissions and try again.</source>
+        <translation>Could not create export file. Check folder permissions and try again.</translation>
     </message>
 </context>
 

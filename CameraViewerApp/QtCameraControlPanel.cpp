@@ -242,7 +242,7 @@ void CameraControlPanel::buildUi() {
   general_zoom_slider->setSizePolicy(QSizePolicy::Expanding,
                                      QSizePolicy::Fixed);
   general_zoom_slider->setToolTip(
-      "Drag slider to adjust zoom (1.0x - 20.0x in 0.1x steps)");
+      tr("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)"));
 
   general_zoom_label = new QLabel("2.0x", generalZoomWidget);
   general_zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -1294,8 +1294,7 @@ void CameraControlPanel::updateFocusHudButtonText() {
 void CameraControlPanel::updateOverlayButtonText() {
   if (!overlay_button)
     return;
-  overlay_button->setText(overlayState ? tr("Overlay Enabled")
-                                       : tr("Overlay Disabled"));
+  overlay_button->setText(tr("Include UI in screenshot"));
 }
 
 void CameraControlPanel::updateSliderLabels() {
@@ -1634,6 +1633,10 @@ void CameraControlPanel::retranslateUi() {
   }
   if (zoom_slider) {
     zoom_slider->setToolTip(
+        tr("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)"));
+  }
+  if (general_zoom_slider) {
+    general_zoom_slider->setToolTip(
         tr("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)"));
   }
   if (zoom_widget) {
