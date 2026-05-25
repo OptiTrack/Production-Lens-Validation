@@ -154,7 +154,7 @@ void CameraControlPanel::buildUi() {
   general_exposure_slider->setValue(50);
   general_exposure_slider->setSizePolicy(QSizePolicy::Expanding,
                                          QSizePolicy::Fixed);
-  general_exposure_slider->setToolTip("Drag slider to adjust exposure");
+  general_exposure_slider->setToolTip(tr("Drag slider to adjust exposure"));
 
   general_exposure_label = new QLabel(generalExposureWidget);
   general_exposure_label->setMinimumWidth(90);
@@ -164,7 +164,7 @@ void CameraControlPanel::buildUi() {
   general_exposure_edit->setValidator(
       new QIntValidator(1, 400, general_exposure_edit));
   general_exposure_edit->setMaximumWidth(64);
-  general_exposure_edit->setToolTip("Enter an exposure value here");
+  general_exposure_edit->setToolTip(tr("Enter an exposure value here"));
 
   auto *generalExposureRow = new QWidget(generalExposureWidget);
   auto *generalExposureRowLayout = new QHBoxLayout(generalExposureRow);
@@ -214,7 +214,8 @@ void CameraControlPanel::buildUi() {
     }
 )");
   general_clear_lock_button->setProperty("secondary", true);
-  general_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+  general_clear_lock_button->setToolTip(
+      tr("Click to remove all quadrant locks."));
 
   connect(general_clear_lock_button, &QPushButton::clicked, this,
       [this]() { onClearROILocks(); });
@@ -312,11 +313,11 @@ void CameraControlPanel::buildUi() {
   exposure_slider->setRange(1, 400);
   exposure_slider->setValue(50);
   exposure_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  exposure_slider->setToolTip("Drag slider to adjust exposure");
+  exposure_slider->setToolTip(tr("Drag slider to adjust exposure"));
   exposure_edit = new QLineEdit(cam_group);
   exposure_edit->setValidator(new QIntValidator(1, 400, exposure_edit));
   exposure_edit->setMaximumWidth(64);
-  exposure_edit->setToolTip("Enter an exposure value here");
+  exposure_edit->setToolTip(tr("Enter an exposure value here"));
   exposure_label = new QLabel(cam_group);
   exposure_label->setMaximumWidth(75);
   exposure_label->setMinimumWidth(75);
@@ -369,11 +370,11 @@ void CameraControlPanel::buildUi() {
   gain_slider->setRange(0, 7);
   gain_slider->setValue(0);
   gain_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  gain_slider->setToolTip("Drag slider to adjust gain");
+  gain_slider->setToolTip(tr("Drag slider to adjust gain"));
   gain_edit = new QLineEdit(cam_group);
   gain_edit->setValidator(new QIntValidator(0, 7, gain_edit));
   gain_edit->setMaximumWidth(64);
-  gain_edit->setToolTip("Enter new gain here");
+  gain_edit->setToolTip(tr("Enter new gain here"));
   gain_label = new QLabel(cam_group);
   gain_label->setMaximumWidth(60);
   gain_label->setMinimumWidth(60);
@@ -439,7 +440,7 @@ void CameraControlPanel::buildUi() {
   // viewer Add a Video Mode dropdown next to existing controls so modes appear
   // with other controls
   video_mode_combo = new QComboBox(tab0);
-  video_mode_combo->setToolTip("Click to select a new video mode");
+  video_mode_combo->setToolTip(tr("Click to select a new video mode"));
   repopulateVideoModes();
 
   // Selecting any regular mode should disable Edge Detect if it was enabled
@@ -521,7 +522,7 @@ void CameraControlPanel::buildUi() {
     }
     emit edgeDetectToggled(checked);
   });
-  edge_button->setToolTip("Click to enable edge detection overlay");
+  edge_button->setToolTip(tr("Click to enable edge detection overlay"));
 
   rightTabWidget->addTab(scrollArea0, QString());
 
@@ -547,49 +548,47 @@ void CameraControlPanel::buildUi() {
 
   // Group: Focus Tool
 
-  auto *focusToolGroup = new QGroupBox("Focus Tool", tab1);
+  focus_tool_group = new QGroupBox(tab1);
   auto *focusToolLayout = new QVBoxLayout();
   focusToolLayout->setContentsMargins(6, 6, 6, 6);
-  focusToolGroup->setLayout(focusToolLayout);
+  focus_tool_group->setLayout(focusToolLayout);
 
   // Focus Tool enable/disable checkbox
-  focus_button = new QCheckBox(focusToolGroup);
-  focus_button->setText("Focus Enabled");
+  focus_button = new QCheckBox(focus_tool_group);
+  focus_button->setText(tr("Focus Enabled"));
   focus_button->setChecked(true);
-  focus_button->setToolTip("When checked, focus assist tool is enabled");
+  focus_button->setToolTip(tr("When checked, focus assist tool is enabled"));
   connect(focus_button, &QCheckBox::clicked, this, [this]() {
     focusState = !focusState;
     if (focusState) {
-      focus_button->setText("Focus Enabled");
       emit focusToolToggled(true);
     } else {
-      focus_button->setText("Focus Disabled");
       emit focusToolToggled(false);
     }
+    updateFocusButtonText();
   });
 
   // Focus HUD enable/disable checkbox
-  focusHUD_button = new QCheckBox(focusToolGroup);
-  focusHUD_button->setText("Focus HUD Enabled");
+  focusHUD_button = new QCheckBox(focus_tool_group);
+  focusHUD_button->setText(tr("Focus HUD Enabled"));
   focusHUD_button->setChecked(true);
   focusHUD_button->setToolTip(
-      "When checked, focus and lens grading HUD is enabled");
+      tr("When checked, focus and lens grading HUD is enabled"));
   connect(focusHUD_button, &QCheckBox::clicked, this, [this]() {
     focusHUDState = !focusHUDState;
     if (focusHUDState) {
-      focusHUD_button->setText("Focus HUD Enabled");
       emit focusHUDToggled(true);
     } else {
-      focusHUD_button->setText("Focus HUD Disabled");
       emit focusHUDToggled(false);
     }
+    updateFocusHudButtonText();
   });
 
   focusToolLayout->addWidget(focus_button);
   focusToolLayout->addWidget(focusHUD_button);
 
   rightTabWidget->addTab(scrollArea1, QString());
-  v1->addWidget(focusToolGroup);
+  v1->addWidget(focus_tool_group);
 
   // Group: Lens Inspection
   lens_inspection_group = new QGroupBox(tr("Lens Inspection"));
@@ -634,7 +633,8 @@ void CameraControlPanel::buildUi() {
 )");
 
   lens_inspection_clear_lock_button->setProperty("secondary", true);
-  lens_inspection_clear_lock_button->setToolTip("Click to remove all quadrant locks.");
+  lens_inspection_clear_lock_button->setToolTip(
+      tr("Click to remove all quadrant locks."));
 
   connect(lens_inspection_clear_lock_button, &QPushButton::clicked, this,
       [this]() { onClearROILocks(); });
@@ -670,7 +670,7 @@ void CameraControlPanel::buildUi() {
   zoom_slider->setPageStep(5);   // 0.5x per page-up/down
   zoom_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   zoom_slider->setToolTip(
-      "Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)");
+      tr("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)"));
   zoom_label = new QLabel("2.0x", lens_inspection_group);
   zoom_label->setMaximumWidth(60);
   zoom_label->setMinimumWidth(60);
@@ -685,7 +685,7 @@ void CameraControlPanel::buildUi() {
 
   zoom_button = new QPushButton(tr("Reset"), lens_inspection_group);
   zoom_button->setProperty("secondary", true);
-  zoom_button->setToolTip("Click to reset zoom to default");
+  zoom_button->setToolTip(tr("Click to reset zoom to default"));
   connect(zoom_button, &QPushButton::clicked, this, [this]() {
     zoom_slider->setValue(20); // 20*0.1 = 2.0x initial zoom for quartered image
   });
@@ -700,13 +700,13 @@ void CameraControlPanel::buildUi() {
             &CameraControlPanel::updateGeneralZoomLabel);
   }
 
-  auto *zoomWidget = new QWidget(lens_inspection_group);
-  zoomWidget->setToolTip("Zooms into captured image. Available only in "
-                         "Grayscale + ROI Zoom mode.");
-  auto *zoomLayoutW = new QVBoxLayout(zoomWidget);
+  zoom_widget = new QWidget(lens_inspection_group);
+  zoom_widget->setToolTip(tr("Zooms into captured image. Available only in "
+                             "Grayscale + ROI Zoom mode."));
+  auto *zoomLayoutW = new QVBoxLayout(zoom_widget);
   zoomLayoutW->setContentsMargins(0, 0, 0, 0);
   zoomLayoutW->setSpacing(8);
-  zoom_title_label = new QLabel(tr("Zoom:"), zoomWidget);
+  zoom_title_label = new QLabel(tr("Zoom:"), zoom_widget);
   zoom_title_label->setMinimumWidth(80);
   zoom_title_label->setMaximumWidth(80);
   zoomLayoutW->addWidget(zoom_title_label, 0, Qt::AlignLeft);
@@ -714,7 +714,7 @@ void CameraControlPanel::buildUi() {
   zoomLayoutW->addWidget(zoom_label, 0, Qt::AlignLeft);
   zoomLayoutW->addWidget(zoom_button);
 
-  lensInspectionLayout->addWidget(zoomWidget);
+  lensInspectionLayout->addWidget(zoom_widget);
 
   // Lens Grading Controls
   circle_detect_button =
@@ -722,7 +722,7 @@ void CameraControlPanel::buildUi() {
   circle_detect_button->setCheckable(true);
   circle_detect_button->setChecked(false);
   circle_detect_button->setProperty("secondary", true);
-  circle_detect_button->setToolTip("Click to enable marker detection");
+  circle_detect_button->setToolTip(tr("Click to enable marker detection"));
   connect(circle_detect_button, &QPushButton::clicked, this,
           [this](bool checked) { emit circleDetectionToggled(checked); });
 
@@ -736,13 +736,13 @@ void CameraControlPanel::buildUi() {
   circle_param2_slider->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Fixed);
   circle_param2_slider->setToolTip(
-      "Click to adjust sensitivity for marker detection");
+      tr("Click to adjust sensitivity for marker detection"));
 
   circle_param2_edit = new QLineEdit(lens_inspection_group);
   circle_param2_edit->setText("90");
   circle_param2_edit->setMaximumWidth(60);
   circle_param2_edit->setToolTip(
-      "Enter a new sensitivity value here");
+      tr("Enter a new sensitivity value here"));
   connect(circle_param2_edit, &QLineEdit::textChanged, this,
           &CameraControlPanel::onCircleParam2Changed);
   connect(
@@ -780,12 +780,13 @@ void CameraControlPanel::buildUi() {
   circle_worst_n_slider->setSingleStep(1);
   circle_worst_n_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   circle_worst_n_slider->setToolTip(
-      "Number of worst-circularity markers to highlight in red");
+      tr("Number of worst-circularity markers to highlight in red"));
 
   circle_worst_n_edit = new QLineEdit(circleCtrlsWidget);
   circle_worst_n_edit->setText("1");
   circle_worst_n_edit->setMaximumWidth(60);
-  circle_worst_n_edit->setToolTip("Number of worst-circularity markers to highlight in red");
+  circle_worst_n_edit->setToolTip(
+      tr("Number of worst-circularity markers to highlight in red"));
 
 
   worstNLblLayout->addWidget(circle_worst_n_label, 0, Qt::AlignLeft);
@@ -834,11 +835,11 @@ void CameraControlPanel::buildUi() {
   quality_slider->setRange(0, 100);
   quality_slider->setValue(75);
   quality_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  quality_slider->setToolTip("Drag slider to adjust quality");
+  quality_slider->setToolTip(tr("Drag slider to adjust quality"));
   quality_edit = new QLineEdit(compression_group);
   quality_edit->setValidator(new QDoubleValidator(0.0, 1.0, 2, quality_edit));
   quality_edit->setMaximumWidth(64);
-  quality_edit->setToolTip("Enter a new quality value here");
+  quality_edit->setToolTip(tr("Enter a new quality value here"));
   quality_label = new QLabel(compression_group);
   quality_label->setMaximumWidth(50);
   quality_label->setMinimumWidth(50);
@@ -872,11 +873,11 @@ void CameraControlPanel::buildUi() {
   bitrate_slider->setRange(0, 200);
   bitrate_slider->setValue(50);
   bitrate_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  bitrate_slider->setToolTip("Drag slider to adjust bitrate");
+  bitrate_slider->setToolTip(tr("Drag slider to adjust bitrate"));
   bitrate_edit = new QLineEdit(compression_group);
   bitrate_edit->setValidator(new QDoubleValidator(0.0, 2.0, 2, bitrate_edit));
   bitrate_edit->setMaximumWidth(64);
-  bitrate_edit->setToolTip("Enter a new bitrate value here");
+  bitrate_edit->setToolTip(tr("Enter a new bitrate value here"));
   bitrate_label = new QLabel(compression_group);
   bitrate_label->setMaximumWidth(60);
   bitrate_label->setMinimumWidth(60);
@@ -906,7 +907,7 @@ void CameraControlPanel::buildUi() {
   });
 
   mode_combo = new QComboBox(compression_group);
-  mode_combo->setToolTip("Click to select a new video compression mode");
+  mode_combo->setToolTip(tr("Click to select a new video compression mode"));
   repopulateCompressionModes();
 
   // Build compression controls widget
@@ -949,11 +950,11 @@ void CameraControlPanel::buildUi() {
   gamma_slider->setRange(1, 10);
   gamma_slider->setValue(10);
   gamma_slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  gamma_slider->setToolTip("Drag slider to adjust gamma");
+  gamma_slider->setToolTip(tr("Drag slider to adjust gamma"));
   gamma_edit = new QLineEdit(gamma_group);
   gamma_edit->setValidator(new QDoubleValidator(0.1, 1.0, 1, gamma_edit));
   gamma_edit->setMaximumWidth(64);
-  gamma_edit->setToolTip("Enter a new gamma value here");
+  gamma_edit->setToolTip(tr("Enter a new gamma value here"));
   gamma_label = new QLabel(gamma_group);
   gamma_label->setMaximumWidth(40);
   gamma_label->setMinimumWidth(40);
@@ -1041,7 +1042,7 @@ void CameraControlPanel::buildUi() {
   vStats->addWidget(lens_metrics_widgets->groupBox);
   vStats->addStretch();
 
-  rightTabWidget->addTab(scrollAreaStats, "Statistics");
+  rightTabWidget->addTab(scrollAreaStats, QString());
 
   /*
    *************** Tab for Exporter ***************
@@ -1063,7 +1064,7 @@ void CameraControlPanel::buildUi() {
   // Serial number input
   serial_input = new QLineEdit(exporter_group);
   serial_input->setToolTip(
-      "Enter the currently installed lens serial number here");
+      tr("Enter the currently installed lens serial number here"));
   connect(serial_input, &QLineEdit::textChanged, this,
           [this](const QString &text) {
             metrics_manager.setLensSerial(text.toStdString());
@@ -1076,7 +1077,8 @@ void CameraControlPanel::buildUi() {
   browse_label->setWordWrap(true);
   browse_button = new QPushButton(exporter_group);
   browse_button->setProperty("secondary", true);
-  browse_button->setToolTip("Click to select a destination folder for export");
+  browse_button->setToolTip(
+      tr("Click to select a destination folder for export"));
   connect(browse_button, &QPushButton::clicked, this, [this]() {
     QString dir = QFileDialog::getExistingDirectory(
         this, tr("Select Screenshot Directory"), screenshotDirectory);
@@ -1093,7 +1095,7 @@ void CameraControlPanel::buildUi() {
   // Screenshot button
   screenshot_button = new QPushButton(exporter_group);
   screenshot_button->setProperty("secondary", true);
-  screenshot_button->setToolTip("Click to capture screenshot of window");
+  screenshot_button->setToolTip(tr("Click to capture screenshot of window"));
   connect(screenshot_button, &QPushButton::clicked, this,
           [this]() { takeScreenshot(); });
   exporterLayout->addWidget(screenshot_button);
@@ -1108,7 +1110,7 @@ void CameraControlPanel::buildUi() {
   // Export metrics button
   metrics_export_button = new QPushButton(exporter_group);
   metrics_export_button->setProperty("secondary", true);
-  metrics_export_button->setToolTip("Click to export current lens metrics");
+  metrics_export_button->setToolTip(tr("Click to export current lens metrics"));
   connect(metrics_export_button, &QPushButton::clicked, this,
           [this]() { emit exportMetricsRequested(); });
   exporterLayout->addWidget(metrics_export_button);
@@ -1117,7 +1119,7 @@ void CameraControlPanel::buildUi() {
   overlay_button = new QCheckBox(exporter_group);
   overlay_button->setChecked(true);
   overlay_button->setProperty("secondary", true);
-  overlay_button->setToolTip("When checked, the overlay is enabled");
+  overlay_button->setToolTip(tr("When checked, the overlay is enabled"));
   connect(overlay_button, &QCheckBox::clicked, this, [this]() {
     overlayState = overlay_button->isChecked();
     updateOverlayButtonText();
@@ -1582,9 +1584,37 @@ void CameraControlPanel::retranslateUi() {
     gamma_edit->setText(QString::number(gamma_slider->value() / 10.0, 'f', 1));
   }
 
+  if (general_exposure_slider)
+    general_exposure_slider->setToolTip(tr("Drag slider to adjust exposure"));
+  if (general_exposure_edit)
+    general_exposure_edit->setToolTip(tr("Enter an exposure value here"));
+  if (exposure_slider)
+    exposure_slider->setToolTip(tr("Drag slider to adjust exposure"));
+  if (exposure_edit)
+    exposure_edit->setToolTip(tr("Enter an exposure value here"));
+  if (gain_slider)
+    gain_slider->setToolTip(tr("Drag slider to adjust gain"));
+  if (gain_edit)
+    gain_edit->setToolTip(tr("Enter new gain here"));
+  if (video_mode_combo)
+    video_mode_combo->setToolTip(tr("Click to select a new video mode"));
+  if (general_clear_lock_button)
+    general_clear_lock_button->setToolTip(
+        tr("Click to remove all quadrant locks."));
+  if (lens_inspection_clear_lock_button)
+    lens_inspection_clear_lock_button->setToolTip(
+        tr("Click to remove all quadrant locks."));
+
   updateFocusButtonText();
   updateFocusHudButtonText();
   updateOverlayButtonText();
+  if (focus_button)
+    focus_button->setToolTip(tr("When checked, focus assist tool is enabled"));
+  if (focusHUD_button)
+    focusHUD_button->setToolTip(
+        tr("When checked, focus and lens grading HUD is enabled"));
+  if (overlay_button)
+    overlay_button->setToolTip(tr("When checked, the overlay is enabled"));
 
   if (lens_inspection_mode_label) {
     lens_inspection_mode_label->setText(tr("Mode:"));
@@ -1600,9 +1630,19 @@ void CameraControlPanel::retranslateUi() {
   }
   if (zoom_button) {
     zoom_button->setText(tr("Reset"));
+    zoom_button->setToolTip(tr("Click to reset zoom to default"));
+  }
+  if (zoom_slider) {
+    zoom_slider->setToolTip(
+        tr("Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)"));
+  }
+  if (zoom_widget) {
+    zoom_widget->setToolTip(tr("Zooms into captured image. Available only in "
+                               "Grayscale + ROI Zoom mode."));
   }
   if (circle_detect_button) {
     circle_detect_button->setText(tr("Enable Lens Grading"));
+    circle_detect_button->setToolTip(tr("Click to enable marker detection"));
   }
   if (circle_count_label) {
     circle_count_label->setText(
@@ -1610,6 +1650,24 @@ void CameraControlPanel::retranslateUi() {
   }
   if (circle_param2_title_label) {
     circle_param2_title_label->setText(tr("Sensitivity:"));
+  }
+  if (circle_param2_slider) {
+    circle_param2_slider->setToolTip(
+        tr("Click to adjust sensitivity for marker detection"));
+  }
+  if (circle_param2_edit) {
+    circle_param2_edit->setToolTip(tr("Enter a new sensitivity value here"));
+  }
+  if (circle_worst_n_label) {
+    circle_worst_n_label->setText(tr("Highlight worst:"));
+  }
+  if (circle_worst_n_slider) {
+    circle_worst_n_slider->setToolTip(
+        tr("Number of worst-circularity markers to highlight in red"));
+  }
+  if (circle_worst_n_edit) {
+    circle_worst_n_edit->setToolTip(
+        tr("Number of worst-circularity markers to highlight in red"));
   }
   if (hough_circle_header_label) {
     hough_circle_header_label->setText(
@@ -1621,6 +1679,20 @@ void CameraControlPanel::retranslateUi() {
     edge_button->setToolTip(tr("Enable edge overlay in viewer: Works on "
                                "Grayscale, Precision, and MJPEG modes"));
   }
+  if (quality_slider)
+    quality_slider->setToolTip(tr("Drag slider to adjust quality"));
+  if (quality_edit)
+    quality_edit->setToolTip(tr("Enter a new quality value here"));
+  if (bitrate_slider)
+    bitrate_slider->setToolTip(tr("Drag slider to adjust bitrate"));
+  if (bitrate_edit)
+    bitrate_edit->setToolTip(tr("Enter a new bitrate value here"));
+  if (mode_combo)
+    mode_combo->setToolTip(tr("Click to select a new video compression mode"));
+  if (gamma_slider)
+    gamma_slider->setToolTip(tr("Drag slider to adjust gamma"));
+  if (gamma_edit)
+    gamma_edit->setToolTip(tr("Enter a new gamma value here"));
 
   repopulateVideoModes();
   repopulateLensInspectionModes();
@@ -1669,10 +1741,16 @@ void CameraControlPanel::retranslateUi() {
 
   if (serial_input)
     serial_input->setPlaceholderText(tr("Serial #"));
+  if (serial_input)
+    serial_input->setToolTip(
+        tr("Enter the currently installed lens serial number here"));
   if (browse_label)
     browse_label->setText(tr("Screenshot Dir: %1").arg(screenshotDirectory));
-  if (browse_button)
+  if (browse_button) {
     browse_button->setText(tr("Browse..."));
+    browse_button->setToolTip(
+        tr("Click to select a destination folder for export"));
+  }
   if (screenshot_button) {
     screenshot_button->setText(tr("Screenshot"));
     screenshot_button->setToolTip(tr("Take Screenshot"));
@@ -1718,7 +1796,7 @@ void CameraControlPanel::onSetGain() {
 
 void CameraControlPanel::onSetZoom(bool reset) {
   if (!currentSerialValid()) {
-    emit showWarning("No Camera", "No camera is currently selected.");
+    emit showWarning(tr("No Camera"), tr("No camera is currently selected."));
     return;
   }
   if (reset) {

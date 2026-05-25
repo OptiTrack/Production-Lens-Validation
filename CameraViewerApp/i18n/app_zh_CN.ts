@@ -408,6 +408,158 @@
         <source>Hough Circle Detection</source>
         <translation>霍夫圆检测</translation>
     </message>
+    <message>
+        <source>Click to adjust sensitivity for marker detection</source>
+        <translation>点击调整标记检测灵敏度</translation>
+    </message>
+    <message>
+        <source>Click to capture screenshot of window</source>
+        <translation>点击截取窗口截图</translation>
+    </message>
+    <message>
+        <source>Click to enable edge detection overlay</source>
+        <translation>点击启用边缘检测叠加</translation>
+    </message>
+    <message>
+        <source>Click to enable marker detection</source>
+        <translation>点击启用标记检测</translation>
+    </message>
+    <message>
+        <source>Click to export current lens metrics</source>
+        <translation>点击导出当前镜头指标</translation>
+    </message>
+    <message>
+        <source>Click to remove all quadrant locks.</source>
+        <translation>点击移除所有象限锁定。</translation>
+    </message>
+    <message>
+        <source>Click to reset zoom to default</source>
+        <translation>点击将缩放重置为默认值</translation>
+    </message>
+    <message>
+        <source>Click to select a destination folder for export</source>
+        <translation>点击选择导出目标文件夹</translation>
+    </message>
+    <message>
+        <source>Click to select a new video compression mode</source>
+        <translation>点击选择新的视频压缩模式</translation>
+    </message>
+    <message>
+        <source>Click to select a new video mode</source>
+        <translation>点击选择新的视频模式</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust bitrate</source>
+        <translation>拖动滑块调整码率</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust exposure</source>
+        <translation>拖动滑块调整曝光</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust gain</source>
+        <translation>拖动滑块调整增益</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust gamma</source>
+        <translation>拖动滑块调整伽马</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust quality</source>
+        <translation>拖动滑块调整质量</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)</source>
+        <translation>拖动滑块调整缩放（1.0x – 20.0x，步长 0.1x）</translation>
+    </message>
+    <message>
+        <source>Enable Lens Grading</source>
+        <translation>启用镜头评分</translation>
+    </message>
+    <message>
+        <source>Enter a new bitrate value here</source>
+        <translation>在此输入新的码率值</translation>
+    </message>
+    <message>
+        <source>Enter a new gamma value here</source>
+        <translation>在此输入新的伽马值</translation>
+    </message>
+    <message>
+        <source>Enter a new quality value here</source>
+        <translation>在此输入新的质量值</translation>
+    </message>
+    <message>
+        <source>Enter a new sensitivity value here</source>
+        <translation>在此输入新的灵敏度值</translation>
+    </message>
+    <message>
+        <source>Enter an exposure value here</source>
+        <translation>在此输入曝光值</translation>
+    </message>
+    <message>
+        <source>Enter new gain here</source>
+        <translation>在此输入新的增益值</translation>
+    </message>
+    <message>
+        <source>Enter the currently installed lens serial number here</source>
+        <translation>在此输入当前安装镜头的序列号</translation>
+    </message>
+    <message>
+        <source>Failed to save screenshot.</source>
+        <translation>保存截图失败。</translation>
+    </message>
+    <message>
+        <source>Highlight worst:</source>
+        <translation>标记最差：</translation>
+    </message>
+    <message>
+        <source>Lens Grading Controls</source>
+        <translation>镜头评分控制</translation>
+    </message>
+    <message>
+        <source>Markers detected: %1</source>
+        <translation>检测到标记：%1</translation>
+    </message>
+    <message>
+        <source>Must turn on Grayscale Mode to use the zoom feature.</source>
+        <translation>必须启用灰度模式才能使用缩放功能。</translation>
+    </message>
+    <message>
+        <source>No screen is currently available.</source>
+        <translation>当前没有可用屏幕。</translation>
+    </message>
+    <message>
+        <source>Number of worst-circularity markers to highlight in red</source>
+        <translation>要以红色突出显示的最差圆度标记数量</translation>
+    </message>
+    <message>
+        <source>Screenshot Saved: %1</source>
+        <translation>截图已保存：%1</translation>
+    </message>
+    <message>
+        <source>Sensitivity:</source>
+        <translation>灵敏度：</translation>
+    </message>
+    <message>
+        <source>When checked, focus and lens grading HUD is enabled</source>
+        <translation>选中时启用对焦和镜头评分 HUD</translation>
+    </message>
+    <message>
+        <source>When checked, focus assist tool is enabled</source>
+        <translation>选中时启用对焦辅助工具</translation>
+    </message>
+    <message>
+        <source>When checked, the overlay is enabled</source>
+        <translation>选中时启用叠加层</translation>
+    </message>
+    <message>
+        <source>Wrong Video Mode</source>
+        <translation>视频模式错误</translation>
+    </message>
+    <message>
+        <source>Zooms into captured image. Available only in Grayscale + ROI Zoom mode.</source>
+        <translation>放大捕获的图像。仅在灰度 + ROI 缩放模式下可用。</translation>
+    </message>
 </context>
 <context>
     <name>DisplayResults</name>
