@@ -35,9 +35,12 @@ using lensMetrics = MetricsManager::lensMetrics;
 bool MetricsManager::ExportMetrics() {
 
   if (m_snapshot.visibleMarkers.empty()) {
-    QMessageBox::warning(nullptr, "No data!",
-                         "No lens data is available for export.\rCheck lens "
-                         "focus and try again.");
+    QMessageBox::warning(
+        nullptr, QCoreApplication::translate("MetricsManager", "No data!"),
+        QCoreApplication::translate(
+            "MetricsManager",
+            "No lens data is available for export. Check lens grading is "
+            "enabled and try again."));
     return false;
   }
 
@@ -52,17 +55,26 @@ bool MetricsManager::ExportMetrics() {
           "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"));
 
   if (filePath.isEmpty()) {
-    QMessageBox::warning(nullptr, "No output path!",
-                         "No output path has been selected for export.\rSelect "
-                         "an output folder and try again.");
+    QMessageBox::warning(
+        nullptr,
+        QCoreApplication::translate("MetricsManager", "No output path!"),
+        QCoreApplication::translate(
+            "MetricsManager",
+            "No output path has been selected for export. Select an output "
+            "folder and try again."));
     return false;
   }
 
   std::ofstream out(filePath.toStdString(), std::ios::binary);
   if (!out.is_open()) {
-    QMessageBox::critical(nullptr, "Failed to create file!",
-                          "Could not create export file.\rCheck folder "
-                          "permissions and try again.");
+    QMessageBox::critical(
+        nullptr,
+        QCoreApplication::translate("MetricsManager",
+                                    "Failed to create file!"),
+        QCoreApplication::translate(
+            "MetricsManager",
+            "Could not create export file. Check folder permissions and try "
+            "again."));
     return false;
   }
 

@@ -170,6 +170,7 @@ private:
   QSlider *general_zoom_slider{nullptr};
   QLabel *general_zoom_label{nullptr};
   QLabel *general_zoom_title_label{nullptr};
+  QWidget *zoom_widget{nullptr};
 
   QLineEdit *quality_edit{nullptr};
   QSlider *quality_slider{nullptr};

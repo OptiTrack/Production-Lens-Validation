@@ -203,12 +203,8 @@
         <translation>Focus HUD Disabled</translation>
     </message>
     <message>
-        <source>Overlay Enabled</source>
-        <translation>Overlay Enabled</translation>
-    </message>
-    <message>
-        <source>Overlay Disabled</source>
-        <translation>Overlay Disabled</translation>
+        <source>Include UI in screenshot</source>
+        <translation>Include UI in screenshot</translation>
     </message>
     <message>
         <source>Edge Detect</source>
@@ -445,6 +441,158 @@
         <source>Hough Circle Detection</source>
         <translation>Hough Circle Detection</translation>
     </message>
+    <message>
+        <source>Click to adjust sensitivity for marker detection</source>
+        <translation>Click to adjust sensitivity for marker detection</translation>
+    </message>
+    <message>
+        <source>Click to capture screenshot of window</source>
+        <translation>Click to capture screenshot of window</translation>
+    </message>
+    <message>
+        <source>Click to enable edge detection overlay</source>
+        <translation>Click to enable edge detection overlay</translation>
+    </message>
+    <message>
+        <source>Click to enable marker detection</source>
+        <translation>Click to enable marker detection</translation>
+    </message>
+    <message>
+        <source>Click to export current lens metrics</source>
+        <translation>Click to export current lens metrics</translation>
+    </message>
+    <message>
+        <source>Click to remove all quadrant locks.</source>
+        <translation>Click to remove all quadrant locks.</translation>
+    </message>
+    <message>
+        <source>Click to reset zoom to default</source>
+        <translation>Click to reset zoom to default</translation>
+    </message>
+    <message>
+        <source>Click to select a destination folder for export</source>
+        <translation>Click to select a destination folder for export</translation>
+    </message>
+    <message>
+        <source>Click to select a new video compression mode</source>
+        <translation>Click to select a new video compression mode</translation>
+    </message>
+    <message>
+        <source>Click to select a new video mode</source>
+        <translation>Click to select a new video mode</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust bitrate</source>
+        <translation>Drag slider to adjust bitrate</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust exposure</source>
+        <translation>Drag slider to adjust exposure</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust gain</source>
+        <translation>Drag slider to adjust gain</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust gamma</source>
+        <translation>Drag slider to adjust gamma</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust quality</source>
+        <translation>Drag slider to adjust quality</translation>
+    </message>
+    <message>
+        <source>Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)</source>
+        <translation>Drag slider to adjust zoom (1.0x – 20.0x in 0.1x steps)</translation>
+    </message>
+    <message>
+        <source>Enable Lens Grading</source>
+        <translation>Enable Lens Grading</translation>
+    </message>
+    <message>
+        <source>Enter a new bitrate value here</source>
+        <translation>Enter a new bitrate value here</translation>
+    </message>
+    <message>
+        <source>Enter a new gamma value here</source>
+        <translation>Enter a new gamma value here</translation>
+    </message>
+    <message>
+        <source>Enter a new quality value here</source>
+        <translation>Enter a new quality value here</translation>
+    </message>
+    <message>
+        <source>Enter a new sensitivity value here</source>
+        <translation>Enter a new sensitivity value here</translation>
+    </message>
+    <message>
+        <source>Enter an exposure value here</source>
+        <translation>Enter an exposure value here</translation>
+    </message>
+    <message>
+        <source>Enter new gain here</source>
+        <translation>Enter new gain here</translation>
+    </message>
+    <message>
+        <source>Enter the currently installed lens serial number here</source>
+        <translation>Enter the currently installed lens serial number here</translation>
+    </message>
+    <message>
+        <source>Failed to save screenshot.</source>
+        <translation>Failed to save screenshot.</translation>
+    </message>
+    <message>
+        <source>Highlight worst:</source>
+        <translation>Highlight worst:</translation>
+    </message>
+    <message>
+        <source>Lens Grading Controls</source>
+        <translation>Lens Grading Controls</translation>
+    </message>
+    <message>
+        <source>Markers detected: %1</source>
+        <translation>Markers detected: %1</translation>
+    </message>
+    <message>
+        <source>Must turn on Grayscale Mode to use the zoom feature.</source>
+        <translation>Must turn on Grayscale Mode to use the zoom feature.</translation>
+    </message>
+    <message>
+        <source>No screen is currently available.</source>
+        <translation>No screen is currently available.</translation>
+    </message>
+    <message>
+        <source>Number of worst-circularity markers to highlight in red</source>
+        <translation>Number of worst-circularity markers to highlight in red</translation>
+    </message>
+    <message>
+        <source>Screenshot Saved: %1</source>
+        <translation>Screenshot Saved: %1</translation>
+    </message>
+    <message>
+        <source>Sensitivity:</source>
+        <translation>Sensitivity:</translation>
+    </message>
+    <message>
+        <source>When checked, focus and lens grading HUD is enabled</source>
+        <translation>When checked, focus and lens grading HUD is enabled</translation>
+    </message>
+    <message>
+        <source>When checked, focus assist tool is enabled</source>
+        <translation>When checked, focus assist tool is enabled</translation>
+    </message>
+    <message>
+        <source>When checked, the overlay is enabled</source>
+        <translation>When checked, the overlay is enabled</translation>
+    </message>
+    <message>
+        <source>Wrong Video Mode</source>
+        <translation>Wrong Video Mode</translation>
+    </message>
+    <message>
+        <source>Zooms into captured image. Available only in Grayscale + ROI Zoom mode.</source>
+        <translation>Zooms into captured image. Available only in Grayscale + ROI Zoom mode.</translation>
+    </message>
 </context>
 
 <context>
@@ -452,6 +600,22 @@
     <message>
         <source>Failure</source>
         <translation>Failure</translation>
+    </message>
+    <message>
+        <source>Check</source>
+        <translation>Check</translation>
+    </message>
+    <message>
+        <source>Pass</source>
+        <translation>Pass</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Unknown</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Disabled</translation>
     </message>
     <message>
         <source>Success (Wide Angle Lens)</source>
@@ -476,6 +640,42 @@
     <message>
         <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
         <translation>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</translation>
+    </message>
+</context>
+
+<context>
+    <name>MetricsManager</name>
+    <message>
+        <source>Export Data</source>
+        <translation>Export Data</translation>
+    </message>
+    <message>
+        <source>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</source>
+        <translation>CSV Files (*.csv);;Text Files (*.txt);;All Files (*)</translation>
+    </message>
+    <message>
+        <source>No data!</source>
+        <translation>No data!</translation>
+    </message>
+    <message>
+        <source>No lens data is available for export. Check lens grading is enabled and try again.</source>
+        <translation>No lens data is available for export. Check lens grading is enabled and try again.</translation>
+    </message>
+    <message>
+        <source>No output path!</source>
+        <translation>No output path!</translation>
+    </message>
+    <message>
+        <source>No output path has been selected for export. Select an output folder and try again.</source>
+        <translation>No output path has been selected for export. Select an output folder and try again.</translation>
+    </message>
+    <message>
+        <source>Failed to create file!</source>
+        <translation>Failed to create file!</translation>
+    </message>
+    <message>
+        <source>Could not create export file. Check folder permissions and try again.</source>
+        <translation>Could not create export file. Check folder permissions and try again.</translation>
     </message>
 </context>
 
