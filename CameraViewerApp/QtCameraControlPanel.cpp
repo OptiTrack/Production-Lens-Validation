@@ -20,6 +20,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
@@ -1924,9 +1925,7 @@ void CameraControlPanel::onCircleParam2Changed() {
 }
 
 void CameraControlPanel::takeScreenshot() {
-  // Check if loaded screen
-  QScreen *screen = QGuiApplication::primaryScreen();
-  if (!screen) {
+  if (!QGuiApplication::primaryScreen()) {
     emit showWarning(tr("Screenshot"), tr("No screen is currently available."));
     return;
   }
@@ -1934,18 +1933,45 @@ void CameraControlPanel::takeScreenshot() {
   QString serial = serial_input && !serial_input->text().isEmpty()
                        ? serial_input->text()
                        : "#";
-  // Get the window image
+
+  // Render the GL scene into an off-screen FBO instead of relying on the
+  // window's swap chain, which is unreliable on some Linux compositors
+  // (was producing null/blank screenshots on Ubuntu).
+  const QImage glImg =
+      gl_viewer_window ? gl_viewer_window->captureToImage() : QImage();
+
   QPixmap pix;
-  if (overlayState)
-    // Capture the entire top-level window (the whole application)
-    pix = screen->grabWindow(this->window()->winId());
-  else
-    // Capture just the video widget if overlay is disabled
-    pix = screen->grabWindow(gl_viewer_window->winId());
+  if (overlayState) {
+    QWidget *topWidget = window();
+    if (!topWidget) {
+      return;
+    }
+
+    pix = QPixmap(topWidget->size() * VideoWidget::kCaptureScale);
+    pix.setDevicePixelRatio(VideoWidget::kCaptureScale);
+    pix.fill(Qt::transparent);
+    topWidget->render(&pix);
+
+    if (gl_viewer_window && !glImg.isNull()) {
+      const QPoint offset = gl_viewer_window->mapToGlobal(QPoint(0, 0)) -
+                            topWidget->mapToGlobal(QPoint(0, 0));
+      QPainter painter(&pix);
+      painter.drawImage(QRect(offset, gl_viewer_window->size()), glImg);
+    }
+  } else {
+    pix = QPixmap::fromImage(glImg);
+  }
+
+  if (pix.isNull()) {
+    emit showWarning(tr("Screenshot"), tr("Failed to capture screenshot."));
+    return;
+  }
+
   // Assign the time and day, with the serial number for file name
   QString filename = QDateTime::currentDateTime()
                          .toString("'screenshot_%1_'yyyyMMdd_HHmmss'.png'")
                          .arg(serial);
+
   QString fileLocation = screenshotDirectory.isEmpty()
                              ? filename
                              : QDir(screenshotDirectory).filePath(filename);

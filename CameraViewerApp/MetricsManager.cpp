@@ -15,14 +15,13 @@
 #include "CircleMarkerDetector.h"
 
 const char *ENHeaders[] = {
-    "Lens Serial Number",  "Lens Disposition", "Marker Appearance",
-    "Circularity Score",   "Position X (px)",  "Position Y (px)",
+    "Lens Serial Number", "Lens Disposition", "Marker Appearance",
+    "Circularity Score", "Marker ID", "Position X (px)", "Position Y (px)",
     "Lens focus optimal?",
 };
 
-// TODO retranslate these headers
 const char *CNHeaders[] = {
-    u8"序列号",        u8"镜头布局",      u8"标记外观",           u8"圆度评分",
+    u8"序列号", u8"镜头布局", u8"标记外观", u8"圆度评分", u8"标记ID",
     u8"X 坐标 (像素)", u8"Y 坐标 (像素)", u8"镜头对焦是否最佳？",
 };
 
@@ -66,6 +65,7 @@ bool MetricsManager::ExportMetrics() {
   }
 
   std::ofstream out(filePath.toStdString(), std::ios::binary);
+
   if (!out.is_open()) {
     QMessageBox::critical(
         nullptr,
@@ -89,6 +89,9 @@ bool MetricsManager::ExportMetrics() {
     hCount = std::size(CNHeaders);
   }
 
+  // UTF-8 BOM
+  out << "\xEF\xBB\xBF";
+
   // write headers
   for (size_t i = 0; i < hCount; i++) {
     if (i)
@@ -97,11 +100,12 @@ bool MetricsManager::ExportMetrics() {
   }
   out << "\n";
 
+
   for (const auto &d : m_snapshot.visibleMarkers) {
     out << m_snapshot.lensSerial << ","
         << LensDispositionToString(m_snapshot.lensDisp) << ","
-        << MarkerClassifierToString(d.mClass) << "," << d.circularityScore
-        << "," << d.centroid.x << "," << d.centroid.y << ","
+        << MarkerClassifierToString(d.mClass) << "," << d.circularityScore << "," << d.id
+        << "," << d.centroid.x  << "," <<  d.centroid.y << ","
         << (m_snapshot.lensFocusOptimal ? "true" : "false") << ","
         << "\n";
   }

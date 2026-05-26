@@ -213,6 +213,13 @@ private:
   std::atomic<bool> circleDetectionEnabled{false};
 
 public:
+
+  // Supersampling factor applied to screenshot capture
+  static constexpr qreal kCaptureScale = 4.0;
+
+  // Renders the current scene into an off-screen FBO and returns it as a QImage
+  QImage captureToImage();
+
   /// @brief Update detected circle markers for rendering
   /// @param markers Vector of detected circle markers
   void ClearROILocks();
