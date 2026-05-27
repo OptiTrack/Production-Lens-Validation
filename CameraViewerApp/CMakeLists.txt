@@ -46,6 +46,8 @@ set(APP_SOURCES
     metricscontroller.cpp
     widgets/graphwidget.cpp
 	FocusEval.h
+    resources.qrc
+    app.rc
 )
 
 # Only compile the decoder if FFmpeg is enabled
