@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Assets/Opti-Lens.png</file>
+    </qresource>
+</RCC>

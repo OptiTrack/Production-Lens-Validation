@@ -11,6 +11,7 @@
 #include <qfile.h>
 #include <qtimer.h>
 #include <thread>
+#include <qicon.h>
 
 // For chinese translation support
 #include <QLibraryInfo>
@@ -43,6 +44,8 @@
 using namespace CameraLibrary;
 
 int main(int argc, char *argv[]) {
+
+
   // Guard to execute the cameralibrary shutdown on exit
   struct ShutdownGuard {
     std::atomic_bool done{false};
@@ -70,6 +73,10 @@ int main(int argc, char *argv[]) {
   } guard;
 
   QApplication app(argc, argv);
+
+  QString exeDir = QCoreApplication::applicationDirPath();
+  QString iconPath = QDir(exeDir).filePath("Assets/Opti-Lens.png");
+  app.setWindowIcon(QIcon(iconPath));
 
   // Declare a QTranslator to load translations for the application and Qt's
   // built-in strings This will load app_en.ts and app_zh_CN.ts from the i18n
