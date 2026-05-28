@@ -137,10 +137,6 @@ CircleMarkerDetector::DetectCirclesFromMat(const cv::Mat &mat) {
     result[i].id = i;
   }
 
-  for (int i = 0; i < static_cast<int>(result.size()); ++i) {
-    result[i].id = i;
-  }
-
   return result;
 }
 
