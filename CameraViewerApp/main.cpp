@@ -504,6 +504,8 @@ int main(int argc, char *argv[]) {
         qDebug("[ui] Circle detection %s", enabled ? "enabled" : "disabled");
       });
 
+  panel->setCircleDetectionEnabled(true);
+
   QObject::connect(panel, &CameraControlPanel::circleParam2Changed,
                    [&cmd](double param2) {
                      auto params = cmd.GetDetectionParams();

@@ -54,6 +54,7 @@ public:
                               MetricsManager &mMgr, QWidget *parent = nullptr);
   void setSelectedSerial(unsigned serial);
   void setMarkerZoomPossible(bool tf) { markerZoomPossible = tf; }
+  void setCircleDetectionEnabled(bool enabled);
   MetricController *getFocusMetricsController() const {
     return focusMetricsController;
   }
