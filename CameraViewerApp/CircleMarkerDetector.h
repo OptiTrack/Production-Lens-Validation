@@ -48,7 +48,7 @@ public:
     double dp = 1.0;         ///< Inverse ratio of accumulator resolution
     double minDist = 10.0;   ///< Minimum distance between circles
     double param1 = 300.0;   ///< Upper threshold for Canny edge detection
-    double param2 = 10.0;    ///< Accumulator threshold for circle detection
+    double param2 = 6.0;    ///< Accumulator threshold for circle detection
     double minRadius = 1.0;  ///< Minimum circle radius
     double maxRadius = 30.0; ///< Maximum circle radius
   };

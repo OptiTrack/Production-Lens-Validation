@@ -724,8 +724,8 @@ void CameraControlPanel::buildUi() {
   circle_detect_button->setChecked(false);
   circle_detect_button->setProperty("secondary", true);
   circle_detect_button->setToolTip(tr("Click to enable marker detection"));
-  connect(circle_detect_button, &QPushButton::clicked, this,
-          [this](bool checked) { emit circleDetectionToggled(checked); });
+    connect(circle_detect_button, &QPushButton::toggled, this,
+      [this](bool checked) { emit circleDetectionToggled(checked); });
 
   circle_count_label =
       new QLabel(tr("Markers detected: %1").arg(0), lens_inspection_group);
@@ -733,14 +733,14 @@ void CameraControlPanel::buildUi() {
   // Circle detection param2 (accumulator threshold)
   circle_param2_slider = new QSlider(Qt::Horizontal, lens_inspection_group);
   circle_param2_slider->setRange(1, 100);
-  circle_param2_slider->setValue(90);
+  circle_param2_slider->setValue(95);
   circle_param2_slider->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Fixed);
   circle_param2_slider->setToolTip(
       tr("Click to adjust sensitivity for marker detection"));
 
   circle_param2_edit = new QLineEdit(lens_inspection_group);
-  circle_param2_edit->setText("90");
+  circle_param2_edit->setText("95");
   circle_param2_edit->setMaximumWidth(60);
   circle_param2_edit->setToolTip(
       tr("Enter a new sensitivity value here"));
@@ -1276,6 +1276,13 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
 void CameraControlPanel::setExportLanguage(
     MetricsManager::OutputLanguage lang) {
   metrics_manager.setLanguage(lang);
+}
+
+void CameraControlPanel::setCircleDetectionEnabled(bool enabled) {
+  if (!circle_detect_button) {
+    return;
+  }
+  circle_detect_button->setChecked(enabled);
 }
 
 void CameraControlPanel::updateFocusButtonText() {
@@ -1916,9 +1923,15 @@ void CameraControlPanel::updateCircleCount(int count) {
 }
 
 void CameraControlPanel::onCircleParam2Changed() {
-  bool ok;
+  bool ok = false;
   double param2 = circle_param2_edit->text().toDouble(&ok);
-  if (ok && param2 >= 5.0 && param2 <= 100.0) {
+  if (ok && param2 >= 0.0 && param2 <= 101.0) {
+    if (circle_param2_slider) {
+      const QSignalBlocker sliderBlocker(circle_param2_slider);
+      circle_param2_slider->setValue(qBound(
+          circle_param2_slider->minimum(), static_cast<int>(param2),
+          circle_param2_slider->maximum()));
+    }
     double inverted = 101.0 - param2;
     emit circleParam2Changed(inverted);
   }
