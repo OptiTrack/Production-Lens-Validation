@@ -193,19 +193,25 @@ float CircleMarkerDetector::CalculateCircularity(
         }
     }
 
-    double circularity = 0.0;
-    try {
-        cv::RotatedRect ellipse = cv::fitEllipse(contours[bestIdx]);
-        float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
-        float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
-        if (majorAxis > 0) {
-            circularity = std::clamp(
-                static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
+     double circularity = 0.0;
+ try {
+     if (contours[bestIdx].size() < 10)
+     {
+         qDebug("Contour too small for reliable ellipse fit");
+         return 1.0f;
+     }
+
+     cv::RotatedRect ellipse = cv::fitEllipse(contours[bestIdx]);
+     float majorAxis = std::max(ellipse.size.width, ellipse.size.height) / 2.0f;
+     float minorAxis = std::min(ellipse.size.width, ellipse.size.height) / 2.0f;
+     if (majorAxis > 0) {
+         circularity = std::clamp(
+             static_cast<double>(minorAxis / majorAxis), 0.0, 1.0);
         }
-    } catch (...) {
-        qDebug("Could not calculate circularity");
-        circularity = 0.0;
-    }
+	 } catch (...) {
+		 qDebug("Could not calculate circularity");
+		 circularity = 0.0;
+	 }
 
     outContour = contours[bestIdx];
     for (auto &pt : outContour) {
