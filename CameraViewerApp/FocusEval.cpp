@@ -1,230 +1,156 @@
-#pragma once
-
-#include <atomic>
-#include <thread>
+#include <algorithm>
+#include <bitmap.h>
 #include <mutex>
-#include <chrono>
-#include <optional>
-#include <memory>
-#include <vector>
-#include <cstdlib>
+#include <opencv2/core/cvdef.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
+#include <opencv2/imgproc.hpp>
+#include <qlogging.h>
+#include <stdexcept>
 
-#include <opencv2/opencv.hpp>
-
-#include <QApplication>
-#include <QMetaObject>
-
-#include "cameralibrary.h"
 #include "FocusEval.h"
 
-using Bitmap = CameraLibrary::Bitmap;
-using frameScore = FocusEvaluator::frameScore;
+/// <summary>
+/// Given a grayscale Mat, determine avg circularity and area of contours found
+/// </summary>
+/// <param name="bmp">Incoming frame bitmap data</param>
+/// <returns>frameScore struct with quantative focus data</returns>
+cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap* bmp) {
+    int width = bmp->PixelWidth();
+    int height = bmp->PixelHeight();
+    int bpp = bmp->GetBitsPerPixel();
+    unsigned char* bits = bmp->GetBits();
+    int cvType = (bpp == 8) ? CV_8UC1
+        : (bpp == 24) ? CV_8UC3
+        : (bpp == 32) ? CV_8UC4
+        : -1;
+    if (cvType == -1) {
+        throw std::runtime_error("Unsupported bitmap color depth");
+    }
+    cv::Mat mat(height, width, cvType, const_cast<unsigned char*>(bits));
+    return mat.clone(); // clone to ensure ownership
+}
 
-	std::deque<FocusEvaluator::frameScore> frameScoreSet;
-	size_t sampleCount = 64;				
-	double maxInstanceScore = 0.0;
+/// <summary>
+/// Receives incoming frame and grades it's focus against existing data.
+/// </summary>
+/// <param name="bmp">Incoming frame data from camera</param>
+/// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal
+/// focus</returns>
+double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
 
-	const double hiFocusThreshold = 0.95;
-	const double midFocusThreshold = 0.6;
-	const double loFocusThreshold = 0.3;
+    if (!bmp) {
+        return 0.0;
+    }
 
-	const double decayRate = 0.93; // per evaluation, forget old max val a little bit
+    cv::Mat img;
+    cv::Mat lap;
+    cv::Mat gray;
+    cv::Mat brightMask;
+    cv::Scalar lapMean;
+    cv::Scalar lapStdDev;
 
-	/// <summary>
-	/// Converts a bitmap to an openCV mat
-	/// </summary>
-	/// <param name="bmp"></param>
-	/// <returns></returns>
-	cv::Mat FocusEvaluator::ConvertBitmapToMat(CameraLibrary::Bitmap* bmp) {
-		int width = bmp->PixelWidth();
-		int height = bmp->PixelHeight();
-		int bpp = bmp->GetBitsPerPixel();
-		unsigned char* bits = bmp->GetBits();
-		int cvType = (bpp == 8) ? CV_8UC1 :
-			(bpp == 24) ? CV_8UC3 :
-			(bpp == 32) ? CV_8UC4 : -1;
-		if (cvType == -1) {
-			throw std::runtime_error("Unsupported bitmap color depth");
-		}
-		cv::Mat mat(height, width, cvType, const_cast<unsigned char*>(bits));
-		return mat.clone(); // clone to ensure ownership
-	}
+    double imgMax = 0.0;
 
-	/// <summary>
-	/// Given a grayscale Mat, determine avg circularity and area of contours found
-	/// </summary>
-	/// <param name="bmp">Incoming frame bitmap data</param>
-	/// <returns>frameScore struct with quantative focus data</returns>
-	frameScore FocusEvaluator::gradeFrame(CameraLibrary::Bitmap* bmp) {
+    try {
+        img = ConvertBitmapToMat(bmp);
+    }
 
-		cv::Mat img = ConvertBitmapToMat(bmp);
+    catch (const std::exception& e) {
+        qWarning("[!] FocusEval bitmap conversion failed: %s", e.what());
+        return 0.0;
+    }
 
-		cv::Mat gray;
-		if (img.channels() == 3) {
-			cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-		}
-		else if (img.channels() == 4) {
-			cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
-		}
-		else {
-			gray = img;
-		}
+    if (img.channels() == 3) {
+        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    }
+    else if (img.channels() == 4) {
+        cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
+    }
+    else {
+        img.copyTo(gray);
+    }
 
-		cv::Mat edges;
+    // Restrict the sharpness measurement to a mask of bright pixels, so the
+    // score reflects marker-edge sharpness independent of how much of the
+    // frame the markers occupy.
+    cv::minMaxLoc(gray, nullptr, &imgMax);
 
-		const int lowThreshold = 100;
-		const int ratio = 3;
-		const int kernel_size = 3;
+    if (imgMax < minImageBrightness) {
+        std::lock_guard<std::mutex> lock(scoreMutex);
+        smoothedScore = (1.0 - ewmAlpha) * smoothedScore;
+        return smoothedScore;
+    }
 
-		cv::Mat smoothed;
-		cv::GaussianBlur(gray, smoothed, cv::Size(3, 3), 1.0);
-		cv::Canny(smoothed, edges, lowThreshold, lowThreshold * ratio, kernel_size);
+    cv::threshold(
+        gray,
+        brightMask,
+        imgMax * markerThreshRatio,
+        255,
+        cv::THRESH_BINARY);
 
-		/*
-		cv::imshow("Canny", edges);
-		cv::waitKey(500);
-		cv::destroyAllWindows();
-		*/
+    if (cv::countNonZero(brightMask) < minMaskPixels) {
+        std::lock_guard<std::mutex> lock(scoreMutex);
+        smoothedScore = (1.0 - ewmAlpha) * smoothedScore;
+        return smoothedScore;
+    }
 
-		std::vector<std::vector<cv::Point>> contours;
-		std::vector<cv::Vec4i> hierarchy;
-		cv::findContours(edges, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::Laplacian(gray, lap, CV_32F, 3);
+    cv::meanStdDev(lap, lapMean, lapStdDev, brightMask);
 
-		double totalCircularity = 0.0;
-		double totalArea = 0.0;
-		int validContours = 0;
+    double lapStd = lapStdDev[0];
 
-		for (const auto& contour : contours) {
-			double area = cv::contourArea(contour);
-			double perimeter = cv::arcLength(contour, true);
+    std::lock_guard<std::mutex> lock(scoreMutex);
 
-			// Filter out noise / tiny fragments
-			if (perimeter > 0 && area > 10.0) {
-				double circularity = 100 * (4.0 * CV_PI * area) / (perimeter * perimeter);
-				totalCircularity += circularity;
-				validContours++;
-				totalArea += area;
-			}
-		}
+    // Adjust bounds based on newest values
+    // EWM smoothing provides some resistance against sudden spikes
+    if (lapStd > observedSharp) {
+        observedSharp += boundsAlpha * (lapStd - observedSharp);
+    }
+    if (lapStd < observedBlur) {
+        observedBlur += boundsAlpha * (lapStd - observedBlur);
+    }
 
-		FocusEvaluator::frameScore fs{};
-		if (validContours > 0) {
-			fs.avgContourArea = totalArea / validContours;
-			fs.cirularity = totalCircularity / validContours;
-			fs.contourCount = validContours;
-		}
+    //qDebug("[dbg] FocusEval lapStd=%.2f range=[%.2f, %.2f]", lapStd, observedBlur, observedSharp);
 
-		return fs;
-	}
+    double range = std::max(observedSharp - observedBlur, 1.0);
 
-	/// <summary>
-	/// Determines the best focus score in the current set
-	/// </summary>
-	/// <returns></returns>
-	double FocusEvaluator::bestLocalFocus() {
+    double rawScore =
+        std::clamp(
+            (lapStd - observedBlur) / range,
+            0.0,
+            1.0);
 
-		if (frameScoreSet.empty()) {
-			return 0.0;
-		}
+    smoothedScore =
+        ewmAlpha * rawScore +
+        (1.0 - ewmAlpha) * smoothedScore;
 
-		double maxScore = 0.0;
+    return smoothedScore;
+}
 
-		for (const auto& fs : frameScoreSet) {
-			// highest circularity / area ratio preferred
-			double f = fs.cirularity / (fs.avgContourArea + 1e-6);
-			if (f > maxScore) {
-				maxScore = f;
-			}
-		}
-		return maxScore;
-	}
+/// <summary>
+/// Clears existing focus data, to reset the tool to a "cold start" state.
+/// Necessary when video mode is changed.
+/// </summary>
+void FocusEvaluator::onResetFocusStats() {
 
-	/// <summary>
-	/// Compares the current frame score against the local optimal score
-	/// </summary>
-	/// <param name="fs">Focus score values to be compared against current optimal values</param>
-	/// <returns></returns>
-	double FocusEvaluator::compareScoreToMax(const frameScore& fs) {
+    qDebug("[dbg] FocusEvaluator reset");
 
-		// current frame's focus metric
-	    double curr = fs.cirularity / (fs.avgContourArea + 1e-6);
+    std::lock_guard<std::mutex> lock(scoreMutex);
 
-		// Update global max if better focus achieved
-		if (curr > maxInstanceScore) {
-			maxInstanceScore = curr;
-		}
+    smoothedScore = 0.0;
+    observedSharp = lapStdSharp;
+    observedBlur = lapStdBlur;
+}
 
-		// compare best from dataset to global max
-		double maxFocus = std::max(bestLocalFocus(), maxInstanceScore);
+/// <summary>
+/// Changes state of focusToolEnabled (atomic bool) depending on state of
+/// focus_button
+/// </summary>
+/// <param name="toggle">State (T/F) of focus_button</param>
+/// <returns>Nothing</returns>
+void FocusEvaluator::onSetFocusTool(bool toggle) {
 
-		// Avoid division by near-zero
-		if (maxFocus < 1e-6) {
-			return 0.0;
-		}
-
-		double ratio = std::clamp(curr / maxFocus, 0.0, 1.0);
-
-		// --- Cold-start guard ---
-		// Don't report "optimal" if we haven't seen a strong enough absolute max yet.
-		bool confident = (maxFocus >= loFocusThreshold);
-
-		// return early if we've not seen enough data
-		if (!confident) {
-			qDebug("[dbg] Focus baseline not established (maxFocus=%.3f)", maxFocus);
-			return maxFocus;
-		}
-
-		// otherwise, classify quality
-		if (ratio >= hiFocusThreshold) {
-			qDebug("[dbg] Focus optimal!");
-		} 
-		else if (ratio >= midFocusThreshold) {
-			qDebug("[dbg] Focus close to optimal...");
-		} 
-		else if (ratio > loFocusThreshold) {
-			qDebug("[dbg] Focus improving...");
-		} 
-		else {
-			qDebug("[dbg] Focus poor.");
-		}
-
-		// decay max slowly in case we grabbed a transient peak
-		double oldMax = maxInstanceScore;
-		maxInstanceScore = std::max(curr, maxInstanceScore * decayRate);
-		qDebug("[dbg] Decay %.2f to %.2f", oldMax, maxInstanceScore);
-
-		return ratio;
-	}
-
-	/// <summary>
-	/// Adds a new score to the set, and removes old items if required
-	/// </summary>
-	/// <param name="fs">Incoming focus score values</param>
-	void FocusEvaluator::addFrameScore(frameScore fs) {
-		frameScoreSet.push_back(fs);
-		if (frameScoreSet.size() > sampleCount) {
-			frameScoreSet.pop_front();
-			//qDebug("[dbg] Removed old focus score.");
-		}
-	}
-
-	/// <summary>
-	/// Receives incoming frame and grades it's focus against existing data.
-	/// </summary>
-	/// <param name="bmp">Incoming frame data from camera</param>
-	/// <returns>Double ranging from 0.0 to 1.0, where 1.0 indicates optimal focus</returns>
-	double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
-		
-		frameScore fs = gradeFrame(bmp);
-
-		qDebug("\n");
-		qDebug("[dbg] Circularity: %.2f", fs.cirularity);
-		qDebug("[dbg] Avg contour area: %.2f", fs.avgContourArea);
-		qDebug("[dbg] Contours: %d", fs.contourCount);
-		qDebug("\n");
-
-		double score = compareScoreToMax(fs);
-		addFrameScore(fs);
-
-		return score;
-	}
+    this->focusToolEnabled = toggle;
+    qDebug("[dbg] focusToolEnabled = %d", toggle);
+}
