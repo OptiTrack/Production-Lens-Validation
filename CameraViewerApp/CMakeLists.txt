@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Options
 option(ENABLE_FFMPEG "Build with FFmpeg video decoding" OFF)
+option(ENABLE_ASAN "Build with AddressSanitizer (MSVC only)" OFF)
 
 # Default to a local 'ffmpeg' folder (Windows); can be overridden with -DFFMPEG_ROOT=...
 set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/ffmpeg" CACHE PATH "Path to FFmpeg install prefix (bin/include/lib layout)")
@@ -15,8 +16,16 @@ if(NOT DEFINED CAMERA_SDK_PATH)
 endif()
 find_package(CameraLibrary REQUIRED HINTS ${CAMERA_SDK_PATH})
 
+# CameraLibrary ships as Release-only; map all other configs to it so the
+# linker finds the import lib in Debug / RelWithDebInfo / MinSizeRel builds.
+set_target_properties(CameraLibrary::CameraLibrary PROPERTIES
+    MAP_IMPORTED_CONFIG_DEBUG          "Release"
+    MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release"
+    MAP_IMPORTED_CONFIG_MINSIZEREL     "Release"
+)
+
 # Qt & OpenGL
-find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui OpenGLWidgets Concurrent Svg LinguistTools)
 find_package(OpenGL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -26,6 +35,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(APP_SOURCES
     main.cpp
 	FocusEval.cpp
+	MetricsManager.cpp
+    CircleMarkerDetector.cpp
     BitmapPool.cpp
     QtCameraViewer.cpp
     QtCameraPicker.cpp
@@ -34,6 +45,9 @@ set(APP_SOURCES
     QtCameraControlPanel.cpp
     metricscontroller.cpp
     widgets/graphwidget.cpp
+	FocusEval.h
+    resources.qrc
+    app.rc
 )
 
 # Only compile the decoder if FFmpeg is enabled
@@ -49,13 +63,80 @@ qt6_wrap_cpp(MOC_SOURCES
     QtVideoWidget.h
     QtCameraControlPanel.h
     metricscontroller.h
+	FocusEval.h
+	MetricsManager.h
     widgets/graphwidget.h
+    FocusEval.h
 )
 
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
 target_include_directories(CameraViewerApp PRIVATE widgets)
 
-# Copy Motive CSS to output folder
+# CameraLibrary is Release-only (no debug DLL). Disable MSVC's iterator
+# debugging in Debug builds so our STL containers have the same memory
+# layout as the SDK's containers, preventing the xmemory proxy crash.
+if(MSVC)
+    target_compile_definitions(CameraViewerApp PRIVATE
+        $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>
+    )
+endif()
+
+# -------------------------------
+# AddressSanitizer (cross-platform)
+# -------------------------------
+option(ENABLE_ASAN "Build with AddressSanitizer" OFF)
+
+if(ENABLE_ASAN)
+    message(STATUS "AddressSanitizer enabled")
+
+    if(MSVC)
+        # Remove incompatible flags
+        string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+
+        # Enable ASan
+        target_compile_options(CameraViewerApp PRIVATE /fsanitize=address /Zi)
+        target_link_options(CameraViewerApp PRIVATE /INCREMENTAL:NO)
+
+        # Ensure correct runtime
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    else()
+        # GCC / Clang
+        target_compile_options(CameraViewerApp PRIVATE
+            -fsanitize=address
+            -fno-omit-frame-pointer
+            -g
+        )
+        target_link_options(CameraViewerApp PRIVATE
+            -fsanitize=address
+        )
+    endif()
+endif()
+
+# Translations
+# Compile each .ts file to .qm directly into the per-config output directory as
+# a POST_BUILD step. This runs for every build configuration (Debug, Release,
+# RelWithDebInfo, etc.) and avoids the multi-config generator pitfall of the
+# qt6_add_translation / custom-target approach, where the QM generation custom
+# command may not re-trigger for configurations built after the first one.
+
+get_target_property(_lrelease_location Qt6::lrelease IMPORTED_LOCATION)
+
+set(TS_FILES i18n/app_en.ts i18n/app_zh_CN.ts)
+
+foreach(_ts_file IN LISTS TS_FILES)
+    get_filename_component(_ts_base "${_ts_file}" NAME_WE)
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/i18n"
+        COMMAND "${_lrelease_location}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/${_ts_file}"
+            -qm "$<TARGET_FILE_DIR:CameraViewerApp>/i18n/${_ts_base}.qm"
+        COMMENT "Compiling translation: ${_ts_file}"
+        VERBATIM
+    )
+endforeach()
+
+# Copy assets to output folders
 set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
 
 add_custom_command(
@@ -63,19 +144,49 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DESIGNS_DIR}/motive.css"
             "$<TARGET_FILE_DIR:CameraViewerApp>/motive.css"
+    VERBATIM
 )
+
+
+# make assets dir and copy 
+function(copy_assets TARGET SRC_DIR DEST_SUBDIR)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${SRC_DIR}"
+                "$<TARGET_FILE_DIR:${TARGET}>/${DEST_SUBDIR}"
+
+        VERBATIM
+    )
+endfunction()
+
+copy_assets(CameraViewerApp
+    "${CMAKE_SOURCE_DIR}/assets"
+    "Assets"
+)
+
 
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "C:/opencv/build")
+set(OpenCV_DIR "$ENV{OPENCV_DIR}")
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(CameraViewerApp PRIVATE ${OpenCV_LIBS})
 
 # Link basics
-target_link_libraries(CameraViewerApp PRIVATE Qt6::Core Qt6::Gui Qt6::OpenGLWidgets Qt6::Concurrent OpenGL::GL)
+target_link_libraries(CameraViewerApp
+    PRIVATE 
+        Qt6::Core
+        Qt6::Gui 
+        Qt6::OpenGLWidgets
+        Qt6::Concurrent
+        Qt6::Svg
+        OpenGL::GL
+    )
 
 # FFmpeg if included
 if(ENABLE_FFMPEG)
@@ -185,35 +296,86 @@ if(WIN32)
         VERBATIM
     )
 	
-		set(QT_DLLS
-		Qt6Core.dll
-		Qt6Gui.dll
-		Qt6Widgets.dll
-		Qt6OpenGLWidgets.dll
-		Qt6OpenGL.dll
-		Qt6Concurrent.dll
-	)
 
-	# Folder where Qt DLLs are located
-	set(QT_BIN_DIR "C:/Qt/6.10.0/msvc2022_64/bin")
-	
-	# Copy each QT DLL after build
-	foreach(_dll ${QT_DLLS})
-		add_custom_command(TARGET CameraViewerApp POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt DLL: ${_dll}"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-					"${QT_BIN_DIR}/${_dll}"
-					"$<TARGET_FILE_DIR:CameraViewerApp>"
-		)
-	endforeach()
-	
-	# Copy OpenCV DLLs
-    file(GLOB OPENCV_DLLS "C:/opencv/build/x64/vc16/bin/*.dll")
-    foreach(_dll ${OPENCV_DLLS})
-        add_custom_command(TARGET CameraViewerApp POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_dll}" $<TARGET_FILE_DIR:CameraViewerApp>)
-    endforeach()
+    # QT Main and Platform DLLs #
+
+	# Derive Qt bin dir from qmake (works regardless of install location)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
+    get_filename_component(QT_INSTALL_PREFIX "${QT_BIN_DIR}" DIRECTORY)
+    message(STATUS "Qt bin dir: ${QT_BIN_DIR}")
+
+    # Debug builds use 'd' suffix (Qt6Cored.dll), Release does not
+    set(QT_DEBUG_SUFFIX $<$<CONFIG:Debug>:d>)
+
+set(QT_DLLS
+    Qt6Core${QT_DEBUG_SUFFIX}.dll
+    Qt6Gui${QT_DEBUG_SUFFIX}.dll
+    Qt6Widgets${QT_DEBUG_SUFFIX}.dll
+    Qt6OpenGLWidgets${QT_DEBUG_SUFFIX}.dll
+    Qt6OpenGL${QT_DEBUG_SUFFIX}.dll
+    Qt6Concurrent${QT_DEBUG_SUFFIX}.dll
+    Qt6Svg${QT_DEBUG_SUFFIX}.dll 
+)
+
+foreach(_dll ${QT_DLLS})
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt DLL: ${_dll}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT_BIN_DIR}/${_dll}"
+                "$<TARGET_FILE_DIR:CameraViewerApp>"
+    )
+endforeach()
+
+# Path to Qt platforms plugins
+get_filename_component(QT_ROOT "${QT_BIN_DIR}/.." ABSOLUTE)
+set(QT_PLATFORMS_DIR "${QT_ROOT}/plugins/platforms")
+
+# List of platform plugin DLLs
+# Only qwindows.dll required for Windows, can be expanded if necessary.
+set(QT_PLATFORM_DLLS
+    qwindows${QT_DEBUG_SUFFIX}.dll
+)
+
+# Ensure target platforms directory exists
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
+)
+
+# Copy platform plugin DLLs
+foreach(_dll ${QT_PLATFORM_DLLS})
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying Qt platform plugin DLL: ${_dll}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${QT_PLATFORMS_DIR}/${_dll}"
+                "$<TARGET_FILE_DIR:CameraViewerApp>/platforms"
+    )
+endforeach()
+
+    # Copy Qt's zh_CN base translations into <exe>/translations/ so that
+    # QLibraryInfo::TranslationsPath (which qt.conf redirects there) resolves them.
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:CameraViewerApp>/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_INSTALL_PREFIX}/translations/qtbase_zh_CN.qm"
+            "$<TARGET_FILE_DIR:CameraViewerApp>/translations/qtbase_zh_CN.qm"
+        VERBATIM
+    )
+
+# Copy OpenCV DLLs (Debug/Release aware)
+set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
+
+
+# OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
+# MinSizeRel to Release so the copy always finds a valid source directory.
+add_custom_command(TARGET CameraViewerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
+        "$<TARGET_FILE_DIR:CameraViewerApp>"
+)
 
 elseif(UNIX)
     target_link_libraries(CameraViewerApp

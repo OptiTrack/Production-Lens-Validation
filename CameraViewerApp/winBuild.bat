@@ -84,11 +84,9 @@ if errorlevel 1 (
 :: ----------------------------------------------------------------------
 :: Build directory
 :: ----------------------------------------------------------------------
-if exist build (
-    rmdir /s /q build
-)
-mkdir build
+if not exist build mkdir build
 pushd build
+cmake .. %CMAKE_ARGS%
 
 :: ----------------------------------------------------------------------
 :: Configure CMake
