@@ -38,9 +38,17 @@ No code style rules are in place for this project, and no linter has been dictat
 
 ## Testing
 
-* Unit tests may be implemented at a later date to ensure repeatability of lens evaluation.  
-* Coverage of tested components has a goal threshold of 75%.  
-* New tests are created at the discretion of the developer.
+The unit test suite lives in [`tests/`](../tests) and covers the platform-independent focus scoring math in `CameraViewerApp/core/`. It needs no camera, Qt, OpenCV or Camera SDK — only CMake and a C++17 compiler:
+
+```
+cmake -B build -DBUILD_APP=OFF
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+* CI runs this suite on both Windows and Ubuntu for every push and pull request; it must pass before a PR is merged.
+* Coverage of tested components has a goal threshold of 75%.
+* New tests are created at the discretion of the developer. See [`tests/README.md`](../tests/README.md) for what is covered, how to add a case, and the pattern used to make camera-facing logic testable: keep the decision-making in `CameraViewerApp/core/` and the device or image handling in the app layer.
 
 ## Pull Requests & Reviews
 
@@ -60,9 +68,37 @@ Template of PR
 
 ## CI/CD
 
-* Since OptiTrack’s camera SDK is built using CMake, our repo contains a CMake (single-platform) CI workflow that will automatically make test builds of our code  
-* Before merging anything to the develop branch, make sure your code passes the CMake workflow’s tests first  
-  * NOTE: as of writing this (11/2/25), we’re still working out some bugs with the workflow, so every test fails at the moment, but once it’s finished, make sure to follow the above
+Two GitHub Actions workflows live in [`.github/workflows/`](../.github/workflows).
+
+### CI — [`ci.yml`](../.github/workflows/ci.yml)
+
+Runs on every push to `develop`/`main`, on every pull request against them, and on demand from the Actions tab. Before merging anything into `develop`, make sure CI is green.
+
+| Job | Platform | What it does |
+| --- | --- | --- |
+| `Unit tests` | Ubuntu **and** Windows | Configures with `-DBUILD_APP=OFF`, builds the test suite and runs it through CTest. Uploads JUnit results. |
+| `Build app (Windows)` | Windows | Installs Qt and OpenCV, builds the application with MSVC against `CameraSDK/`, runs the tests, deploys the Qt runtime with `windeployqt`, and uploads a runnable package. |
+| `Build app (Ubuntu)` | Ubuntu | Installs the packages from `UbuntuBuildInstructions.txt`, builds against `OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu/`, runs the tests, and uploads a package. |
+
+Both application jobs build from the repository root `CMakeLists.txt`, which produces the executable in `build/bin/<Config>/`. `winBuild.bat` and `build.sh` still work exactly as before.
+
+### CD — [`release.yml`](../.github/workflows/release.yml)
+
+Builds and publishes release packages for both platforms. See **Release Process** below.
+
+### Build options
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `BUILD_APP` | `ON` | Build the GUI application (needs Qt 6, OpenCV, Camera SDK). |
+| `BUILD_TESTS` | `ON` | Build the unit test suite. |
+| `ENABLE_FFMPEG` | `OFF` | Build the FFmpeg video decoder path. |
+| `ENABLE_ASAN` | `OFF` | Build with AddressSanitizer. |
+
+### Keeping the workflows working
+
+* The Qt and OpenCV versions CI installs are pinned in the `env:` block at the top of each workflow. Change them there when the project moves to a new version, and update the prerequisites above to match.
+* Dependabot proposes updates to the actions themselves monthly ([`dependabot.yml`](../.github/dependabot.yml)).
 
 ## Security & Secrets
 
@@ -80,7 +116,19 @@ Template of PR
 
 ## Release Process
 
-No versioning scheme has been implemented yet, but might be when the GitHub CMake workflow is functioning.
+Releases are tagged with [semantic versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH`) and published by the [`release.yml`](../.github/workflows/release.yml) workflow.
+
+1. Make sure `develop` is green in CI and merged into `main`.
+2. Tag the release commit and push the tag:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+3. The workflow builds both platforms, runs the unit tests (a failing test blocks the release), and publishes a GitHub Release containing `CameraViewerApp-<version>-windows-x64.zip` and `CameraViewerApp-<version>-linux-x64.tar.gz`, each with a SHA256 checksum.
+
+Running the workflow manually from the Actions tab produces the same packages as downloadable artifacts without publishing a release — useful for a dry run.
 
 ## Support & Contact
 

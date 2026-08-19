@@ -1,0 +1,188 @@
+name: CI
+
+# Continuous integration for Production-Lens-Validation.
+#
+#   unit-tests    - builds and runs the test suite on Ubuntu and Windows.
+#                   Needs nothing but a C++17 compiler and CMake.
+#   build-windows - builds and packages the full Qt/OpenCV application with
+#                   MSVC, using the Windows Camera SDK in CameraSDK/.
+#   build-linux   - the same for Ubuntu, using the Camera SDK in
+#                   OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu/. Mirrors
+#                   CameraViewerApp/UbuntuBuildInstructions.txt.
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# One run per branch/PR; superseded runs are cancelled.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  QT_VERSION: 6.10.0
+  OPENCV_VERSION: 4.12.0
+  UBUNTU_SDK_PATH: OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Cross-platform unit tests. No Qt, OpenCV or Camera SDK required.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DBUILD_APP=OFF
+          -DBUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: >
+          ctest --test-dir build
+          -C ${{ env.BUILD_TYPE }}
+          --output-on-failure
+          --output-junit ${{ github.workspace }}/test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: test-results.xml
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Full application build for Windows.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Build app (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Restore cached OpenCV
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: C:\opencv
+          key: opencv-${{ env.OPENCV_VERSION }}-windows-x64
+
+      - name: Install OpenCV ${{ env.OPENCV_VERSION }}
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $version = $env:OPENCV_VERSION
+          $url = "https://github.com/opencv/opencv/releases/download/$version/opencv-$version-windows.exe"
+          $installer = Join-Path $env:RUNNER_TEMP "opencv-installer.exe"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          # Self-extracting archive: unpacks to C:\opencv\build
+          Start-Process -FilePath $installer -ArgumentList '-oC:\', '-y' -Wait -NoNewWindow
+          if (-not (Test-Path 'C:\opencv\build\OpenCVConfig.cmake')) {
+            throw "OpenCV extraction did not produce C:\opencv\build\OpenCVConfig.cmake"
+          }
+
+      - name: Configure
+        run: >
+          cmake -B build -A x64
+          -DBUILD_APP=ON
+          -DBUILD_TESTS=ON
+          -DCAMERA_SDK_PATH=${{ github.workspace }}/CameraSDK
+          -DOpenCV_DIR=C:/opencv/build
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
+
+      # Fills in the Qt plugins, ICU and other runtime pieces the CMake
+      # post-build copies do not cover, so the artifact runs on a clean machine.
+      - name: Deploy Qt runtime
+        shell: pwsh
+        run: |
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
+            --release --no-compiler-runtime `
+            "build\bin\$env:BUILD_TYPE\CameraViewerApp.exe"
+
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: CameraViewerApp-windows-x64
+          path: build/bin/${{ env.BUILD_TYPE }}/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Full application build for Ubuntu.
+  # ---------------------------------------------------------------------------
+  build-linux:
+    name: Build app (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same package set as CameraViewerApp/UbuntuBuildInstructions.txt.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake build-essential \
+            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev \
+            libgl1-mesa-dev libjpeg-dev libopencv-dev
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_APP=ON
+          -DBUILD_TESTS=ON
+          -DCAMERA_SDK_PATH=${{ github.workspace }}/${{ env.UBUNTU_SDK_PATH }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Stage runtime files
+        run: |
+          # The app loads the Camera SDK at runtime, so ship it alongside.
+          cp "${{ env.UBUNTU_SDK_PATH }}/lib/libCameraLibrary.so" build/bin/
+          ls -la build/bin
+
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: CameraViewerApp-linux-x64
+          path: build/bin/
+          retention-days: 7

@@ -1,3 +1,5 @@
+[![CI](https://github.com/OptiTrack/Production-Lens-Validation/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/OptiTrack/Production-Lens-Validation/actions/workflows/ci.yml)
+
 <!-- TABLE OF CONTENTS -->
 <details>
  <summary>Table of Contents</summary>
@@ -24,6 +26,8 @@
         </li>
      </ul>
    </li>
+   <li><a href="#tests">Tests</a></li>
+   <li><a href="#continuous-integration">Continuous Integration</a></li>
    <li><a href="#license">License</a></li>
  </ol>
 </details>
@@ -131,6 +135,41 @@ The program the lens testing team currently uses is intended for direct motion c
 6. Run application
 <br>`./build/CameraViewerApp`
 
+
+<!-- TESTS -->
+# Tests
+
+The unit tests cover the platform-independent focus scoring math. They need no
+camera, Qt, OpenCV or Camera SDK — just CMake and a C++17 compiler — and run the
+same on Windows and Ubuntu:
+
+```
+cmake -B build -DBUILD_APP=OFF
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+See [tests/README.md](tests/README.md) for what is covered and how to add cases.
+
+The repository root also has a `CMakeLists.txt` that builds the application and
+the tests together, if you would rather not use the build scripts:
+
+```
+cmake -B build -DCAMERA_SDK_PATH=CameraSDK              # Windows
+cmake -B build -DCAMERA_SDK_PATH=OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu   # Ubuntu
+cmake --build build --config Release
+```
+
+That puts the executable in `build/bin/Release/`. `winBuild.bat` and `build.sh`
+are unaffected and still place theirs in `build/`.
+
+<!-- CI -->
+# Continuous Integration
+
+Every push and pull request runs the unit tests on Windows and Ubuntu and builds
+the application on both platforms, uploading a runnable package for each.
+Pushing a `v*` tag publishes those packages as a GitHub Release. Details are in
+the [Contributing guide](Documents/CONTRIBUTING.md#cicd).
 
 <!-- LICENSE -->
 # License
