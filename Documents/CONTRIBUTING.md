@@ -72,7 +72,7 @@ Two GitHub Actions workflows live in [`.github/workflows/`](../.github/workflows
 
 ### CI — [`ci.yml`](../.github/workflows/ci.yml)
 
-Runs on every push to `develop`/`main`, on every pull request against them, and on demand from the Actions tab. Before merging anything into `develop`, make sure CI is green.
+Runs on **every push to any branch**, on every pull request against `develop`/`main`, and on demand from the Actions tab. Before merging anything into `develop`, make sure CI is green.
 
 | Job | Platform | What it does |
 | --- | --- | --- |
@@ -81,6 +81,20 @@ Runs on every push to `develop`/`main`, on every pull request against them, and 
 | `Build app (Ubuntu)` | Ubuntu | Installs the packages from `UbuntuBuildInstructions.txt`, builds against `OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu/`, runs the tests, and uploads a package. |
 
 Both application jobs build from the repository root `CMakeLists.txt`, which produces the executable in `build/bin/<Config>/`. `winBuild.bat` and `build.sh` still work exactly as before.
+
+### Getting the build for a commit
+
+Every commit you push produces a downloadable build. Open the **Actions** tab, pick the run for your commit, and download from the **Artifacts** section at the bottom of the run summary:
+
+| Artifact | Contents |
+| --- | --- |
+| `CameraViewerApp-windows-x64-<short sha>` | The Windows application with its Qt, OpenCV and Camera SDK runtime files |
+| `CameraViewerApp-linux-x64-<short sha>` | The Ubuntu build, including `libCameraLibrary.so` |
+| `test-results-<os>` | JUnit results from the unit test run |
+
+Each package contains a `BUILD_INFO.txt` naming the commit, branch and run it came from. Application artifacts are kept for 7 days, test results for 14; adjust `retention-days` in the workflow to change that.
+
+The application artifact is uploaded before the test step, so a commit still produces a usable build when a test fails — the job is still reported as failed. Note that a Windows package is roughly 200 MB, mostly `CameraLibrary.dll`, so pushing many commits in a day uses a fair amount of the repository's Actions storage.
 
 ### CD — [`release.yml`](../.github/workflows/release.yml)
 

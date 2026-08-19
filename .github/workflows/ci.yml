@@ -11,8 +11,10 @@ name: CI
 #                   CameraViewerApp/UbuntuBuildInstructions.txt.
 
 on:
+  # Every branch, so each commit you push produces build artifacts. Tag pushes
+  # are handled by release.yml instead.
   push:
-    branches: [develop, main]
+    branches: ['**']
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
@@ -79,6 +81,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Identify build
+        id: build_id
+        shell: bash
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@v4
         with:
@@ -122,9 +129,6 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
 
-      - name: Test
-        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
-
       # Fills in the Qt plugins, ICU and other runtime pieces the CMake
       # post-build copies do not cover, so the artifact runs on a clean machine.
       - name: Deploy Qt runtime
@@ -134,12 +138,30 @@ jobs:
             --release --no-compiler-runtime `
             "build\bin\$env:BUILD_TYPE\CameraViewerApp.exe"
 
+      - name: Stamp build information
+        shell: bash
+        run: |
+          cat > "build/bin/${BUILD_TYPE}/BUILD_INFO.txt" <<EOF
+          Commit:    ${{ github.sha }}
+          Branch:    ${{ github.ref_name }}
+          Built by:  GitHub Actions run ${{ github.run_number }} (attempt ${{ github.run_attempt }})
+          Platform:  windows-x64 ${BUILD_TYPE}
+          Qt:        ${{ env.QT_VERSION }}
+          OpenCV:    ${{ env.OPENCV_VERSION }}
+          EOF
+          cat "build/bin/${BUILD_TYPE}/BUILD_INFO.txt"
+
+      # Uploaded before the tests run, so a commit still produces a downloadable
+      # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
         uses: actions/upload-artifact@v4
         with:
-          name: CameraViewerApp-windows-x64
+          name: CameraViewerApp-windows-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/${{ env.BUILD_TYPE }}/
           retention-days: 7
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
 
   # ---------------------------------------------------------------------------
   # Full application build for Ubuntu.
@@ -150,6 +172,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Identify build
+        id: build_id
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       # Same package set as CameraViewerApp/UbuntuBuildInstructions.txt.
       - name: Install dependencies
@@ -171,18 +197,28 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
-
       - name: Stage runtime files
         run: |
           # The app loads the Camera SDK at runtime, so ship it alongside.
           cp "${{ env.UBUNTU_SDK_PATH }}/lib/libCameraLibrary.so" build/bin/
+          cat > build/bin/BUILD_INFO.txt <<EOF
+          Commit:    ${{ github.sha }}
+          Branch:    ${{ github.ref_name }}
+          Built by:  GitHub Actions run ${{ github.run_number }} (attempt ${{ github.run_attempt }})
+          Platform:  linux-x64 ${{ env.BUILD_TYPE }}
+          Qt:        system qt6-base-dev
+          OpenCV:    system libopencv-dev
+          EOF
           ls -la build/bin
 
+      # Uploaded before the tests run, so a commit still produces a downloadable
+      # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
         uses: actions/upload-artifact@v4
         with:
-          name: CameraViewerApp-linux-x64
+          name: CameraViewerApp-linux-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/
           retention-days: 7
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

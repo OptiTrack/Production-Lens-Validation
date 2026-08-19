@@ -166,10 +166,14 @@ are unaffected and still place theirs in `build/`.
 <!-- CI -->
 # Continuous Integration
 
-Every push and pull request runs the unit tests on Windows and Ubuntu and builds
-the application on both platforms, uploading a runnable package for each.
-Pushing a `v*` tag publishes those packages as a GitHub Release. Details are in
-the [Contributing guide](Documents/CONTRIBUTING.md#cicd).
+Every commit pushed to any branch runs the unit tests on Windows and Ubuntu and
+builds the application on both platforms, uploading a runnable package for each.
+To get the build for a commit, open the **Actions** tab, select that commit's run
+and download from **Artifacts** at the bottom of the summary; each package
+carries a `BUILD_INFO.txt` naming the commit it came from.
+
+Pushing a `v*` tag publishes the same packages as a GitHub Release. Details are
+in the [Contributing guide](Documents/CONTRIBUTING.md#cicd).
 
 <!-- LICENSE -->
 # License
