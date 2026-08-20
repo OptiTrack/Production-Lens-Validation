@@ -129,17 +129,36 @@ Builds and publishes release packages for both platforms. See **Release Process*
 
 ## Release Process
 
-Releases are tagged with [semantic versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH`) and published by the [`release.yml`](../.github/workflows/release.yml) workflow.
+Releases are tagged with [semantic versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH`) and published by the [`release.yml`](../.github/workflows/release.yml) workflow. The project is currently at **0.8.0**.
+
+### Where the version lives
+
+The [`VERSION`](../VERSION) file at the repository root is the single source of truth. Everything else reads it:
+
+| Consumer | How it is used |
+| --- | --- |
+| `cmake/ProjectVersion.cmake` | Parses it and exposes `PLV_VERSION*`, plus the short commit hash |
+| Root `CMakeLists.txt` | `project(... VERSION ${PLV_VERSION})` |
+| `CameraViewerApp/Version.h.in` | Generated into `Version.h` as `PLV_VERSION_STRING` / `PLV_VERSION_FULL` |
+| `main.cpp` | `QCoreApplication::applicationVersion()` and the window title |
+| `CameraViewerApp/version.rc.in` | Windows executable file properties (right-click → Details) |
+| CI | Recorded in each artifact's `BUILD_INFO.txt` |
+| `release.yml` | Refuses to publish a tag that disagrees with it |
+
+Builds from a git checkout report `0.8.0+<short sha>`; the bare `0.8.0` is used where only the release version matters. The hash is resolved when CMake configures, so re-run CMake to refresh it.
+
+### Cutting a release
 
 1. Make sure `develop` is green in CI and merged into `main`.
-2. Tag the release commit and push the tag:
+2. Bump [`VERSION`](../VERSION) and move the [`CHANGELOG.md`](../CHANGELOG.md) *Unreleased* entries under the new version, then commit.
+3. Tag the release commit and push the tag:
 
 ```
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.8.1
+git push origin v0.8.1
 ```
 
-3. The workflow builds both platforms, runs the unit tests (a failing test blocks the release), and publishes a GitHub Release containing `CameraViewerApp-<version>-windows-x64.zip` and `CameraViewerApp-<version>-linux-x64.tar.gz`, each with a SHA256 checksum.
+4. The workflow checks the tag against `VERSION`, builds both platforms, runs the unit tests (a failing test blocks the release), and publishes a GitHub Release containing `CameraViewerApp-<version>-windows-x64.zip` and `CameraViewerApp-<version>-linux-x64.tar.gz`, each with a SHA256 checksum.
 
 Running the workflow manually from the Actions tab produces the same packages as downloadable artifacts without publishing a release — useful for a dry run.
 

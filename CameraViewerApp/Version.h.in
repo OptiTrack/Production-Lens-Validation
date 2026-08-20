@@ -1,0 +1,17 @@
+#pragma once
+
+// Generated from Version.h.in by CMake - do not edit.
+// The version itself lives in the VERSION file at the repository root.
+
+#define PLV_VERSION_MAJOR @PLV_VERSION_MAJOR@
+#define PLV_VERSION_MINOR @PLV_VERSION_MINOR@
+#define PLV_VERSION_PATCH @PLV_VERSION_PATCH@
+
+// "0.8.0"
+#define PLV_VERSION_STRING "@PLV_VERSION@"
+
+// Short commit this build came from, or "unknown" outside a git checkout.
+#define PLV_VERSION_COMMIT "@PLV_VERSION_COMMIT@"
+
+// "0.8.0+a1b2c3d" - what to show in a title bar or a bug report.
+#define PLV_VERSION_FULL "@PLV_VERSION_FULL@"

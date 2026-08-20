@@ -6,8 +6,8 @@ name: Release
 # Triggered by pushing a version tag, which is the deliberate act that starts a
 # release:
 #
-#     git tag v0.1.0
-#     git push origin v0.1.0
+#     git tag v0.8.1
+#     git push origin v0.8.1
 #
 # Running it manually from the Actions tab produces the same packages as
 # downloadable artifacts without publishing a release, which is useful for a
@@ -29,8 +29,35 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Fails fast if the tag and the VERSION file disagree, so a release can never
+  # be labelled with a version the binaries do not report.
+  check-version:
+    name: Check tag matches VERSION
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compare tag with VERSION
+        run: |
+          file_version="$(cat VERSION)"
+          echo "VERSION file: $file_version"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "Not a tag build; nothing to compare."
+            exit 0
+          fi
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "Tag:          $GITHUB_REF_NAME (version $tag_version)"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION ($file_version)."
+            echo "Bump VERSION and CHANGELOG.md, commit, then re-tag."
+            exit 1
+          fi
+          echo "Tag and VERSION agree."
+
+  # ---------------------------------------------------------------------------
   package-windows:
     name: Package (Windows x64)
+    needs: check-version
     runs-on: windows-latest
     outputs:
       version: ${{ steps.package.outputs.version }}
@@ -123,6 +150,7 @@ jobs:
   # ---------------------------------------------------------------------------
   package-linux:
     name: Package (Ubuntu x64)
+    needs: check-version
     runs-on: ubuntu-latest
 
     steps:

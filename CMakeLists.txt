@@ -22,8 +22,13 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+# The version comes from the VERSION file at the repository root; see
+# cmake/ProjectVersion.cmake and Documents/CONTRIBUTING.md.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(ProjectVersion)
+
 project(ProductionLensValidation
-    VERSION 0.1.0
+    VERSION ${PLV_VERSION}
     DESCRIPTION "OptiTrack lens focus validation tooling"
     LANGUAGES CXX
 )

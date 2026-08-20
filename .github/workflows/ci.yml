@@ -128,6 +128,7 @@ jobs:
         shell: bash
         run: |
           cat > "build/bin/${BUILD_TYPE}/BUILD_INFO.txt" <<EOF
+          Version:   $(cat VERSION)
           Commit:    ${{ github.sha }}
           Branch:    ${{ github.ref_name }}
           Built by:  GitHub Actions run ${{ github.run_number }} (attempt ${{ github.run_attempt }})
@@ -197,6 +198,7 @@ jobs:
           # The app loads the Camera SDK at runtime, so ship it alongside.
           cp "${{ env.UBUNTU_SDK_PATH }}/lib/libCameraLibrary.so" build/bin/
           cat > build/bin/BUILD_INFO.txt <<EOF
+          Version:   $(cat VERSION)
           Commit:    ${{ github.sha }}
           Branch:    ${{ github.ref_name }}
           Built by:  GitHub Actions run ${{ github.run_number }} (attempt ${{ github.run_attempt }})

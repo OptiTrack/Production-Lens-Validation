@@ -8,6 +8,19 @@ project(CameraViewerApp)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Version, read from the VERSION file at the repository root. Already available
+# when built from the root CMakeLists.txt.
+if(NOT DEFINED PLV_VERSION)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+    include(ProjectVersion)
+endif()
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Version.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/Version.h"
+    @ONLY
+)
+
 # Options
 option(ENABLE_FFMPEG "Build with FFmpeg video decoding" OFF)
 option(ENABLE_ASAN "Build with AddressSanitizer (MSVC only)" OFF)
@@ -61,6 +74,15 @@ set(APP_SOURCES
     app.rc
 )
 
+if(WIN32)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc"
+        @ONLY
+    )
+    list(APPEND APP_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
+endif()
+
 # Only compile the decoder if FFmpeg is enabled
 if(ENABLE_FFMPEG)
     list(APPEND APP_SOURCES videodecoder.cpp)
@@ -81,7 +103,9 @@ qt6_wrap_cpp(MOC_SOURCES
 )
 
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
-target_include_directories(CameraViewerApp PRIVATE widgets)
+target_include_directories(CameraViewerApp PRIVATE
+    widgets
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # CameraLibrary is Release-only (no debug DLL). Disable MSVC's iterator
 # debugging in Debug builds so our STL containers have the same memory
