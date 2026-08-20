@@ -43,7 +43,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Configure
         run: >
@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ matrix.os }}
           path: test-results.xml
@@ -79,7 +79,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Identify build
         id: build_id
@@ -157,7 +157,7 @@ jobs:
       # Uploaded before the tests run, so a commit still produces a downloadable
       # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: CameraViewerApp-windows-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/${{ env.BUILD_TYPE }}/
@@ -174,7 +174,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Identify build
         id: build_id
@@ -230,7 +230,7 @@ jobs:
       # Uploaded before the tests run, so a commit still produces a downloadable
       # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: CameraViewerApp-linux-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/
