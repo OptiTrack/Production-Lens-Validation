@@ -117,6 +117,9 @@ jobs:
             throw "OpenCV extraction did not produce C:\opencv\build\OpenCVConfig.cmake"
           }
 
+      # OpenCV_DIR is the pack root; CameraViewerApp/CMakeLists.txt narrows it to
+      # the per-toolset config inside, because the pack's top level config
+      # rejects MSVC versions newer than the OpenCV release knows about.
       - name: Configure
         run: >
           cmake -B build -A x64

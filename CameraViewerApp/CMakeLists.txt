@@ -200,6 +200,23 @@ if(NOT OpenCV_DIR)
     endif()
 endif()
 
+# When OpenCV_DIR points at the root of a prebuilt Windows pack, switch to the
+# per-toolset config inside it (build/x64/vcNN/lib). The pack's top level
+# OpenCVConfig.cmake maps the MSVC version onto a vcNN binary folder and reports
+# "Found OpenCV Windows Pack but it has no binaries compatible with your
+# configuration" for any toolset it does not recognise - including compilers
+# newer than the OpenCV release. The per-toolset config has no such check, and
+# MSVC keeps its ABI stable across releases.
+file(GLOB _cv_toolsets "${OpenCV_DIR}/x64/*/lib")
+list(SORT _cv_toolsets ORDER DESCENDING)  # newest vcNN first
+foreach(_cv_toolset IN LISTS _cv_toolsets)
+    if(EXISTS "${_cv_toolset}/OpenCVConfig.cmake")
+        message(STATUS "Using the per-toolset OpenCV config in ${_cv_toolset}")
+        set(OpenCV_DIR "${_cv_toolset}")
+        break()
+    endif()
+endforeach()
+
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION} (${OpenCV_DIR})")
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -411,7 +428,12 @@ if(OPENCV_BIN_DIR AND EXISTS "${OPENCV_BIN_DIR}/Release")
             "$<TARGET_FILE_DIR:CameraViewerApp>"
     )
 else()
-    file(GLOB OPENCV_DLLS "${OpenCV_DIR}/x64/*/bin/*.dll")
+    # OpenCV_DIR may be the pack root or a per-toolset lib directory, so look
+    # for the DLLs relative to both.
+    file(GLOB OPENCV_DLLS
+        "${OpenCV_DIR}/x64/*/bin/*.dll"   # <pack>/build
+        "${OpenCV_DIR}/../bin/*.dll"      # <pack>/build/x64/vcNN/lib
+        "${OpenCV_DIR}/bin/*.dll")
     if(OPENCV_DLLS)
         message(STATUS "Copying OpenCV DLLs from the prebuilt package layout")
         foreach(_dll ${OPENCV_DLLS})
