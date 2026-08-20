@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-${{ matrix.os }}
           path: test-results.xml
@@ -157,7 +157,7 @@ jobs:
       # Uploaded before the tests run, so a commit still produces a downloadable
       # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: CameraViewerApp-windows-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/${{ env.BUILD_TYPE }}/
@@ -230,7 +230,7 @@ jobs:
       # Uploaded before the tests run, so a commit still produces a downloadable
       # build when a test fails. The job itself still goes red in that case.
       - name: Upload application
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: CameraViewerApp-linux-x64-${{ steps.build_id.outputs.short_sha }}
           path: build/bin/

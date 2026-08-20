@@ -112,7 +112,7 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Upload package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-windows-x64
           path: |
@@ -181,7 +181,7 @@ jobs:
           echo "package=$name.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: release-linux-x64
           path: |
@@ -201,7 +201,7 @@ jobs:
 
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           pattern: release-*
           merge-multiple: true
