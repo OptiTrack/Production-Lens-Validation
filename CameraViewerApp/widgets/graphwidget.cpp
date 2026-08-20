@@ -1,5 +1,7 @@
 #include "graphwidget.h"
 
+#include <cmath>
+
 GraphWidget::GraphWidget(QWidget *parent) : QOpenGLWidget(parent) {
   QSurfaceFormat format;
   format.setAlphaBufferSize(8);

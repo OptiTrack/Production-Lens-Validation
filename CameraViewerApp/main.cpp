@@ -11,6 +11,8 @@
 #include <qfile.h>
 #include <qtimer.h>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 #include <qicon.h>
 
 // For chinese translation support

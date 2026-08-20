@@ -10,7 +10,9 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWindow>
 #include <QtSvg/qsvgrenderer.h>
+#include <array>
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
