@@ -6,6 +6,7 @@
 #include "QtVideoWidget.h"
 #include "metricscontroller.h"
 #include "widgets/graphwidget.h"
+#include <QAbstractSlider>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -15,6 +16,8 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QPixmap>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QIntValidator>
 #include <QLabel>

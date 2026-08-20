@@ -2,7 +2,10 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QPalette>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QStackedLayout>
 #include <QStyleFactory>
 #include <QTimer>

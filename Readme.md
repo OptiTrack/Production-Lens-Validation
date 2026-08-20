@@ -100,6 +100,12 @@ The program the lens testing team currently uses is intended for direct motion c
    qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev
    libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv
    ```
+   > **Qt 6.9 or newer is required.** The app uses Qt APIs that older releases
+   > lack (for example `QImage::flipped`, added in Qt 6.9), so the `qt6-base-dev`
+   > in older Ubuntu archives — 6.4 on Ubuntu 24.04 — is too old. If apt gives
+   > you an older Qt, install Qt 6.10 separately and configure with
+   > `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.10.0/gcc_64`. See
+   > [UbuntuBuildInstructions.txt](CameraViewerApp/UbuntuBuildInstructions.txt).
 
 
 <!-- INSTALLATION -->

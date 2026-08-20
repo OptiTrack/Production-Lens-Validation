@@ -133,8 +133,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake build-essential \
-            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev \
-            libgl1-mesa-dev libjpeg-dev libopencv-dev
+            libgl1-mesa-dev libglu1-mesa-dev libjpeg-dev libopencv-dev \
+            libxkbcommon-dev libvulkan-dev
+
+      # The application uses Qt APIs newer than Ubuntu's qt6-base-dev provides.
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
 
       - name: Configure
         run: >
@@ -143,6 +153,7 @@ jobs:
           -DBUILD_APP=ON
           -DBUILD_TESTS=ON
           -DCAMERA_SDK_PATH=${{ github.workspace }}/${{ env.UBUNTU_SDK_PATH }}
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
 
       - name: Build
         run: cmake --build build --parallel

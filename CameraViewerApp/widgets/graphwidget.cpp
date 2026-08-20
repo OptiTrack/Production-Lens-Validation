@@ -1,4 +1,5 @@
 #include "graphwidget.h"
+#include <QSurfaceFormat>
 
 #include <cmath>
 

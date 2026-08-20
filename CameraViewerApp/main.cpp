@@ -17,6 +17,8 @@
 
 // For chinese translation support
 #include <QLibraryInfo>
+#include <QLocale>
+#include <QMetaObject>
 #include <QTranslator>
 
 #include "BitmapPool.h"

@@ -1,4 +1,5 @@
 #pragma once
+#include <QColor>
 #include <QWidget>
 #include <QPainter>
 #include <algorithm>

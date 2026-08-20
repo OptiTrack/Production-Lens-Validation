@@ -177,14 +177,26 @@ jobs:
         id: build_id
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      # Same package set as CameraViewerApp/UbuntuBuildInstructions.txt.
+      # Everything except Qt, which comes from install-qt-action below.
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake build-essential \
-            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev \
-            libgl1-mesa-dev libjpeg-dev libopencv-dev
+            libgl1-mesa-dev libglu1-mesa-dev libjpeg-dev libopencv-dev \
+            libxkbcommon-dev libvulkan-dev
+
+      # The application uses Qt APIs newer than the qt6-base-dev in Ubuntu's
+      # archive (for example QImage::flipped, added in Qt 6.9), so CI installs
+      # the Qt version the project targets rather than the distro's.
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
 
       - name: Configure
         run: >
@@ -193,6 +205,7 @@ jobs:
           -DBUILD_APP=ON
           -DBUILD_TESTS=ON
           -DCAMERA_SDK_PATH=${{ github.workspace }}/${{ env.UBUNTU_SDK_PATH }}
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
 
       - name: Build
         run: cmake --build build --parallel
@@ -206,7 +219,7 @@ jobs:
           Branch:    ${{ github.ref_name }}
           Built by:  GitHub Actions run ${{ github.run_number }} (attempt ${{ github.run_attempt }})
           Platform:  linux-x64 ${{ env.BUILD_TYPE }}
-          Qt:        system qt6-base-dev
+          Qt:        ${{ env.QT_VERSION }} (needs the same Qt installed to run)
           OpenCV:    system libopencv-dev
           EOF
           ls -la build/bin
