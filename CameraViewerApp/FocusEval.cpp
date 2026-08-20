@@ -76,23 +76,21 @@ double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
     // frame the markers occupy.
     cv::minMaxLoc(gray, nullptr, &imgMax);
 
-    if (imgMax < minImageBrightness) {
+    if (scoreModel.FrameTooDark(imgMax)) {
         std::lock_guard<std::mutex> lock(scoreMutex);
-        smoothedScore = (1.0 - ewmAlpha) * smoothedScore;
-        return smoothedScore;
+        return scoreModel.Decay();
     }
 
     cv::threshold(
         gray,
         brightMask,
-        imgMax * markerThreshRatio,
+        scoreModel.MaskThreshold(imgMax),
         255,
         cv::THRESH_BINARY);
 
-    if (cv::countNonZero(brightMask) < minMaskPixels) {
+    if (scoreModel.TooFewMarkerPixels(cv::countNonZero(brightMask))) {
         std::lock_guard<std::mutex> lock(scoreMutex);
-        smoothedScore = (1.0 - ewmAlpha) * smoothedScore;
-        return smoothedScore;
+        return scoreModel.Decay();
     }
 
     cv::Laplacian(gray, lap, CV_32F, 3);
@@ -100,32 +98,11 @@ double FocusEvaluator::EvaluateBitmapFocus(CameraLibrary::Bitmap* bmp) {
 
     double lapStd = lapStdDev[0];
 
+    //qDebug("[dbg] FocusEval lapStd=%.2f range=[%.2f, %.2f]", lapStd, scoreModel.ObservedBlur(), scoreModel.ObservedSharp());
+
+    // Rescales onto 0..1 against the bounds seen this session, then smooths.
     std::lock_guard<std::mutex> lock(scoreMutex);
-
-    // Adjust bounds based on newest values
-    // EWM smoothing provides some resistance against sudden spikes
-    if (lapStd > observedSharp) {
-        observedSharp += boundsAlpha * (lapStd - observedSharp);
-    }
-    if (lapStd < observedBlur) {
-        observedBlur += boundsAlpha * (lapStd - observedBlur);
-    }
-
-    //qDebug("[dbg] FocusEval lapStd=%.2f range=[%.2f, %.2f]", lapStd, observedBlur, observedSharp);
-
-    double range = std::max(observedSharp - observedBlur, 1.0);
-
-    double rawScore =
-        std::clamp(
-            (lapStd - observedBlur) / range,
-            0.0,
-            1.0);
-
-    smoothedScore =
-        ewmAlpha * rawScore +
-        (1.0 - ewmAlpha) * smoothedScore;
-
-    return smoothedScore;
+    return scoreModel.Update(lapStd);
 }
 
 /// <summary>
@@ -138,9 +115,7 @@ void FocusEvaluator::onResetFocusStats() {
 
     std::lock_guard<std::mutex> lock(scoreMutex);
 
-    smoothedScore = 0.0;
-    observedSharp = lapStdSharp;
-    observedBlur = lapStdBlur;
+    scoreModel.Reset();
 }
 
 /// <summary>

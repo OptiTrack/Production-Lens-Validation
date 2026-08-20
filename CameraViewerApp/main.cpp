@@ -11,10 +11,14 @@
 #include <qfile.h>
 #include <qtimer.h>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 #include <qicon.h>
 
 // For chinese translation support
 #include <QLibraryInfo>
+#include <QLocale>
+#include <QMetaObject>
 #include <QTranslator>
 
 #include "BitmapPool.h"

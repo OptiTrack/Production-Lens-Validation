@@ -10,3 +10,11 @@
 /CameraViewerApp/BuildCameraApp.bat
 /CameraViewerApp/buildLog.txt
 /CameraViewerApp/out
+
+# Build output
+/out
+/build
+**/build/
+
+# CI / test output
+test-results.xml

@@ -1,6 +1,9 @@
 #pragma once
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstring>
+#include <mutex>
 
 #include "cameralibrary.h"
 

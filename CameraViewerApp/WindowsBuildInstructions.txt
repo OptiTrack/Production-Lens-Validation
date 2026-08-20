@@ -8,5 +8,15 @@ For windows
 
 - install openCV to c:\opencv\
 
-3. Run the build with the camerasdk path as the first argument 
+  The prebuilt OpenCV Windows pack is found automatically. If you see
+
+      Found OpenCV Windows Pack but it has no binaries compatible with your
+      configuration
+
+  then the pack's own OpenCVConfig.cmake does not recognise your Visual Studio
+  version. CMake works around this by using the per-toolset config in
+  c:\opencv\build\x64\vcNN\lib instead, so make sure that folder exists; you can
+  also point at it directly with -DOpenCV_DIR=C:/opencv/build/x64/vc17/lib.
+
+3. Run the build with the camerasdk path as the first argument
 ./WinBuild.bat <Path-to-camera-sdk-path>

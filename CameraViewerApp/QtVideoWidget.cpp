@@ -3,11 +3,13 @@
 #include <cstring>
 // OpenCV for simple image processing (edge detection)
 #include <GL/gl.h>
+#include <QCoreApplication>
 #include <QFont>
 #include <QFontMetrics>
 #include <QImage>
 #include <QMouseEvent>
 #include <QOpenGLFramebufferObject>
+#include <QOpenGLShader>
 #include <QOpenGLTexture>
 #include <QPainter>
 #include <QThread>

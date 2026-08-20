@@ -1,0 +1,14 @@
+version: 2
+
+updates:
+  # Keep the actions used by the CI/CD workflows current (security fixes and
+  # Node runtime deprecations land here).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies

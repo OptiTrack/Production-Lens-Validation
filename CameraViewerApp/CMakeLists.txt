@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 project(CameraViewerApp)
+
+# This file works both as its own top level project (winBuild.bat, build.sh) and
+# as a subdirectory of the repository root CMakeLists.txt. Use
+# CMAKE_CURRENT_SOURCE_DIR rather than CMAKE_SOURCE_DIR so paths resolve the
+# same way in both cases.
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -8,7 +13,7 @@ option(ENABLE_FFMPEG "Build with FFmpeg video decoding" OFF)
 option(ENABLE_ASAN "Build with AddressSanitizer (MSVC only)" OFF)
 
 # Default to a local 'ffmpeg' folder (Windows); can be overridden with -DFFMPEG_ROOT=...
-set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/ffmpeg" CACHE PATH "Path to FFmpeg install prefix (bin/include/lib layout)")
+set(FFMPEG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg" CACHE PATH "Path to FFmpeg install prefix (bin/include/lib layout)")
 
 # Camera SDK
 if(NOT DEFINED CAMERA_SDK_PATH)
@@ -30,6 +35,12 @@ find_package(OpenGL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Platform-independent scoring logic (unit tested in /tests). Already defined
+# when this file is built from the repository root.
+if(NOT TARGET focus_core)
+    add_subdirectory(core)
+endif()
 
 # Sources
 set(APP_SOURCES
@@ -137,7 +148,7 @@ foreach(_ts_file IN LISTS TS_FILES)
 endforeach()
 
 # Copy assets to output folders
-set(DESIGNS_DIR "${CMAKE_SOURCE_DIR}/../Designs")
+set(DESIGNS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Designs")
 
 add_custom_command(
     TARGET CameraViewerApp POST_BUILD
@@ -163,7 +174,7 @@ function(copy_assets TARGET SRC_DIR DEST_SUBDIR)
 endfunction()
 
 copy_assets(CameraViewerApp
-    "${CMAKE_SOURCE_DIR}/assets"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets"
     "Assets"
 )
 
@@ -171,17 +182,52 @@ copy_assets(CameraViewerApp
 # ------------------------------------------
 # OpenCV
 # ------------------------------------------
-set(OpenCV_DIR "$ENV{OPENCV_DIR}")
+# Resolution order: an explicit -DOpenCV_DIR=..., then the OPENCV_DIR
+# environment variable from the Windows build instructions, then the usual
+# install locations. On Linux the system package is found without any of this.
+if(NOT OpenCV_DIR)
+    if(DEFINED ENV{OPENCV_DIR})
+        set(OpenCV_DIR "$ENV{OPENCV_DIR}")
+    else()
+        foreach(_cv_candidate
+                "C:/opencv/build"
+                "C:/tools/opencv/build")
+            if(EXISTS "${_cv_candidate}/OpenCVConfig.cmake")
+                set(OpenCV_DIR "${_cv_candidate}")
+                break()
+            endif()
+        endforeach()
+    endif()
+endif()
+
+# When OpenCV_DIR points at the root of a prebuilt Windows pack, switch to the
+# per-toolset config inside it (build/x64/vcNN/lib). The pack's top level
+# OpenCVConfig.cmake maps the MSVC version onto a vcNN binary folder and reports
+# "Found OpenCV Windows Pack but it has no binaries compatible with your
+# configuration" for any toolset it does not recognise - including compilers
+# newer than the OpenCV release. The per-toolset config has no such check, and
+# MSVC keeps its ABI stable across releases.
+file(GLOB _cv_toolsets "${OpenCV_DIR}/x64/*/lib")
+list(SORT _cv_toolsets ORDER DESCENDING)  # newest vcNN first
+foreach(_cv_toolset IN LISTS _cv_toolsets)
+    if(EXISTS "${_cv_toolset}/OpenCVConfig.cmake")
+        message(STATUS "Using the per-toolset OpenCV config in ${_cv_toolset}")
+        set(OpenCV_DIR "${_cv_toolset}")
+        break()
+    endif()
+endforeach()
+
 find_package(OpenCV REQUIRED)
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "OpenCV version: ${OpenCV_VERSION} (${OpenCV_DIR})")
 include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(CameraViewerApp PRIVATE ${OpenCV_LIBS})
 
 # Link basics
 target_link_libraries(CameraViewerApp
-    PRIVATE 
+    PRIVATE
+        focus_core
         Qt6::Core
-        Qt6::Gui 
+        Qt6::Gui
         Qt6::OpenGLWidgets
         Qt6::Concurrent
         Qt6::Svg
@@ -364,18 +410,44 @@ endforeach()
         VERBATIM
     )
 
-# Copy OpenCV DLLs (Debug/Release aware)
-set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
+# Copy OpenCV DLLs. Two layouts are supported: a source build, whose bin
+# directory holds Debug/ and Release/ subdirectories (set OPENCV_BIN_DIR), and
+# the official prebuilt package, which keeps both flavours in
+# <OpenCV_DIR>/x64/<toolset>/bin.
+if(NOT OPENCV_BIN_DIR AND DEFINED ENV{OPENCV_BIN_DIR})
+    set(OPENCV_BIN_DIR "$ENV{OPENCV_BIN_DIR}")
+endif()
 
-
-# OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
-# MinSizeRel to Release so the copy always finds a valid source directory.
-add_custom_command(TARGET CameraViewerApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
-        "$<TARGET_FILE_DIR:CameraViewerApp>"
-)
+if(OPENCV_BIN_DIR AND EXISTS "${OPENCV_BIN_DIR}/Release")
+    # OpenCV only ships Debug and Release subdirectories; map RelWithDebInfo /
+    # MinSizeRel to Release so the copy always finds a valid source directory.
+    add_custom_command(TARGET CameraViewerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenCV DLLs ($<IF:$<CONFIG:Debug>,Debug,Release>)"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${OPENCV_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>"
+            "$<TARGET_FILE_DIR:CameraViewerApp>"
+    )
+else()
+    # OpenCV_DIR may be the pack root or a per-toolset lib directory, so look
+    # for the DLLs relative to both.
+    file(GLOB OPENCV_DLLS
+        "${OpenCV_DIR}/x64/*/bin/*.dll"   # <pack>/build
+        "${OpenCV_DIR}/../bin/*.dll"      # <pack>/build/x64/vcNN/lib
+        "${OpenCV_DIR}/bin/*.dll")
+    if(OPENCV_DLLS)
+        message(STATUS "Copying OpenCV DLLs from the prebuilt package layout")
+        foreach(_dll ${OPENCV_DLLS})
+            add_custom_command(TARGET CameraViewerApp POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_dll}" "$<TARGET_FILE_DIR:CameraViewerApp>")
+        endforeach()
+    else()
+        message(WARNING
+            "No OpenCV DLLs found to copy next to the executable. Set "
+            "OPENCV_BIN_DIR to an OpenCV bin directory containing Debug/ and "
+            "Release/, or point OpenCV_DIR at a prebuilt OpenCV package.")
+    endif()
+endif()
 
 elseif(UNIX)
     target_link_libraries(CameraViewerApp

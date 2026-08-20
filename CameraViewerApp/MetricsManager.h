@@ -2,6 +2,7 @@
 #include "CircleMarkerDetector.h"
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>

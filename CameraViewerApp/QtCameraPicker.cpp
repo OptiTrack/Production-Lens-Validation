@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QSet>
 #include <QSignalBlocker>
+#include <QString>
 #include <QVariant>
 #include <opencv2/core/types.hpp>
 
