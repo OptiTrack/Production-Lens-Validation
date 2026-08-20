@@ -76,7 +76,7 @@ Runs on **every push to any branch**, on every pull request against `develop`/`m
 
 | Job | Platform | What it does |
 | --- | --- | --- |
-| `Unit tests` | Ubuntu **and** Windows | Configures with `-DBUILD_APP=OFF`, builds the test suite and runs it through CTest. Uploads JUnit results. |
+| `Unit tests` | Ubuntu **and** Windows | Configures with `-DBUILD_APP=OFF`, builds the test suite and runs it through CTest. Failures are printed in the job log. |
 | `Build app (Windows)` | Windows | Installs Qt and OpenCV, builds the application with MSVC against `CameraSDK/`, runs the tests, deploys the Qt runtime with `windeployqt`, and uploads a runnable package. |
 | `Build app (Ubuntu)` | Ubuntu | Installs the packages from `UbuntuBuildInstructions.txt`, builds against `OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu/`, runs the tests, and uploads a package. |
 
@@ -88,11 +88,10 @@ Every commit you push produces a downloadable build. Open the **Actions** tab, p
 
 | Artifact | Contents |
 | --- | --- |
-| `CameraViewerApp-windows-x64-<short sha>` | The Windows application with its Qt, OpenCV and Camera SDK runtime files |
-| `CameraViewerApp-linux-x64-<short sha>` | The Ubuntu build, including `libCameraLibrary.so` |
-| `test-results-<os>` | JUnit results from the unit test run |
+| `CameraViewerApp-windows-x64-build<N>` | The Windows application with its Qt, OpenCV and Camera SDK runtime files |
+| `CameraViewerApp-linux-x64-build<N>` | The Ubuntu build, including `libCameraLibrary.so` |
 
-Each package contains a `BUILD_INFO.txt` naming the commit, branch and run it came from. Application artifacts are kept for 7 days, test results for 14; adjust `retention-days` in the workflow to change that.
+`<N>` is the workflow run number, the same one shown next to the run in the Actions tab. Each package also contains a `BUILD_INFO.txt` naming the commit, branch and run it came from, so an artifact can always be traced back to a specific commit. Artifacts are kept for 7 days; adjust `retention-days` in the workflow to change that.
 
 The application artifact is uploaded before the test step, so a commit still produces a usable build when a test fails — the job is still reported as failed. Note that a Windows package is roughly 200 MB, mostly `CameraLibrary.dll`, so pushing many commits in a day uses a fair amount of the repository's Actions storage.
 

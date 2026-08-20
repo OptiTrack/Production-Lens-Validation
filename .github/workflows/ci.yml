@@ -55,21 +55,9 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
 
+      # Failures are printed in the log by --output-on-failure; no artifact needed.
       - name: Test
-        run: >
-          ctest --test-dir build
-          -C ${{ env.BUILD_TYPE }}
-          --output-on-failure
-          --output-junit ${{ github.workspace }}/test-results.xml
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: test-results-${{ matrix.os }}
-          path: test-results.xml
-          retention-days: 14
-          if-no-files-found: warn
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
 
   # ---------------------------------------------------------------------------
   # Full application build for Windows.
@@ -80,11 +68,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
-      - name: Identify build
-        id: build_id
-        shell: bash
-        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@v4
@@ -159,7 +142,7 @@ jobs:
       - name: Upload application
         uses: actions/upload-artifact@v6
         with:
-          name: CameraViewerApp-windows-x64-${{ steps.build_id.outputs.short_sha }}
+          name: CameraViewerApp-windows-x64-build${{ github.run_number }}
           path: build/bin/${{ env.BUILD_TYPE }}/
           retention-days: 7
 
@@ -175,10 +158,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
-      - name: Identify build
-        id: build_id
-        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       # Everything except Qt, which comes from install-qt-action below.
       - name: Install dependencies
@@ -232,7 +211,7 @@ jobs:
       - name: Upload application
         uses: actions/upload-artifact@v6
         with:
-          name: CameraViewerApp-linux-x64-${{ steps.build_id.outputs.short_sha }}
+          name: CameraViewerApp-linux-x64-build${{ github.run_number }}
           path: build/bin/
           retention-days: 7
 
