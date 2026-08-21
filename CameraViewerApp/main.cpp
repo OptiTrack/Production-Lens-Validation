@@ -11,10 +11,14 @@
 #include <qfile.h>
 #include <qtimer.h>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 #include <qicon.h>
 
 // For chinese translation support
 #include <QLibraryInfo>
+#include <QLocale>
+#include <QMetaObject>
 #include <QTranslator>
 
 #include "BitmapPool.h"
@@ -22,6 +26,7 @@
 #include "CircleMarkerDetector.h"
 #include "FocusEval.h"
 #include "MetricsManager.h"
+#include "Version.h"
 #include "QtCameraConnectionManager.h"
 #include "QtCameraControlPanel.h"
 #include "QtCameraViewer.h"
@@ -73,6 +78,12 @@ int main(int argc, char *argv[]) {
   } guard;
 
   QApplication app(argc, argv);
+
+  // Application identity. QCoreApplication::applicationVersion() is what
+  // QSettings, crash reports and the about text should read from.
+  app.setApplicationName(QStringLiteral("Production Lens Validation"));
+  app.setApplicationVersion(QStringLiteral(PLV_VERSION_FULL));
+  app.setOrganizationName(QStringLiteral("OptiTrack"));
 
   QString exeDir = QCoreApplication::applicationDirPath();
   QString iconPath = QDir(exeDir).filePath("Assets/Opti-Lens.png");
@@ -194,6 +205,9 @@ int main(int argc, char *argv[]) {
   QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
                    [&mMgr]() { mMgr.ExportMetrics(); });
 
+  viewer->setWindowTitle(
+      QCoreApplication::translate("Main", "Production Lens Validation %1")
+          .arg(QStringLiteral(PLV_VERSION_STRING)));
   viewer->resize(1400, 800);
   viewer->show();
 

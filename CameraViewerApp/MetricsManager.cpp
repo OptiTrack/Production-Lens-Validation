@@ -12,6 +12,7 @@
 #include <qmessagebox.h>
 #include <qstring.h>
 #include <string>
+#include <unordered_set>
 #include "CircleMarkerDetector.h"
 
 const char *ENHeaders[] = {

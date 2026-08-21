@@ -1,4 +1,7 @@
 #include "graphwidget.h"
+#include <QSurfaceFormat>
+
+#include <cmath>
 
 GraphWidget::GraphWidget(QWidget *parent) : QOpenGLWidget(parent) {
   QSurfaceFormat format;

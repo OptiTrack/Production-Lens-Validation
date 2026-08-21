@@ -1,4 +1,5 @@
 #include "QtCameraControlPanel.h"
+#include "StatusStyle.h"
 #include "CameraHelpers.h"
 #include "MetricsManager.h"
 #include "QtCameraConnectionManager.h"
@@ -6,6 +7,7 @@
 #include "QtVideoWidget.h"
 #include "metricscontroller.h"
 #include "widgets/graphwidget.h"
+#include <QAbstractSlider>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -15,6 +17,8 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QPixmap>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QIntValidator>
 #include <QLabel>
@@ -105,15 +109,6 @@ void CameraControlPanel::buildUi() {
   QString clearLockIconPath = QDir(exeDir).filePath("Assets/Lock-Broken-On.svg");
   QIcon clearLockIcon(clearLockIconPath);
 
-  // DEBUG: highlights widgets in red to view parenting
-  /*
-  this->setStyleSheet(R"(
-    QWidget {
-        border: 1px solid rgba(255, 0, 0, 120);
-    }
-    )");
-  */
-
   // UI build start
   auto *root = new QHBoxLayout(this);
   root->setContentsMargins(0, 0, 0, 0);
@@ -197,24 +192,9 @@ void CameraControlPanel::buildUi() {
   general_clear_lock_button = new QPushButton(generalZoomModeWidget);
   general_clear_lock_button->setFixedSize(32, 32);
   general_clear_lock_button->setIcon(clearLockIcon);
-  general_clear_lock_button->setIconSize(QSize(56, 56));
-  general_clear_lock_button->setStyleSheet(R"(
-    QPushButton {
-        border: 1px solid #00c8d7;
-        border-radius: 6px;
-        background: transparent;
-        padding: 0px;
-    }
-
-    QPushButton:hover {
-        background: rgba(0, 200, 215, 0.08);
-    }
-
-    QPushButton:pressed {
-        background: rgba(0, 200, 215, 0.15);
-    }
-)");
+  general_clear_lock_button->setIconSize(QSize(24, 24));
   general_clear_lock_button->setProperty("secondary", true);
+  general_clear_lock_button->setProperty("iconOnly", true);
   general_clear_lock_button->setToolTip(
       tr("Click to remove all quadrant locks."));
 
@@ -273,7 +253,7 @@ void CameraControlPanel::buildUi() {
     focusScoreFont.setPixelSize(58);
     focusScoreFont.setBold(true);
     focusScoreDataLabel->setFont(focusScoreFont);
-    focusScoreDataLabel->setProperty("metricFontSizePx", 58);
+    focusScoreDataLabel->setProperty("metricValue", true);
     focusScoreDataLabel->setFixedWidth(165);
   }
   vGeneral->addWidget(general_focus_metrics_widgets->groupBox);
@@ -615,25 +595,9 @@ void CameraControlPanel::buildUi() {
   lens_inspection_clear_lock_button = new QPushButton(lensInspectionRowWidget);
   lens_inspection_clear_lock_button->setFixedSize(32, 32);
   lens_inspection_clear_lock_button->setIcon(clearLockIcon);
-  lens_inspection_clear_lock_button->setIconSize(QSize(56, 56));
-  lens_inspection_clear_lock_button->setStyleSheet(R"(
-    QPushButton {
-        border: 1px solid #00c8d7;
-        border-radius: 6px;
-        background: transparent;
-        padding: 0px;
-    }
-
-    QPushButton:hover {
-        background: rgba(0, 200, 215, 0.08);
-    }
-
-    QPushButton:pressed {
-        background: rgba(0, 200, 215, 0.15);
-    }
-)");
-
+  lens_inspection_clear_lock_button->setIconSize(QSize(24, 24));
   lens_inspection_clear_lock_button->setProperty("secondary", true);
+  lens_inspection_clear_lock_button->setProperty("iconOnly", true);
   lens_inspection_clear_lock_button->setToolTip(
       tr("Click to remove all quadrant locks."));
 
@@ -1241,12 +1205,11 @@ MetricWidgets *CameraControlPanel::createCompactMetricWidgets(
     dataLabel->setFixedWidth(qMax(170, graphHeight * 2));
     dataLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont labelFont = dataLabel->font();
-    const int labelFontPx = qMax(50, graphHeight - 10);
     labelFont.setPixelSize(58);
     labelFont.setBold(true);
     dataLabel->setFont(labelFont);
-    dataLabel->setProperty("metricFontSizePx", 58);
-    dataLabel->setStyleSheet("color: #ddd; font-weight: 700;");
+    dataLabel->setProperty("metricValue", true);
+    ui::setStatus(dataLabel, ui::Status::Neutral);
     rowLayout->addWidget(dataLabel);
 
     if (metricGraph) {
@@ -1995,7 +1958,7 @@ void CameraControlPanel::takeScreenshot() {
   }
 
   if (screenshot_status_label) {
-    screenshot_status_label->setStyleSheet("color: #1f8f3a;");
+    ui::setStatus(screenshot_status_label, ui::Status::Pass);
     screenshot_status_label->setText(
         tr("Screenshot Saved: %1").arg(QFileInfo(fileLocation).fileName()));
     screenshot_status_label->setVisible(true);

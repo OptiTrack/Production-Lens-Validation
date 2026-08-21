@@ -7,6 +7,19 @@ sudo apt update && sudo apt install -y cmake git build-essential
 qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-svg-dev 
 libgl1-mesa-dev libjpeg-dev libopencv-dev python3-opencv
 
+NOTE: Qt 6.9 or newer is required. The application uses Qt APIs that older
+releases do not provide (for example QImage::flipped, added in Qt 6.9), so the
+qt6-base-dev in older Ubuntu archives - 6.4 on Ubuntu 24.04 - is too old and
+the build fails on missing headers and members.
+
+If apt gives you an older Qt, install Qt 6.10 separately and point CMake at it:
+
+  cmake -B build -DCAMERA_SDK_PATH=../OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu
+        -DCMAKE_PREFIX_PATH=/path/to/Qt/6.10.0/gcc_64
+
+The Qt online installer or aqtinstall both work. CI installs Qt this way; see
+.github/workflows/ci.yml.
+
 
 2) Clone repository
 -------------------

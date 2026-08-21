@@ -113,6 +113,45 @@ QLabel[buttonSeparator=true] {
   margin: 0px;
   border-left: 1px solid rgba(255, 255, 255, 10%); }
 
+/*-----Status text-----*/
+/* Semantic states for result and metric readouts. Colour carries the severity,
+   the text carries the detail, so set one of these instead of an inline
+   stylesheet: widget->setProperty("status", "pass"). See StatusStyle.h.
+   Weight is set here rather than on the widget's QFont because the global
+   QWidget rule above already specifies font-weight, and a stylesheet font
+   property always wins over QFont. Large readouts therefore need their own
+   font-size rule as well - see QLabel[metricValue=true] below. */
+QLabel[status="pass"] {
+  color: rgba(0, 235, 255, 100%);
+  font-weight: bold;
+  background-color: transparent; }
+
+QLabel[status="caution"] {
+  color: rgba(255, 166, 0, 100%);
+  font-weight: bold;
+  background-color: transparent; }
+
+QLabel[status="fail"] {
+  color: rgba(255, 76, 76, 100%);
+  font-weight: bold;
+  background-color: transparent; }
+
+QLabel[status="neutral"] {
+  color: rgba(255, 255, 255, 80%);
+  font-weight: bold;
+  background-color: transparent; }
+
+QLabel[status="pass"]:disabled, QLabel[status="caution"]:disabled,
+QLabel[status="fail"]:disabled, QLabel[status="neutral"]:disabled {
+  color: rgba(255, 255, 255, 15%); }
+
+/* The oversized numeric readouts (focus score, lens health). Combines with
+   the status colour above. */
+QLabel[metricValue=true] {
+  font-size: 58px;
+  font-weight: bold;
+  background-color: transparent; }
+
 /*-----QMenuBar-----*/
 QMenuBar::item {
   background-color: transparent;
@@ -352,6 +391,11 @@ QPushButton[secondary=true]:pressed {
   background-color: rgba(0, 235, 255, 20%);
   border: 1px solid rgba(0, 200, 220, 100%); }
 
+/* Square icon-only buttons: drop the text padding so the icon stays centred in
+   a fixed size button. Must follow the rules above to override their padding. */
+QPushButton[iconOnly=true] {
+  padding: 0px; }
+
 QPushButton:default {
   border: 1px solid rgba(0, 235, 255, 100%);
   color: rgba(255, 255, 255, 100%); }
@@ -369,6 +413,16 @@ QPushButton:checked {
   color: rgba(255, 255, 255, 80%); }
   QPushButton:checked[highlight=true] {
     color: rgba(255, 255, 255, 100%); }
+
+/* Tab visibility toggles: a row of standalone checkable buttons, where the
+   active one has to stand out against its unchecked neighbours. */
+QPushButton[tabToggle=true]:checked {
+  border: 1px solid rgba(0, 235, 255, 100%);
+  background-color: rgba(0, 235, 255, 12%);
+  color: rgba(0, 235, 255, 100%); }
+
+QPushButton[tabToggle=true]:checked:hover {
+  background-color: rgba(0, 235, 255, 20%); }
 
 QPushButton:disabled {
   border: 1px solid rgba(255, 255, 255, 15%);

@@ -1,5 +1,6 @@
 #pragma once
 #include "MetricsManager.h"
+#include "StatusStyle.h"
 #include <QCoreApplication>
 #include <QLabel>
 #include <QString>
@@ -10,6 +11,10 @@ public:
   LensResultLabel(const QString &text, QWidget *parent = nullptr)
       : QLabel(parent), currentResultSource(text) {
     setAutoFillBackground(true);
+    // Weight lives on the font: motive.css only supplies the status colour.
+    QFont resultFont = font();
+    resultFont.setBold(true);
+    setFont(resultFont);
     retranslateUi();
   }
 
@@ -18,18 +23,18 @@ public:
         "DisplayResults", currentResultSource.toStdString().c_str()));
   }
 
-  void updateTextandColor(MetricsManager mMgr) {
+  void updateTextandColor(const MetricsManager &mMgr) {
 
     MetricsManager::lensMetrics metrics = mMgr.getMetrics();
     if (metrics.lensDisp == MetricsManager::fail) {
       currentResultSource = "Failure";
-      this->setStyleSheet("color:FireBrick; font-weight:600;");
+      ui::setStatus(this, ui::Status::Fail);
     } else if (metrics.lensDisp == MetricsManager::check) {
       currentResultSource = "Check";
-      this->setStyleSheet("color:DarkOrange; font-weight:600;");
+      ui::setStatus(this, ui::Status::Caution);
     } else {
       currentResultSource = "Pass";
-      this->setStyleSheet("color:Cyan; font-weight:600;");
+      ui::setStatus(this, ui::Status::Pass);
     }
     retranslateUi();
     this->update();

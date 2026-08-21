@@ -1,0 +1,247 @@
+name: Release
+
+# Continuous delivery: packages the application for Windows and Ubuntu and
+# publishes both as a GitHub Release.
+#
+# Triggered by pushing a version tag, which is the deliberate act that starts a
+# release:
+#
+#     git tag v0.8.1
+#     git push origin v0.8.1
+#
+# Running it manually from the Actions tab produces the same packages as
+# downloadable artifacts without publishing a release, which is useful for a
+# dry run.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+  QT_VERSION: 6.10.0
+  OPENCV_VERSION: 4.12.0
+  UBUNTU_SDK_PATH: OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Fails fast if the tag and the VERSION file disagree, so a release can never
+  # be labelled with a version the binaries do not report.
+  check-version:
+    name: Check tag matches VERSION
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compare tag with VERSION
+        run: |
+          file_version="$(cat VERSION)"
+          echo "VERSION file: $file_version"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "Not a tag build; nothing to compare."
+            exit 0
+          fi
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "Tag:          $GITHUB_REF_NAME (version $tag_version)"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION ($file_version)."
+            echo "Bump VERSION and CHANGELOG.md, commit, then re-tag."
+            exit 1
+          fi
+          echo "Tag and VERSION agree."
+
+  # ---------------------------------------------------------------------------
+  package-windows:
+    name: Package (Windows x64)
+    needs: check-version
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Restore cached OpenCV
+        id: cache-opencv
+        uses: actions/cache@v5
+        with:
+          path: C:\opencv
+          key: opencv-${{ env.OPENCV_VERSION }}-windows-x64
+
+      - name: Install OpenCV ${{ env.OPENCV_VERSION }}
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $version = $env:OPENCV_VERSION
+          $url = "https://github.com/opencv/opencv/releases/download/$version/opencv-$version-windows.exe"
+          $installer = Join-Path $env:RUNNER_TEMP "opencv-installer.exe"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList '-oC:\', '-y' -Wait -NoNewWindow
+          if (-not (Test-Path 'C:\opencv\build\OpenCVConfig.cmake')) {
+            throw "OpenCV extraction did not produce C:\opencv\build\OpenCVConfig.cmake"
+          }
+
+      - name: Configure
+        run: >
+          cmake -B build -A x64
+          -DBUILD_APP=ON
+          -DBUILD_TESTS=ON
+          -DCAMERA_SDK_PATH=${{ github.workspace }}/CameraSDK
+          -DOpenCV_DIR=C:/opencv/build
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      # A release must never ship code that fails its own tests.
+      - name: Test
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
+
+      - name: Deploy Qt runtime
+        shell: pwsh
+        run: |
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
+            --release --no-compiler-runtime `
+            "build\bin\$env:BUILD_TYPE\CameraViewerApp.exe"
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $version = $env:GITHUB_REF_NAME
+          } else {
+            $version = "dev-" + $env:GITHUB_SHA.Substring(0, 7)
+          }
+          $name = "CameraViewerApp-$version-windows-x64"
+          $staging = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item "build\bin\$env:BUILD_TYPE\*" -Destination $staging -Recurse -Force
+          Copy-Item 'Readme.md' -Destination $staging -Force
+          Copy-Item 'Documents\LICENSE' -Destination (Join-Path $staging 'LICENSE.txt') -Force
+          Compress-Archive -Path "$staging\*" -DestinationPath "$name.zip" -Force
+          (Get-FileHash "$name.zip" -Algorithm SHA256).Hash + "  $name.zip" |
+            Out-File -Encoding ascii "$name.zip.sha256"
+          "package=$name.zip" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Upload package
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-windows-x64
+          path: |
+            ${{ steps.package.outputs.package }}
+            ${{ steps.package.outputs.package }}.sha256
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  package-linux:
+    name: Package (Ubuntu x64)
+    needs: check-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake build-essential \
+            libgl1-mesa-dev libglu1-mesa-dev libjpeg-dev libopencv-dev \
+            libxkbcommon-dev libvulkan-dev
+
+      # The application uses Qt APIs newer than Ubuntu's qt6-base-dev provides.
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_APP=ON
+          -DBUILD_TESTS=ON
+          -DCAMERA_SDK_PATH=${{ github.workspace }}/${{ env.UBUNTU_SDK_PATH }}
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        id: package
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="dev-${GITHUB_SHA:0:7}"
+          fi
+          name="CameraViewerApp-$version-linux-x64"
+          staging="$RUNNER_TEMP/$name"
+          mkdir -p "$staging"
+          cp -r build/bin/. "$staging/"
+          cp "${{ env.UBUNTU_SDK_PATH }}/lib/libCameraLibrary.so" "$staging/"
+          cp Readme.md "$staging/"
+          cp Documents/LICENSE "$staging/LICENSE.txt"
+          tar -czf "$name.tar.gz" -C "$RUNNER_TEMP" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          echo "package=$name.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-linux-x64
+          path: |
+            ${{ steps.package.outputs.package }}
+            ${{ steps.package.outputs.package }}.sha256
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Publishes only for tag pushes; a manual run stops after the packages above.
+  publish:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: [package-windows, package-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v6
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          ls -la dist
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$REPO" \
+            --title "CameraViewerApp ${{ needs.package-windows.outputs.version }}" \
+            --generate-notes
