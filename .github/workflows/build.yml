@@ -1,0 +1,219 @@
+# Builds CameraViewerApp (LensCheck) for Windows and Linux and uploads
+# packaged archives as workflow artifacts. Pushing a tag like `v1.2.0`
+# additionally publishes those archives to a GitHub Release.
+name: Build
+
+on:
+  push:
+    branches: [develop, main]
+    tags: ['v*']
+    paths-ignore: ['**.md']
+  pull_request:
+    branches: [develop, main]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+env:
+  APP_NAME: LensCheck
+  BUILD_TYPE: Release
+  QT_VERSION: '6.10.0'
+  OPENCV_VERSION: '4.12.0'
+
+jobs:
+  build-windows:
+    name: Windows (x64)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then v="$GITHUB_REF_NAME"; else v="$(git rev-parse --short HEAD)"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "package=${APP_NAME}-${v}-windows-x64" >> "$GITHUB_OUTPUT"
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Cache OpenCV
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/opencv
+          key: opencv-${{ env.OPENCV_VERSION }}-windows
+
+      - name: Download OpenCV
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          $exe = "$env:RUNNER_TEMP\opencv-installer.exe"
+          Invoke-WebRequest -Uri "https://github.com/opencv/opencv/releases/download/$env:OPENCV_VERSION/opencv-$env:OPENCV_VERSION-windows.exe" -OutFile $exe
+          # The installer is a 7-Zip SFX that extracts to an 'opencv' folder
+          7z x $exe "-o$env:RUNNER_TEMP" -y | Out-Null
+          if (-not (Test-Path "$env:RUNNER_TEMP\opencv\build\OpenCVConfig.cmake")) { throw "Unexpected OpenCV package layout" }
+
+      - name: Set up OpenCV environment
+        run: |
+          $root = "$env:RUNNER_TEMP/opencv/build" -replace '\\', '/'
+          $vc = Get-ChildItem "$root/x64" -Directory -Filter 'vc*' | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $vc) { throw "No x64/vc* folder found in $root" }
+          # CMakeLists.txt copies DLLs from $OPENCV_BIN_DIR/<Debug|Release>, but the
+          # prebuilt package has a single flat bin folder, so stage the release DLLs.
+          $staged = "$env:RUNNER_TEMP/opencv-bin" -replace '\\', '/'
+          New-Item -ItemType Directory -Force "$staged/Release" | Out-Null
+          Get-ChildItem "$($vc.FullName)/bin/*.dll" |
+            Where-Object { $_.BaseName -notmatch 'd$' } |
+            Copy-Item -Destination "$staged/Release"
+          "OPENCV_DIR=$root" >> $env:GITHUB_ENV
+          "OPENCV_BIN_DIR=$staged" >> $env:GITHUB_ENV
+
+      - name: Configure
+        run: |
+          $sdk = "$env:GITHUB_WORKSPACE/CameraSDK" -replace '\\', '/'
+          cmake -S CameraViewerApp -B CameraViewerApp/build -G "Visual Studio 17 2022" -A x64 `
+            -DCAMERA_SDK_PATH="$sdk" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build
+        run: cmake --build CameraViewerApp/build --config $env:BUILD_TYPE --parallel
+
+      - name: Package
+        run: |
+          $pkg = "$env:RUNNER_TEMP/package/${{ steps.version.outputs.package }}"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item "CameraViewerApp/build/$env:BUILD_TYPE/*" $pkg -Recurse
+
+          # Pull in any Qt plugins/libraries the CMake post-build copy step misses
+          windeployqt --release --no-compiler-runtime "$pkg/CameraViewerApp.exe"
+
+          # App-local MSVC runtime so the zip runs without installing vc_redist
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $redist = Get-ChildItem "$vs\VC\Redist\MSVC" -Directory |
+            Where-Object Name -match '^\d+\.\d+' |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          $crt = Get-ChildItem "$($redist.FullName)\x64" -Directory -Filter 'Microsoft.VC*.CRT' | Select-Object -First 1
+          Copy-Item "$($crt.FullName)\*.dll" $pkg
+
+          Copy-Item "LensCheck User Guide.pdf" $pkg
+          New-Item -ItemType Directory -Force "$pkg/license" | Out-Null
+          Copy-Item Documents/LICENSE "$pkg/license/LICENSE.txt"
+          Copy-Item CameraViewerApp/license/* "$pkg/license"
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path $pkg -DestinationPath "dist/${{ steps.version.outputs.package }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.package }}
+          path: dist/${{ steps.version.outputs.package }}.zip
+          if-no-files-found: error
+
+  build-linux:
+    name: Linux (x64, Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    env:
+      CAMERA_SDK_PATH: ${{ github.workspace }}/OptiTrack_Camera_SDK_3.4.1_Final_Ubuntu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then v="$GITHUB_REF_NAME"; else v="$(git rev-parse --short HEAD)"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "package=${APP_NAME}-${v}-linux-x64" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential patchelf \
+            qt6-base-dev qt6-base-private-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools \
+            qt6-svg-dev libqt6opengl6-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libjpeg-dev libopencv-dev
+
+      - name: Configure
+        run: |
+          cmake -S CameraViewerApp -B CameraViewerApp/build -G Ninja \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DCAMERA_SDK_PATH="$CAMERA_SDK_PATH"
+
+      - name: Build
+        run: cmake --build CameraViewerApp/build --parallel
+
+      - name: Package
+        run: |
+          pkg="$RUNNER_TEMP/package/${{ steps.version.outputs.package }}"
+          mkdir -p "$pkg/license"
+          build=CameraViewerApp/build
+          cp -r "$build/CameraViewerApp" "$build/Assets" "$build/i18n" "$build/motive.css" "$pkg/"
+          cp "$CAMERA_SDK_PATH/lib/libCameraLibrary.so" "$pkg/"
+          # Load the bundled CameraLibrary from next to the executable
+          patchelf --set-rpath '$ORIGIN' "$pkg/CameraViewerApp"
+
+          cp "LensCheck User Guide.pdf" "$pkg/"
+          cp Documents/LICENSE "$pkg/license/LICENSE.txt"
+          cp CameraViewerApp/license/* "$pkg/license/"
+          cat > "$pkg/README.txt" <<'EOF'
+          LensCheck (CameraViewerApp) - Linux build for Ubuntu 24.04 x64
+
+          Runtime requirements (system Qt 6 and OpenCV):
+            sudo apt install -y qt6-base-dev qt6-svg-dev libqt6opengl6-dev qt6-translations-l10n \
+              libgl1-mesa-dev libjpeg-dev libopencv-dev
+
+          Set the camera network interface to Link-Local Only:
+            Settings > Network > Wired (camera port) > IPv4 > IPv4 Method > Link-Local Only
+
+          Run:
+            ./CameraViewerApp
+          EOF
+
+          # Fail if any shared library cannot be resolved on a clean runner install
+          if ldd "$pkg/CameraViewerApp" | grep 'not found'; then exit 1; fi
+
+          mkdir -p dist
+          tar -C "$RUNNER_TEMP/package" -czf "dist/${{ steps.version.outputs.package }}.tar.gz" "${{ steps.version.outputs.package }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.package }}
+          path: dist/${{ steps.version.outputs.package }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)

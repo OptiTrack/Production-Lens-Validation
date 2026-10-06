@@ -132,6 +132,14 @@ The program the lens testing team currently uses is intended for direct motion c
 <br>`./build/CameraViewerApp`
 
 
+<!-- CI / CD -->
+# Continuous Integration
+The [Build workflow](.github/workflows/build.yml) builds the app for Windows (x64, MSVC 2022, Qt 6.10, OpenCV 4.12) and Linux (Ubuntu 24.04, system Qt 6 and OpenCV) on every push and pull request to `develop` or `main`.
+
+* **Download a build:** open the workflow run in the GitHub **Actions** tab and grab `LensCheck-<sha>-windows-x64.zip` or `LensCheck-<sha>-linux-x64.tar.gz` from **Artifacts**. The Windows zip is self-contained; the Linux tarball lists its runtime packages in `README.txt`.
+* **Publish a release:** push a version tag, e.g. `git tag v1.0.0 && git push origin v1.0.0`. Both packages are attached to a new GitHub Release. Tags containing a hyphen (e.g. `v1.1.0-rc1`) are marked as pre-releases.
+
+
 <!-- LICENSE -->
 # License
 All non-third party code included in this repository is jointly owned by the team mentioned above and NaturalPoint Inc. DBA OptiTrack. 

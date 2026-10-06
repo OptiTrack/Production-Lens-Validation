@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>Assets/Opti-Lens.png</file>
+        <file alias="Assets/Opti-Lens.png">assets/Opti-Lens.png</file>
     </qresource>
 </RCC>
