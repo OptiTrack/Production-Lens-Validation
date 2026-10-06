@@ -1,5 +1,5 @@
 #include "CircleMarkerDetector.h"
-#include <QtLogging>
+#include <qlogging.h>
 #include <algorithm>
 
 CircleMarkerDetector::CircleMarkerDetector() : m_params() {}
