@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-project(CameraViewerApp)
+# Application version: bump here; it flows into version.h, the window title
+# and the Windows file properties (app.rc)
+project(CameraViewerApp VERSION 0.8.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -71,6 +73,10 @@ qt6_wrap_cpp(MOC_SOURCES
 
 add_executable(CameraViewerApp ${APP_SOURCES} ${MOC_SOURCES})
 target_include_directories(CameraViewerApp PRIVATE widgets)
+
+# Generated version header, shared by the C++ sources and app.rc
+configure_file(version.h.in ${CMAKE_CURRENT_BINARY_DIR}/version.h @ONLY)
+target_include_directories(CameraViewerApp PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # CameraLibrary is Release-only (no debug DLL). Disable MSVC's iterator
 # debugging in Debug builds so our STL containers have the same memory

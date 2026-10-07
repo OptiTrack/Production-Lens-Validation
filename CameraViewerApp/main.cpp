@@ -27,6 +27,7 @@
 #include "QtCameraViewer.h"
 #include "QtVideoWidget.h"
 #include "metricscontroller.h"
+#include "version.h"
 #include <QCoreApplication>
 
 #ifdef HAVE_FFMPEG
@@ -73,6 +74,7 @@ int main(int argc, char *argv[]) {
   } guard;
 
   QApplication app(argc, argv);
+  QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION_STRING));
 
   QString exeDir = QCoreApplication::applicationDirPath();
   QString iconPath = QDir(exeDir).filePath("Assets/Opti-Lens.png");
@@ -194,6 +196,9 @@ int main(int argc, char *argv[]) {
   QObject::connect(panel, &CameraControlPanel::exportMetricsRequested,
                    [&mMgr]() { mMgr.ExportMetrics(); });
 
+  viewer->setWindowTitle(QStringLiteral("%1 v%2").arg(
+      QCoreApplication::applicationName(),
+      QCoreApplication::applicationVersion()));
   viewer->resize(1400, 800);
   viewer->show();
 
