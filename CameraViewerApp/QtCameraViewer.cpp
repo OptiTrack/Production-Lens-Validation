@@ -200,6 +200,23 @@ void QtCameraViewer::buildUi() {
   toggle_tabs_box->addWidget(tab5_visibility_button);
   toggle_tabs_box->addStretch(1);
 
+  // 2D view tools: zoom/pan and pixel brightness inspector
+  view_tools_label = new QLabel("View:", toggle_tabs_bar);
+
+  view_zoom_button = new QPushButton("Zoom", toggle_tabs_bar);
+  view_zoom_button->setCheckable(true);
+  view_zoom_button->setChecked(false);
+  view_zoom_button->setStyleSheet(tabToggleStyle);
+
+  pixel_inspector_button = new QPushButton("Pixel Inspector", toggle_tabs_bar);
+  pixel_inspector_button->setCheckable(true);
+  pixel_inspector_button->setChecked(false);
+  pixel_inspector_button->setStyleSheet(tabToggleStyle);
+
+  toggle_tabs_box->addWidget(view_tools_label);
+  toggle_tabs_box->addWidget(view_zoom_button);
+  toggle_tabs_box->addWidget(pixel_inspector_button);
+
   v->addWidget(toggle_tabs_bar);
 
   // only add camera_controls after all of the other things (camera picker,
@@ -282,6 +299,17 @@ void QtCameraViewer::wireSignals() {
             });
 
   }
+
+  // 2D view tool toggles
+  connect(view_zoom_button, &QPushButton::toggled, this, [this](bool enabled) {
+    if (gl_viewer_window)
+      gl_viewer_window->setViewZoomEnabled(enabled);
+  });
+  connect(pixel_inspector_button, &QPushButton::toggled, this,
+          [this](bool enabled) {
+            if (gl_viewer_window)
+              gl_viewer_window->setPixelInspectorEnabled(enabled);
+          });
 }
 
 void QtCameraViewer::setEmptyState(bool anyCamerasPresent) {
@@ -399,6 +427,25 @@ void QtCameraViewer::retranslateUi() {
   if (tab5_visibility_button) {
     tab5_visibility_button->setText(
         QCoreApplication::translate("QtCameraViewer", "Exporter"));
+  }
+  if (view_tools_label) {
+    view_tools_label->setText(
+        QCoreApplication::translate("QtCameraViewer", "View:"));
+  }
+  if (view_zoom_button) {
+    view_zoom_button->setText(
+        QCoreApplication::translate("QtCameraViewer", "Zoom"));
+    view_zoom_button->setToolTip(QCoreApplication::translate(
+        "QtCameraViewer",
+        "Scroll to zoom the 2D view, drag to pan. Turn off to reset."));
+  }
+  if (pixel_inspector_button) {
+    pixel_inspector_button->setText(
+        QCoreApplication::translate("QtCameraViewer", "Pixel Inspector"));
+    pixel_inspector_button->setToolTip(QCoreApplication::translate(
+        "QtCameraViewer",
+        "Hover over the 2D view to show brightness values (0-255) of the 3x3 "
+        "pixels under the cursor."));
   }
   if (empty_label) {
     empty_label->setText(

@@ -12,8 +12,13 @@
 #include <QOpenGLTexture>
 #include <QPainter>
 #include <QThread>
+#include <QWheelEvent>
+#include <QDateTime> // TEMP_WHEEL_DEBUG
+#include <cstdio> // TEMP_WHEEL_DEBUG
 #include <bitmap.h>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <opencv2/core/cvdef.h>
@@ -43,6 +48,25 @@ struct Vertex {
 // Convert widget pixel coords to NDC (-1..1), with origin top-left in pixels
 inline float toNdcX(float x, float W) { return (x / W) * 2.0F - 1.0F; }
 inline float toNdcY(float y, float H) { return 1.0F - (y / H) * 2.0F; }
+
+// Sets up fixed-function matrices so immediate-mode drawing uses widget pixel
+// coordinates with the origin at the top-left. Pair with popScreenSpace().
+inline void pushScreenSpace(float W, float H) {
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix();
+  glLoadIdentity();
+  glOrtho(0, W, H, 0, -1, 1);
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glLoadIdentity();
+}
+
+inline void popScreenSpace() {
+  glPopMatrix();
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix();
+  glMatrixMode(GL_MODELVIEW);
+}
 } // namespace
 
 VideoWidget::VideoWidget(UpdateBehavior behavior) : QOpenGLWindow(behavior) {
@@ -59,6 +83,8 @@ VideoWidget::~VideoWidget() {
     glDeleteTextures(1, &edgeMaskTex); // Delete edge mask texture
   if (roiLabelsTex)
     glDeleteTextures(1, &roiLabelsTex);
+  if (overlayTex)
+    glDeleteTextures(1, &overlayTex);
   vertext_buffer.destroy();
   vertex_array.destroy();
   program_shader.reset();
@@ -253,21 +279,14 @@ void VideoWidget::paintGL() {
   if (!gl_texture || frame_width <= 0 || frame_height <= 0)
     return;
 
-  // Fit image into window while preserving aspect ratio
+  // Fit image into window while preserving aspect ratio, then apply view zoom
   const float W = float(width());
   const float H = float(height());
-  const float texAspect = float(frame_width) / float(frame_height);
-  const float winAspect = W / H;
-  float dstW, dstH;
-  if (winAspect >= texAspect) {
-    dstH = H;
-    dstW = dstH * texAspect;
-  } else {
-    dstW = W;
-    dstH = dstW / texAspect;
-  }
-  const float dstX = (W - dstW) * 0.5f;
-  const float dstY = (H - dstH) * 0.5f;
+  const QRectF dst = frameDisplayRect();
+  const float dstX = float(dst.x());
+  const float dstY = float(dst.y());
+  const float dstW = float(dst.width());
+  const float dstH = float(dst.height());
 
   updateQuad(dstX, dstY, dstW, dstH);
 
@@ -277,6 +296,14 @@ void VideoWidget::paintGL() {
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, gl_texture);
   program_shader->setUniformValue(sampler_uniform, 0);
+
+  // Show hard pixel boundaries once zoomed in far enough to see single pixels
+  const bool wantNearest = dstW / float(frame_width) >= kNearestFilterPxScale;
+  if (wantNearest != nearest_filter) {
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                    wantNearest ? GL_NEAREST : GL_LINEAR);
+    nearest_filter = wantNearest;
+  }
 
   // Bind edge mask on texture unit 1 and provide overlay color/alpha
   glActiveTexture(GL_TEXTURE1);
@@ -427,6 +454,9 @@ void VideoWidget::paintGL() {
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_BLEND);
   }
+
+  drawPixelInspector(dst);
+  drawZoomIndicator();
 }
 
 QImage VideoWidget::captureToImage() {
@@ -689,56 +719,225 @@ void VideoWidget::ClearROILocks() {
     }
 }
 
+void VideoWidget::setViewZoomEnabled(bool enabled) {
+  view_zoom_enabled = enabled;
+  view_zoom = 1.0f;
+  view_center = QPointF(0.5, 0.5);
+  panning = false;
+  updateCursor();
+  requestUpdate();
+}
+
+void VideoWidget::setPixelInspectorEnabled(bool enabled) {
+  pixel_inspector_enabled = enabled;
+  updateCursor();
+  requestUpdate();
+}
+
+void VideoWidget::updateCursor() {
+  if (panning && pan_moved)
+    setCursor(Qt::ClosedHandCursor);
+  else if (pixel_inspector_enabled)
+    setCursor(Qt::CrossCursor);
+  else if (view_zoom_enabled)
+    setCursor(Qt::OpenHandCursor);
+  else
+    unsetCursor();
+}
+
+QRectF VideoWidget::frameDisplayRect() const {
+  const double W = width();
+  const double H = height();
+  if (frame_width <= 0 || frame_height <= 0 || W <= 0 || H <= 0)
+    return QRectF();
+
+  // The camera frame is drawn letterboxed (aspect-ratio preserved) inside the
+  // widget, then magnified by the view zoom around view_center.
+  const double fitScale = std::min(W / frame_width, H / frame_height);
+  const double zoom = view_zoom_enabled ? view_zoom : 1.0;
+  const double dispW = frame_width * fitScale * zoom;
+  const double dispH = frame_height * fitScale * zoom;
+  const QPointF c = clampViewCenter(view_center, dispW, dispH);
+  return QRectF(W * 0.5 - c.x() * dispW, H * 0.5 - c.y() * dispH, dispW,
+                dispH);
+}
+
+QPointF VideoWidget::clampViewCenter(QPointF center, double dispW,
+                                     double dispH) const {
+  // half = half the widget size as a fraction of the displayed frame
+  auto clampAxis = [](double c, double half) {
+    return half >= 0.5 ? 0.5 : std::clamp(c, half, 1.0 - half);
+  };
+  return QPointF(clampAxis(center.x(), 0.5 * width() / dispW),
+                 clampAxis(center.y(), 0.5 * height() / dispH));
+}
+
+bool VideoWidget::widgetToFramePixel(QPointF pos, int &px, int &py) const {
+  const QRectF dst = frameDisplayRect();
+  if (dst.isEmpty() || !dst.contains(pos))
+    return false;
+
+  px = std::clamp(int((pos.x() - dst.x()) * frame_width / dst.width()), 0,
+                  frame_width - 1);
+  py = std::clamp(int((pos.y() - dst.y()) * frame_height / dst.height()), 0,
+                  frame_height - 1);
+  return true;
+}
+
+int VideoWidget::displayedPixelValue(int x, int y) const {
+  // The staging buffer always holds the most recent frame handed to the GL
+  // texture, i.e. what is on screen (including the ROI composite when active).
+  if (x < 0 || y < 0 || x >= pending_width || y >= pending_height)
+    return -1;
+
+  const auto *row =
+      reinterpret_cast<const unsigned char *>(byte_array_staging.constData()) +
+      size_t(y) * size_t(pending_stride);
+
+  // Color formats are converted to luma using BGR order, matching the
+  // cv::cvtColor conversions in updateFrameFromBitmap.
+  auto luma = [](const unsigned char *bgr) {
+    return int(0.114 * bgr[0] + 0.587 * bgr[1] + 0.299 * bgr[2] + 0.5);
+  };
+
+  switch (pending_bpp) {
+  case 8:
+    return row[x];
+  case 16: {
+    uint16_t v;
+    std::memcpy(&v, row + size_t(x) * 2, sizeof(v));
+    return v >> 8;
+  }
+  case 24:
+    return luma(row + size_t(x) * 3);
+  case 32:
+    return luma(row + size_t(x) * 4);
+  default:
+    return -1;
+  }
+}
+
 /*
  Mouse button down event handler for QtVideoWidget
+
+ When view zoom is enabled, a left press starts a pan; it is only treated as a
+ click (see handleClick) if released without dragging.
+*/
+void VideoWidget::mousePressEvent(QMouseEvent *event) {
+  if (view_zoom_enabled && event->button() == Qt::LeftButton) {
+    panning = true;
+    pan_moved = false;
+    press_pos = event->position();
+    pan_last_pos = press_pos;
+    return;
+  }
+
+  if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)
+    handleClick(event->position(), event->button() == Qt::RightButton);
+}
+
+void VideoWidget::mouseMoveEvent(QMouseEvent *event) {
+  const QPointF pos = event->position();
+  hover_pos = pos;
+
+  if (panning) {
+    if (!pan_moved &&
+        (pos - press_pos).manhattanLength() >= kDragThresholdPx) {
+      pan_moved = true;
+      updateCursor();
+    }
+
+    const QRectF dst = frameDisplayRect();
+    if (pan_moved && !dst.isEmpty()) {
+      // Shift the view center opposite to the drag so the frame follows the
+      // cursor. Start from the effective (clamped) center so panning responds
+      // immediately even if the stored center is out of range.
+      const QPointF delta = pos - pan_last_pos;
+      const QPointF current((width() * 0.5 - dst.x()) / dst.width(),
+                            (height() * 0.5 - dst.y()) / dst.height());
+      view_center = clampViewCenter(
+          current - QPointF(delta.x() / dst.width(), delta.y() / dst.height()),
+          dst.width(), dst.height());
+      pan_last_pos = pos;
+    }
+  }
+
+  if (panning || pixel_inspector_enabled)
+    requestUpdate();
+}
+
+void VideoWidget::mouseReleaseEvent(QMouseEvent *event) {
+  if (event->button() != Qt::LeftButton || !panning)
+    return;
+
+  panning = false;
+  updateCursor();
+  if (!pan_moved)
+    handleClick(press_pos, false);
+}
+
+void VideoWidget::wheelEvent(QWheelEvent *event) {
+  const QRectF dst = frameDisplayRect();
+  const float steps = event->angleDelta().y() / 120.0f;
+  { FILE *dbg = std::fopen("wheel_debug.log", "a"); if (dbg) { std::fprintf(dbg, "%lld angle=%d,%d pixel=%d,%d phase=%d src=%d inverted=%d zoom=%.3f\n", (long long)QDateTime::currentMSecsSinceEpoch(), event->angleDelta().x(), event->angleDelta().y(), event->pixelDelta().x(), event->pixelDelta().y(), int(event->phase()), int(event->source()), int(event->inverted()), view_zoom); std::fclose(dbg); } } // TEMP_WHEEL_DEBUG
+  if (!view_zoom_enabled || dst.isEmpty() || steps == 0.0f) {
+    event->ignore();
+    return;
+  }
+
+  const float newZoom = std::clamp(
+      view_zoom * std::pow(kViewZoomStep, steps), 1.0f, kMaxViewZoom);
+
+  // Keep the frame point under the cursor fixed while zooming
+  const QPointF pos = event->position();
+  const QPointF anchor((pos.x() - dst.x()) / dst.width(),
+                       (pos.y() - dst.y()) / dst.height());
+  const double newW = dst.width() * newZoom / view_zoom;
+  const double newH = dst.height() * newZoom / view_zoom;
+  view_zoom = newZoom;
+  view_center = clampViewCenter(
+      QPointF(anchor.x() + (width() * 0.5 - pos.x()) / newW,
+              anchor.y() + (height() * 0.5 - pos.y()) / newH),
+      newW, newH);
+
+  hover_pos = pos;
+  event->accept();
+  requestUpdate();
+}
+
+bool VideoWidget::event(QEvent *event) {
+  if (event->type() == QEvent::Leave) {
+    hover_pos = QPointF(-1, -1);
+    if (pixel_inspector_enabled)
+      requestUpdate();
+  }
+  return QOpenGLWindow::event(event);
+}
+
+/*
+ Click handler for QtVideoWidget
 
  Left click specifies a marker/contour location, right click clears the
  selection of a particular quadrant. If no marker is specified, default behavior
  is to automatically select a contour in the quadrant.
 
  Some conversion between click coordinates and original image pixels is
- required: Conversion: Widget px -> frame px (undoes window letterbox scaling)
- -> original px (undoing ROI zoom + resize, using mapClickToImageCoords)
+ required: Conversion: Widget px -> frame px (undoes window letterbox scaling
+ and view zoom) -> original px (undoing ROI zoom + resize, using
+ mapClickToImageCoords)
 */
-void VideoWidget::mousePressEvent(QMouseEvent *event) {
-  bool clearSelection = (event->button() == Qt::RightButton);
-
-  if (event->button() != Qt::LeftButton && event->button() != Qt::RightButton)
-    return;
-
+void VideoWidget::handleClick(QPointF pos, bool clearSelection) {
   // Lock placement requires ROI zoom to be active
   if (!clearSelection && !roiZoomEnabled.load(std::memory_order_relaxed)) {
       return;
   }
 
-  // click position in widget pixels
-  QPoint c = event->pos();
-
-  // Convert widget pixel coordinates to frame pixel coordinates by undoing the
-  // letterbox scaling.
-  // The camera frame is drawn letterboxed (aspect-ratio preserved) inside the
-  // widget, which causes black bars to appear. Compute the scale factor and the
-  // top-left offset of the drawn image rect.
-  int w = width();
-  int h = height();
-  float scale =
-      std::min(float(w) / float(frame_width), float(h) / float(frame_height));
-  int drawW = int(frame_width * scale);
-  int drawH = int(frame_height * scale);
-
-  int offsetX = (w - drawW) / 2;
-  int offsetY = (h - drawH) / 2;
-
-  // Ignore clicks outside the video area.
-  if (c.x() < offsetX || c.x() >= offsetX + drawW || c.y() < offsetY ||
-      c.y() >= offsetY + drawH) {
+  // Convert widget pixel coordinates to frame pixel coordinates, ignoring
+  // clicks outside the video area.
+  int px = 0;
+  int py = 0;
+  if (!widgetToFramePixel(pos, px, py))
     return;
-  }
-
-  // Convert widget pixel to frame pixel by removing the letterbox offset and
-  // undoing the scale.
-  int px = (c.x() - offsetX) / scale;
-  int py = (c.y() - offsetY) / scale;
 
   // Determine which quadrant was clicked
   // Check the center diamond first since it overlaps the 4x quadrant grid, then
@@ -1864,4 +2063,192 @@ void VideoWidget::updateCircleMarkersTexture() {
       circleMarkersTex = 0;
     }
   }
+}
+
+void VideoWidget::drawOverlayImage(const QImage &img, float x, float y) {
+  const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
+  if (rgba.isNull())
+    return;
+
+  if (overlayTex == 0) {
+    glGenTextures(1, &overlayTex);
+    glBindTexture(GL_TEXTURE_2D, overlayTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  }
+  glBindTexture(GL_TEXTURE_2D, overlayTex);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgba.width(), rgba.height(), 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, rgba.constBits());
+
+  // Size in widget pixels (image may be rendered at device pixel ratio)
+  const float w = float(img.width() / img.devicePixelRatio());
+  const float h = float(img.height() / img.devicePixelRatio());
+
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_TEXTURE_2D);
+  glColor4f(1.f, 1.f, 1.f, 1.f); // don't modulate the texture
+
+  // QImage rows are stored top-down, so t=0 is the top edge in screen space
+  pushScreenSpace(float(width()), float(height()));
+  glBegin(GL_QUADS);
+  glTexCoord2f(0.f, 0.f);
+  glVertex2f(x, y);
+  glTexCoord2f(1.f, 0.f);
+  glVertex2f(x + w, y);
+  glTexCoord2f(1.f, 1.f);
+  glVertex2f(x + w, y + h);
+  glTexCoord2f(0.f, 1.f);
+  glVertex2f(x, y + h);
+  glEnd();
+  popScreenSpace();
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_TEXTURE_2D);
+  glDisable(GL_BLEND);
+}
+
+/// <summary>
+/// Outlines the 3x3 pixel block under the cursor and draws a floating grid
+/// with each pixel's brightness (0-255). Cells are shaded with the pixel's own
+/// gray level; out-of-frame neighbors show "-".
+/// </summary>
+void VideoWidget::drawPixelInspector(const QRectF &dst) {
+  int px = 0;
+  int py = 0;
+  if (!pixel_inspector_enabled || hover_pos.x() < 0 || hover_pos.y() < 0 ||
+      !widgetToFramePixel(hover_pos, px, py))
+    return;
+
+  const float W = float(width());
+  const float H = float(height());
+
+  // --- Outline the inspected 3x3 block on the image ---
+  const float pxW = float(dst.width() / frame_width);
+  const float pxH = float(dst.height() / frame_height);
+  const float cx = float(dst.x()) + (px + 0.5f) * pxW;
+  const float cy = float(dst.y()) + (py + 0.5f) * pxH;
+  // Keep the outline visible when frame pixels are smaller than screen pixels
+  const float halfW = std::max(1.5f * pxW, 4.0f);
+  const float halfH = std::max(1.5f * pxH, 4.0f);
+
+  glDisable(GL_TEXTURE_2D);
+  glLineWidth(1.0f);
+  glColor4f(0.0f, 1.0f, 1.0f, 1.0f);
+  pushScreenSpace(W, H);
+  glBegin(GL_LINE_LOOP);
+  glVertex2f(cx - halfW, cy - halfH);
+  glVertex2f(cx + halfW, cy - halfH);
+  glVertex2f(cx + halfW, cy + halfH);
+  glVertex2f(cx - halfW, cy + halfH);
+  glEnd();
+  popScreenSpace();
+
+  // --- Render the value grid ---
+  QFont font;
+  font.setPointSize(8);
+  font.setBold(true);
+  const QFontMetrics fm(font);
+
+  const QString header = tr("X: %1  Y: %2").arg(px).arg(py);
+  const int pad = 6;
+  const int cellW = std::max(36, fm.horizontalAdvance(QStringLiteral("255")) + 12);
+  const int cellH = fm.height() + 8;
+  const int headerH = fm.height() + 4;
+  const int boxW = std::max(3 * cellW, fm.horizontalAdvance(header)) + 2 * pad;
+  const int boxH = headerH + 3 * cellH + 2 * pad;
+
+  const qreal dpr = devicePixelRatio();
+  QImage img(QSize(int(boxW * dpr), int(boxH * dpr)), QImage::Format_RGBA8888);
+  img.setDevicePixelRatio(dpr);
+  img.fill(Qt::transparent);
+
+  {
+    QPainter painter(&img);
+    painter.setFont(font);
+    const QColor cyanColor(0, 255, 255);
+
+    painter.fillRect(QRect(0, 0, boxW, boxH), QColor(0, 0, 0, 200));
+    painter.setPen(cyanColor);
+    painter.drawRect(QRectF(0.5, 0.5, boxW - 1, boxH - 1));
+    painter.drawText(QRect(pad, pad, boxW - 2 * pad, headerH),
+                     Qt::AlignLeft | Qt::AlignVCenter, header);
+
+    const int gridX = (boxW - 3 * cellW) / 2;
+    const int gridY = pad + headerH;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        // 1px gap between cells lets the dark background act as grid lines
+        const QRect cellRect(gridX + (dx + 1) * cellW, gridY + (dy + 1) * cellH,
+                             cellW - 1, cellH - 1);
+        const int v = displayedPixelValue(px + dx, py + dy);
+        if (v < 0) {
+          painter.fillRect(cellRect, QColor(40, 40, 40));
+          painter.setPen(QColor(120, 120, 120));
+          painter.drawText(cellRect, Qt::AlignCenter, QStringLiteral("-"));
+        } else {
+          painter.fillRect(cellRect, QColor(v, v, v));
+          painter.setPen(v > 127 ? Qt::black : Qt::white);
+          painter.drawText(cellRect, Qt::AlignCenter, QString::number(v));
+        }
+      }
+    }
+
+    // Highlight the pixel directly under the cursor
+    painter.setPen(QPen(cyanColor, 2));
+    painter.drawRect(
+        QRect(gridX + cellW, gridY + cellH, cellW - 1, cellH - 1)
+            .adjusted(1, 1, -1, -1));
+  }
+
+  // Place the grid beside the cursor, flipping sides near the widget edges
+  const float offset = 16.0f;
+  float bx = float(hover_pos.x()) + offset;
+  float by = float(hover_pos.y()) + offset;
+  if (bx + boxW > W)
+    bx = float(hover_pos.x()) - offset - boxW;
+  if (by + boxH > H)
+    by = float(hover_pos.y()) - offset - boxH;
+  drawOverlayImage(img, std::round(std::max(0.0f, bx)),
+                   std::round(std::max(0.0f, by)));
+}
+
+/// <summary>
+/// Shows the current view zoom level (or a usage hint at 1x) at the bottom
+/// center of the view while view zoom is enabled.
+/// </summary>
+void VideoWidget::drawZoomIndicator() {
+  if (!view_zoom_enabled)
+    return;
+
+  const QString text =
+      view_zoom > 1.001f
+          ? tr("Zoom %1x (drag to pan)").arg(view_zoom, 0, 'f', 1)
+          : tr("Scroll to zoom");
+
+  QFont font;
+  font.setPointSize(8);
+  font.setBold(true);
+  const QFontMetrics fm(font);
+  const int pad = 4;
+  const int boxW = fm.horizontalAdvance(text) + 2 * pad;
+  const int boxH = fm.height() + 2 * pad;
+
+  const qreal dpr = devicePixelRatio();
+  QImage img(QSize(int(boxW * dpr), int(boxH * dpr)), QImage::Format_RGBA8888);
+  img.setDevicePixelRatio(dpr);
+  img.fill(Qt::transparent);
+  {
+    QPainter painter(&img);
+    painter.setFont(font);
+    painter.fillRect(QRect(0, 0, boxW, boxH), QColor(0, 0, 0, 180));
+    painter.setPen(QColor(0, 255, 255));
+    painter.drawText(QRect(0, 0, boxW, boxH), Qt::AlignCenter, text);
+  }
+
+  drawOverlayImage(img, std::round((width() - boxW) * 0.5f),
+                   float(height() - boxH - 6));
 }
