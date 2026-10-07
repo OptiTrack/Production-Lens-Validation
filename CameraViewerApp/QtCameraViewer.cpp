@@ -437,7 +437,8 @@ void QtCameraViewer::retranslateUi() {
         QCoreApplication::translate("QtCameraViewer", "Zoom"));
     view_zoom_button->setToolTip(QCoreApplication::translate(
         "QtCameraViewer",
-        "Scroll to zoom the 2D view, drag to pan. Turn off to reset."));
+        "Scroll to zoom the 2D view, drag with the left or middle mouse button "
+        "to pan. Turn off to reset."));
   }
   if (pixel_inspector_button) {
     pixel_inspector_button->setText(

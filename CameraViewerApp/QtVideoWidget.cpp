@@ -13,8 +13,6 @@
 #include <QPainter>
 #include <QThread>
 #include <QWheelEvent>
-#include <QDateTime> // TEMP_WHEEL_DEBUG
-#include <cstdio> // TEMP_WHEEL_DEBUG
 #include <bitmap.h>
 #include <cmath>
 #include <cstddef>
@@ -820,12 +818,17 @@ int VideoWidget::displayedPixelValue(int x, int y) const {
 /*
  Mouse button down event handler for QtVideoWidget
 
- When view zoom is enabled, a left press starts a pan; it is only treated as a
- click (see handleClick) if released without dragging.
+ When view zoom is enabled, a left or middle press starts a pan. A left press
+ is only treated as a click (see handleClick) if released without dragging.
 */
 void VideoWidget::mousePressEvent(QMouseEvent *event) {
-  if (view_zoom_enabled && event->button() == Qt::LeftButton) {
+  if (panning)
+    return; // ignore other buttons until the active pan ends
+
+  if (view_zoom_enabled && (event->button() == Qt::LeftButton ||
+                            event->button() == Qt::MiddleButton)) {
     panning = true;
+    pan_button = event->button();
     pan_moved = false;
     press_pos = event->position();
     pan_last_pos = press_pos;
@@ -867,19 +870,18 @@ void VideoWidget::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void VideoWidget::mouseReleaseEvent(QMouseEvent *event) {
-  if (event->button() != Qt::LeftButton || !panning)
+  if (!panning || event->button() != pan_button)
     return;
 
   panning = false;
   updateCursor();
-  if (!pan_moved)
+  if (!pan_moved && pan_button == Qt::LeftButton)
     handleClick(press_pos, false);
 }
 
 void VideoWidget::wheelEvent(QWheelEvent *event) {
   const QRectF dst = frameDisplayRect();
   const float steps = event->angleDelta().y() / 120.0f;
-  { FILE *dbg = std::fopen("wheel_debug.log", "a"); if (dbg) { std::fprintf(dbg, "%lld angle=%d,%d pixel=%d,%d phase=%d src=%d inverted=%d zoom=%.3f\n", (long long)QDateTime::currentMSecsSinceEpoch(), event->angleDelta().x(), event->angleDelta().y(), event->pixelDelta().x(), event->pixelDelta().y(), int(event->phase()), int(event->source()), int(event->inverted()), view_zoom); std::fclose(dbg); } } // TEMP_WHEEL_DEBUG
   if (!view_zoom_enabled || dst.isEmpty() || steps == 0.0f) {
     event->ignore();
     return;
@@ -2112,9 +2114,11 @@ void VideoWidget::drawOverlayImage(const QImage &img, float x, float y) {
 }
 
 /// <summary>
-/// Outlines the 3x3 pixel block under the cursor and draws a floating grid
-/// with each pixel's brightness (0-255). Cells are shaded with the pixel's own
-/// gray level; out-of-frame neighbors show "-".
+/// Draws the brightness (0-255) of the 3x3 pixels under the cursor directly
+/// over those pixels. Once zoomed in far enough, each value sits inside its own
+/// on-screen pixel; otherwise the cells grow (still centered on the hovered
+/// pixel) and are filled with each pixel's gray level so they read as
+/// magnified pixels. Out-of-frame neighbors show "-".
 /// </summary>
 void VideoWidget::drawPixelInspector(const QRectF &dst) {
   int px = 0;
@@ -2123,97 +2127,103 @@ void VideoWidget::drawPixelInspector(const QRectF &dst) {
       !widgetToFramePixel(hover_pos, px, py))
     return;
 
-  const float W = float(width());
-  const float H = float(height());
+  // Screen size of one frame pixel and the center of the hovered pixel
+  const double pxW = dst.width() / frame_width;
+  const double pxH = dst.height() / frame_height;
+  const double cx = dst.x() + (px + 0.5) * pxW;
+  const double cy = dst.y() + (py + 0.5) * pxH;
 
-  // --- Outline the inspected 3x3 block on the image ---
-  const float pxW = float(dst.width() / frame_width);
-  const float pxH = float(dst.height() / frame_height);
-  const float cx = float(dst.x()) + (px + 0.5f) * pxW;
-  const float cy = float(dst.y()) + (py + 0.5f) * pxH;
-  // Keep the outline visible when frame pixels are smaller than screen pixels
-  const float halfW = std::max(1.5f * pxW, 4.0f);
-  const float halfH = std::max(1.5f * pxH, 4.0f);
-
-  glDisable(GL_TEXTURE_2D);
-  glLineWidth(1.0f);
-  glColor4f(0.0f, 1.0f, 1.0f, 1.0f);
-  pushScreenSpace(W, H);
-  glBegin(GL_LINE_LOOP);
-  glVertex2f(cx - halfW, cy - halfH);
-  glVertex2f(cx + halfW, cy - halfH);
-  glVertex2f(cx + halfW, cy + halfH);
-  glVertex2f(cx - halfW, cy + halfH);
-  glEnd();
-  popScreenSpace();
-
-  // --- Render the value grid ---
+  // Smallest cell that still fits a value at the minimum font size
+  const int minFontPx = 11;
   QFont font;
-  font.setPointSize(8);
   font.setBold(true);
+  font.setPixelSize(minFontPx);
   const QFontMetrics fm(font);
+  const double minCellW = fm.horizontalAdvance(QStringLiteral("255")) + 6;
+  const double minCellH = fm.height() + 2;
 
-  const QString header = tr("X: %1  Y: %2").arg(px).arg(py);
-  const int pad = 6;
-  const int cellW = std::max(36, fm.horizontalAdvance(QStringLiteral("255")) + 12);
-  const int cellH = fm.height() + 8;
-  const int headerH = fm.height() + 4;
-  const int boxW = std::max(3 * cellW, fm.horizontalAdvance(header)) + 2 * pad;
-  const int boxH = headerH + 3 * cellH + 2 * pad;
+  const bool onPixels = pxW >= minCellW && pxH >= minCellH;
+  const double cellW = std::max(pxW, minCellW);
+  const double cellH = std::max(pxH, minCellH);
+  const QRectF grid(cx - 1.5 * cellW, cy - 1.5 * cellH, 3 * cellW, 3 * cellH);
+
+  // Scale the values up with the cells when zoomed far in
+  font.setPixelSize(std::clamp(int(std::min(cellW, cellH) * 0.3), minFontPx, 32));
+
+  // Coordinate tag under the grid (above it near the bottom edge)
+  QFont captionFont;
+  captionFont.setBold(true);
+  captionFont.setPixelSize(minFontPx);
+  const QFontMetrics cfm(captionFont);
+  const QString caption = tr("X: %1  Y: %2").arg(px).arg(py);
+  const QSizeF captionSize(cfm.horizontalAdvance(caption) + 8, cfm.height() + 4);
+  const bool captionBelow =
+      grid.bottom() + 2 + captionSize.height() <= height();
+  const QRectF captionRect(
+      QPointF(grid.left(), captionBelow
+                               ? grid.bottom() + 2
+                               : grid.top() - 2 - captionSize.height()),
+      captionSize);
+
+  // Render into an image covering grid + caption. Painting is offset by the
+  // image origin so fractional grid positions stay aligned to frame pixels.
+  const QRectF bounds = grid.united(captionRect).adjusted(-1, -1, 1, 1);
+  const QPoint origin(int(std::floor(bounds.left())),
+                      int(std::floor(bounds.top())));
+  const QSize size(int(std::ceil(bounds.right())) - origin.x(),
+                   int(std::ceil(bounds.bottom())) - origin.y());
 
   const qreal dpr = devicePixelRatio();
-  QImage img(QSize(int(boxW * dpr), int(boxH * dpr)), QImage::Format_RGBA8888);
+  QImage img(size * dpr, QImage::Format_RGBA8888);
   img.setDevicePixelRatio(dpr);
   img.fill(Qt::transparent);
 
   {
     QPainter painter(&img);
+    painter.translate(-origin);
     painter.setFont(font);
     const QColor cyanColor(0, 255, 255);
 
-    painter.fillRect(QRect(0, 0, boxW, boxH), QColor(0, 0, 0, 200));
-    painter.setPen(cyanColor);
-    painter.drawRect(QRectF(0.5, 0.5, boxW - 1, boxH - 1));
-    painter.drawText(QRect(pad, pad, boxW - 2 * pad, headerH),
-                     Qt::AlignLeft | Qt::AlignVCenter, header);
-
-    const int gridX = (boxW - 3 * cellW) / 2;
-    const int gridY = pad + headerH;
     for (int dy = -1; dy <= 1; ++dy) {
       for (int dx = -1; dx <= 1; ++dx) {
-        // 1px gap between cells lets the dark background act as grid lines
-        const QRect cellRect(gridX + (dx + 1) * cellW, gridY + (dy + 1) * cellH,
-                             cellW - 1, cellH - 1);
+        const QRectF cellRect(grid.left() + (dx + 1) * cellW,
+                              grid.top() + (dy + 1) * cellH, cellW, cellH);
         const int v = displayedPixelValue(px + dx, py + dy);
         if (v < 0) {
           painter.fillRect(cellRect, QColor(40, 40, 40));
           painter.setPen(QColor(120, 120, 120));
           painter.drawText(cellRect, Qt::AlignCenter, QStringLiteral("-"));
         } else {
-          painter.fillRect(cellRect, QColor(v, v, v));
+          // On-pixel cells leave the video visible underneath
+          if (!onPixels)
+            painter.fillRect(cellRect, QColor(v, v, v));
           painter.setPen(v > 127 ? Qt::black : Qt::white);
           painter.drawText(cellRect, Qt::AlignCenter, QString::number(v));
         }
       }
     }
 
-    // Highlight the pixel directly under the cursor
+    // Faint inner grid lines, solid outer border, and the hovered pixel
+    painter.setPen(QPen(QColor(0, 255, 255, 110), 1));
+    for (int i = 1; i <= 2; ++i) {
+      const double x = grid.left() + i * cellW;
+      const double y = grid.top() + i * cellH;
+      painter.drawLine(QPointF(x, grid.top()), QPointF(x, grid.bottom()));
+      painter.drawLine(QPointF(grid.left(), y), QPointF(grid.right(), y));
+    }
+    painter.setPen(QPen(cyanColor, 1));
+    painter.drawRect(grid);
     painter.setPen(QPen(cyanColor, 2));
     painter.drawRect(
-        QRect(gridX + cellW, gridY + cellH, cellW - 1, cellH - 1)
-            .adjusted(1, 1, -1, -1));
+        QRectF(grid.left() + cellW, grid.top() + cellH, cellW, cellH));
+
+    painter.setFont(captionFont);
+    painter.fillRect(captionRect, QColor(0, 0, 0, 180));
+    painter.setPen(cyanColor);
+    painter.drawText(captionRect, Qt::AlignCenter, caption);
   }
 
-  // Place the grid beside the cursor, flipping sides near the widget edges
-  const float offset = 16.0f;
-  float bx = float(hover_pos.x()) + offset;
-  float by = float(hover_pos.y()) + offset;
-  if (bx + boxW > W)
-    bx = float(hover_pos.x()) - offset - boxW;
-  if (by + boxH > H)
-    by = float(hover_pos.y()) - offset - boxH;
-  drawOverlayImage(img, std::round(std::max(0.0f, bx)),
-                   std::round(std::max(0.0f, by)));
+  drawOverlayImage(img, float(origin.x()), float(origin.y()));
 }
 
 /// <summary>

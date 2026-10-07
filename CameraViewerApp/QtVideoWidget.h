@@ -114,6 +114,7 @@ private:
   static constexpr float kDragThresholdPx = 4.0f; // movement before click
                                                   // becomes a pan
   bool panning = false;
+  Qt::MouseButton pan_button = Qt::NoButton; // button that started the pan
   bool pan_moved = false;
   QPointF press_pos;
   QPointF pan_last_pos;
