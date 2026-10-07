@@ -3,6 +3,7 @@
 #include <cstring>
 // OpenCV for simple image processing (edge detection)
 #include <GL/gl.h>
+#include <QCoreApplication>
 #include <QFont>
 #include <QFontMetrics>
 #include <QImage>
@@ -1587,7 +1588,7 @@ void VideoWidget::drawShapesOverlay(float dstX, float dstY, float dstW,
     }
 
     // Flip vertically: QPainter y=0 is top, GL y=0 is bottom
-    QImage flipped = overlay.flipped(Qt::Vertical);
+    QImage flipped = overlay.mirrored(false, true);
 
     if (roiLabelsTex != 0) {
       glDeleteTextures(1, &roiLabelsTex);
