@@ -9,6 +9,8 @@
 #include <QOpenGLTexture>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWindow>
+#include <QPointF>
+#include <QRectF>
 #include <QtSvg/qsvgrenderer.h>
 #include <atomic>
 #include <mutex>
@@ -43,13 +45,22 @@ public slots:
   void updateFrameFromBitmap(CameraLibrary::Bitmap *bmp);
   void setNewZoomValue(float zoom);
   void setWorstMarkersN(int n) { worstN = n; }
-
+  /// Enables mouse-wheel zoom and drag-to-pan in the 2D view. Disabling resets
+  /// the view to fit the window.
+  void setViewZoomEnabled(bool enabled);
+  /// Enables the hover overlay showing 0-255 brightness values of the 3x3
+  /// pixel neighborhood under the cursor.
+  void setPixelInspectorEnabled(bool enabled);
 
 protected:
   void initializeGL() override;
   void resizeGL(int w, int h) override;
   void paintGL() override;
+  bool event(QEvent *event) override;
   void mousePressEvent(QMouseEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
+  void mouseReleaseEvent(QMouseEvent *event) override;
+  void wheelEvent(QWheelEvent *event) override;
 
 private:
   GLuint gl_texture = 0;
@@ -90,6 +101,32 @@ private:
 
   float ROIZoomScale = 2.f; // degree of zoom for ROI quadrants
   int worstN = 1; // default # of worst markers to display as red
+
+  // View zoom: user magnification of the whole 2D view (independent of the
+  // ROI quadrant zoom above)
+  bool view_zoom_enabled = false;
+  float view_zoom = 1.0f;          // 1 = frame fitted to window
+  QPointF view_center{0.5, 0.5};   // normalized frame point at widget center
+  static constexpr float kMaxViewZoom = 64.0f;
+  static constexpr float kViewZoomStep = 1.25f; // per mouse wheel notch
+  static constexpr float kNearestFilterPxScale =
+      3.0f; // screen px per frame px above which pixels are drawn unfiltered
+  static constexpr float kDragThresholdPx = 4.0f; // movement before click
+                                                  // becomes a pan
+  bool panning = false;
+  Qt::MouseButton pan_button = Qt::NoButton; // button that started the pan
+  bool pan_moved = false;
+  QPointF press_pos;
+  QPointF pan_last_pos;
+  bool nearest_filter = false;
+
+  // Pixel inspector: shows brightness of the 3x3 pixels under the cursor
+  bool pixel_inspector_enabled = false;
+  QPointF hover_pos{-1, -1}; // widget coords, (-1,-1) when cursor is outside
+
+  // Reusable texture for small QPainter-rendered overlays (inspector, zoom
+  // indicator)
+  GLuint overlayTex = 0;
 
   // Per-slot tracking: each of the 5 display slots (TL, TR, BL, BR, center)
   // independently tracks its chosen marker across frames, selecting the closest
@@ -186,6 +223,25 @@ private:
   void drawCircleMarkers(float dstX, float dstY, float dstW, float dstH);
   void updateCircleMarkersTexture(); ///< Generate texture from detected markers
                                      ///< with circularity labels
+
+  /// Widget-space rect the frame is drawn into: letterboxed to fit the window,
+  /// then scaled and panned by the view zoom.
+  QRectF frameDisplayRect() const;
+  /// Clamps a normalized view center so the zoomed frame never pans past its
+  /// edges. Axes where the frame is smaller than the widget stay centered.
+  QPointF clampViewCenter(QPointF center, double dispW, double dispH) const;
+  /// Maps a widget position to frame pixel coordinates. Returns false when the
+  /// position is outside the drawn frame.
+  bool widgetToFramePixel(QPointF pos, int &px, int &py) const;
+  /// Brightness (0-255) of a pixel in the most recently received frame, or -1
+  /// if (x, y) is out of bounds.
+  int displayedPixelValue(int x, int y) const;
+  void handleClick(QPointF pos, bool clearSelection);
+  void updateCursor();
+  void drawPixelInspector(const QRectF &dst);
+  void drawZoomIndicator();
+  /// Draws a QPainter-rendered image at widget position (x, y) (top-left).
+  void drawOverlayImage(const QImage &img, float x, float y);
   std::vector<RoiInfo> extractROIs(const cv::Mat &gray, const cv::Mat &edges,
                                    int margin, size_t maxROIs);
   cv::Mat zoomCrop(const cv::Mat &src, const cv::Point2f &center, float zoom);
