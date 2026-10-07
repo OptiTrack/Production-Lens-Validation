@@ -1,0 +1,33 @@
+#include <winver.h>
+#include "version.h"
+
+IDI_ICON1 ICON DISCARDABLE "Assets/Opti-Lens.ico"
+
+// Version shown in the executable's Properties > Details tab
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION APP_VERSION_MAJOR, APP_VERSION_MINOR, APP_VERSION_PATCH, 0
+PRODUCTVERSION APP_VERSION_MAJOR, APP_VERSION_MINOR, APP_VERSION_PATCH, 0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0x0L
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "OptiTrack"
+            VALUE "FileDescription", "CameraViewerApp"
+            VALUE "FileVersion", APP_VERSION_STRING
+            VALUE "InternalName", "CameraViewerApp"
+            VALUE "OriginalFilename", "CameraViewerApp.exe"
+            VALUE "ProductName", "CameraViewerApp"
+            VALUE "ProductVersion", APP_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
